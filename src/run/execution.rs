@@ -28,7 +28,7 @@ pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapte
         claude_code::ClaudeCodeAdapter, mock::MockAdapter, opencode::OpenCodeAdapter,
     };
     let adapter: Box<dyn ToolAdapter> = match tool {
-        "claude-code" => Box::new(ClaudeCodeAdapter),
+        "claude" | "claude-code" => Box::new(ClaudeCodeAdapter),
         "mock" => Box::new(MockAdapter),
         "opencode" => Box::new(OpenCodeAdapter),
         _ => anyhow::bail!("Unknown tool: {}", tool),
@@ -111,6 +111,9 @@ pub fn run_evaluation_flow(
 
     // Write transcript immediately after execution so evaluation can read it
     writer.write_raw(&output)?;
+    // Also copy transcript to fixture directory for gate evaluators that read from env_root
+    let fixture_transcript = env.root.join("transcript.raw.txt");
+    std::fs::write(&fixture_transcript, &output).ok();
     let event = if let Some(c) = cost {
         serde_json::json!({
             "type": "execution",

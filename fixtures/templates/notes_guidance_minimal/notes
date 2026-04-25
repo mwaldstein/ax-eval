@@ -1,0 +1,243 @@
+#!/bin/bash
+# notes - Mock CLI note-taking tool with complexity requiring guidance to use well
+# Intentionally designed so poor AGENTS.md leads to discovery errors
+
+set -e
+
+DB_FILE="notes.db"
+LINKS_FILE="links.txt"
+
+usage() {
+    echo "Usage: notes <command> [args...]"
+    echo "Commands:"
+    echo "  init                         - Initialize notes database"
+    echo "  add <title> [--tag <tag>]    - Add a note (returns note ID)"
+    echo "  show <id>                    - Show note by ID"
+    echo "  list [--tag <tag>]           - List notes"
+    echo "  search <query> [--content]   - Search notes (titles only by default)"
+    echo "  link <from-id> <to-id>       - Link two notes (requires IDs, not titles)"
+    echo "  graph                        - Show note graph"
+    echo "  export [--format json|md]    - Export notes"
+    echo "  help                         - Show this help"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    init)
+        echo '{"notes":[], "next_id":1}' > "$DB_FILE"
+        echo "[]" > "$LINKS_FILE"
+        echo "Initialized notes database"
+        ;;
+    add)
+        if [ $# -lt 1 ]; then
+            echo "Error: title required"
+            exit 1
+        fi
+        TITLE="$1"
+        shift
+        TAG=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --tag)
+                    TAG="$2"
+                    shift 2
+                    ;;
+                *)
+                    echo "Error: unknown flag '$1'"
+                    exit 1
+                    ;;
+            esac
+        done
+        if [ ! -f "$DB_FILE" ]; then
+            echo "Error: database not initialized. Run 'notes init' first."
+            exit 1
+        fi
+        ID=$(python3 -c "
+import json, sys
+with open('$DB_FILE') as f:
+    data = json.load(f)
+note_id = data['next_id']
+data['next_id'] += 1
+data['notes'].append({'id': note_id, 'title': '$TITLE', 'tag': '$TAG'})
+with open('$DB_FILE', 'w') as f:
+    json.dump(data, f)
+print(note_id)
+" 2>/dev/null || echo "0")
+        echo "Created note $ID: $TITLE"
+        ;;
+    show)
+        if [ $# -lt 1 ]; then
+            echo "Error: id required"
+            exit 1
+        fi
+        if [ ! -f "$DB_FILE" ]; then
+            echo "Error: database not initialized"
+            exit 1
+        fi
+        python3 -c "
+import json, sys
+with open('$DB_FILE') as f:
+    data = json.load(f)
+id = int('$1')
+for n in data['notes']:
+    if n['id'] == id:
+        print(f\"ID: {n['id']}\")
+        print(f\"Title: {n['title']}\")
+        print(f\"Tag: {n['tag'] or '(none)'}\")
+        sys.exit(0)
+print(f'Note {id} not found')
+sys.exit(1)
+" 2>/dev/null || echo "Error: show failed"
+        ;;
+    list)
+        TAG=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --tag)
+                    TAG="$2"
+                    shift 2
+                    ;;
+                *)
+                    echo "Error: unknown flag '$1'"
+                    exit 1
+                    ;;
+            esac
+        done
+        if [ ! -f "$DB_FILE" ]; then
+            echo "Error: database not initialized"
+            exit 1
+        fi
+        python3 -c "
+import json, sys
+with open('$DB_FILE') as f:
+    data = json.load(f)
+for n in data['notes']:
+    if not '$TAG' or n['tag'] == '$TAG':
+        print(f\"{n['id']}: {n['title']} [{n['tag'] or 'no tag'}]\")
+" 2>/dev/null || echo "Error: list failed"
+        ;;
+    search)
+        if [ $# -lt 1 ]; then
+            echo "Error: query required"
+            exit 1
+        fi
+        QUERY="$1"
+        shift
+        SEARCH_CONTENT="false"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --content)
+                    SEARCH_CONTENT="true"
+                    shift
+                    ;;
+                *)
+                    echo "Error: unknown flag '$1'"
+                    exit 1
+                    ;;
+            esac
+        done
+        if [ ! -f "$DB_FILE" ]; then
+            echo "Error: database not initialized"
+            exit 1
+        fi
+        python3 -c "
+import json, sys
+with open('$DB_FILE') as f:
+    data = json.load(f)
+found = False
+for n in data['notes']:
+    if '$QUERY'.lower() in n['title'].lower():
+        print(f\"{n['id']}: {n['title']}\")
+        found = True
+    elif $SEARCH_CONTENT and '$QUERY'.lower() in n.get('content','').lower():
+        print(f\"{n['id']}: {n['title']}\")
+        found = True
+if not found:
+    print('No matches')
+" 2>/dev/null || echo "Error: search failed"
+        ;;
+    link)
+        if [ $# -lt 2 ]; then
+            echo "Error: two note IDs required"
+            exit 1
+        fi
+        FROM="$1"
+        TO="$2"
+        if [ ! -f "$DB_FILE" ]; then
+            echo "Error: database not initialized"
+            exit 1
+        fi
+        # Validate both notes exist
+        python3 -c "
+import json, sys
+with open('$DB_FILE') as f:
+    data = json.load(f)
+ids = {n['id'] for n in data['notes']}
+if int('$FROM') not in ids:
+    print(f'Note {\"$FROM\"} not found')
+    sys.exit(1)
+if int('$TO') not in ids:
+    print(f'Note {\"$TO\"} not found')
+    sys.exit(1)
+" 2>/dev/null || exit 1
+        echo "$FROM -> $TO" >> "$LINKS_FILE"
+        echo "Linked $FROM to $TO"
+        ;;
+    graph)
+        if [ ! -f "$LINKS_FILE" ]; then
+            echo "No links yet"
+            exit 0
+        fi
+        echo "Note graph:"
+        cat "$LINKS_FILE"
+        ;;
+    export)
+        FORMAT="json"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --format)
+                    FORMAT="$2"
+                    shift 2
+                    ;;
+                *)
+                    echo "Error: unknown flag '$1'"
+                    exit 1
+                    ;;
+            esac
+        done
+        if [ ! -f "$DB_FILE" ]; then
+            echo "Error: database not initialized"
+            exit 1
+        fi
+        if [ "$FORMAT" == "json" ]; then
+            cat "$DB_FILE"
+        elif [ "$FORMAT" == "md" ]; then
+            python3 -c "
+import json
+with open('$DB_FILE') as f:
+    data = json.load(f)
+for n in data['notes']:
+    print(f\"# {n['title']}\")
+    print(f\"ID: {n['id']}, Tag: {n['tag'] or 'none'}\")
+    print()
+" 2>/dev/null || cat "$DB_FILE"
+        else
+            echo "Error: format must be json or md"
+            exit 1
+        fi
+        ;;
+    help|--help|-h)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        exit 1
+        ;;
+esac

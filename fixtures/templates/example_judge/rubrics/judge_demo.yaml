@@ -1,0 +1,16 @@
+criteria:
+  - id: task_completion
+    weight: 0.50
+    description: "The LLM completed all required steps of the task"
+
+  - id: tool_usage_correctness
+    weight: 0.30
+    description: "The LLM used the CLI tool correctly with valid commands and arguments"
+
+  - id: efficiency
+    weight: 0.20
+    description: "The LLM completed the task without unnecessary commands or repetition"
+
+output:
+  format: json
+  require_fields: [scores, weighted_score, confidence, issues, highlights]

@@ -1,0 +1,45 @@
+#!/bin/bash
+# config_tool - Minimal mock CLI for full config demo
+
+set -e
+
+usage() {
+    echo "Usage: config_tool <command> [args...]"
+    echo "Commands:"
+    echo "  write <text>  - Write text to output.txt"
+    echo "  read          - Read output.txt"
+    echo "  help          - Show help"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    write)
+        if [ $# -lt 1 ]; then
+            echo "Error: text required"
+            exit 1
+        fi
+        echo "$1" > output.txt
+        echo "Written to output.txt"
+        ;;
+    read)
+        if [ -f output.txt ]; then
+            cat output.txt
+        else
+            echo "No output"
+        fi
+        ;;
+    help|--help|-h)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        exit 1
+        ;;
+esac

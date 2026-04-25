@@ -59,6 +59,19 @@ llm-tool-test/
 │   └── distribution.md      # Distribution/packaging spec
 ├── tests/cli.rs             # CLI integration tests
 └── fixtures/                # Example scenarios and fixtures
+    ├── example_basic.yaml
+    ├── example_gates_comprehensive.yaml
+    ├── example_judge.yaml
+    ├── example_full_config.yaml
+    ├── example_guidance_minimal.yaml
+    ├── example_guidance_rich.yaml
+    └── templates/             # Fixture template directories
+        ├── example_basic/
+        ├── example_gates_comprehensive/
+        ├── example_judge/
+        ├── example_full_config/
+        ├── notes_guidance_minimal/
+        └── notes_guidance_rich/
 ```
 
 ## Build Commands
@@ -158,6 +171,24 @@ Scripts extend the framework without modifying core code:
 - **Types**: Use `serde` for YAML/JSON serialization
 - **Naming**: `snake_case` for functions/variables, `PascalCase` for types
 
+## Guidance Testing Examples
+
+The framework includes comparative examples for testing how AGENTS.md guidance quality affects LLM tool usage:
+
+- **`example_guidance_minimal`** — Bare-bones AGENTS.md with just command names. The LLM must discover init requirements, ID capture, linking rules, and search behavior via trial and error.
+- **`example_guidance_rich`** — Detailed AGENTS.md with examples, workflows, error handling tables, and constraints. Should produce better interaction metrics.
+
+Both use the same `notes` mock tool, same task prompt, and same evaluation gates. Run them together:
+
+```bash
+llm-tool-test run --all --tags guidance-test
+```
+
+Compare `metrics.json` across results to see which guidance produces:
+- Lower error rates and help-seeking
+- Higher first-try success rate
+- Fewer total commands
+
 ## Specs Reference
 
 - `specs/scenarios.md` - Scenario YAML format
@@ -172,8 +203,20 @@ The framework is tested against itself using mock scenarios. Key test areas:
 - Gate evaluation (all gate types)
 - Script execution (env vars, timeouts, exit codes)
 - Adapter interfaces (mock adapter tests)
-- CLI commands (integration tests)
+- CLI commands (integration tests in `tests/cli.rs`)
 - Transcript analysis (command extraction, metrics)
+
+### End-to-End Tests
+
+Real LLM e2e tests live in `tests/e2e.rs`. They require an installed LLM tool
+(opencode, claude, or claude-code) and are gated behind `LLM_TOOL_TEST_E2E=1`:
+
+```bash
+LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e
+```
+
+These tests verify the complete flow with actual LLM adapters, including
+artifact generation (transcript, metrics, evaluation report).
 
 ## Dependencies
 

@@ -1,0 +1,16 @@
+#!/bin/bash
+# hello - A trivial CLI for e2e testing with real LLMs
+# Designed to be discovered and used by any LLM in seconds
+
+set -e
+
+OUTPUT="output.txt"
+
+if [ "$1" == "run" ]; then
+    echo "hello" > "$OUTPUT"
+    echo "Done: wrote hello to output.txt"
+else
+    echo "Usage: ./hello run"
+    echo "  Writes 'hello' to output.txt"
+    exit 1
+fi

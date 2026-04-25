@@ -1,0 +1,48 @@
+# Example: LLM-as-Judge
+# Demonstrates the judge evaluation layer with a rubric.
+
+name: example_judge
+description: |
+  Demonstrates LLM-as-judge evaluation with a rubric.
+  The judge assesses transcript quality independently of gates.
+
+template_folder: example_judge
+
+target:
+  binary: simple_tool
+  command_pattern: "simple_tool\\s+(\\S+)"
+  health_check: "./simple_tool help"
+
+task:
+  prompt: |
+    Use simple_tool to create a note titled "Hello World".
+    Run:
+    ./simple_tool create "Hello World"
+
+setup:
+  commands:
+    - chmod +x simple_tool
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: notes.txt
+      description: notes.txt should exist
+
+    - type: file_contains
+      path: notes.txt
+      substring: "Hello World"
+      description: Should contain the note title
+
+    - type: no_transcript_errors
+      description: No simple_tool errors in transcript
+
+  judge:
+    enabled: true
+    rubric: rubrics/judge_demo.yaml
+    pass_threshold: 0.60
+
+  composite:
+    judge_weight: 0.4
+    gate_weight: 0.4
+    interaction_weight: 0.2

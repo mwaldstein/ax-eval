@@ -1,0 +1,75 @@
+# Example: Guidance Testing — Minimal AGENTS.md
+# This scenario tests tool usage with minimal guidance.
+# The LLM must discover behavior via trial and error.
+
+name: example_guidance_minimal
+description: |
+  Tests notes tool usage with minimal AGENTS.md guidance.
+  The LLM must discover init requirement, ID capture, linking,
+  and search behavior without detailed docs.
+
+tier: 1
+tags:
+  - guidance-test
+  - minimal-docs
+
+template_folder: notes_guidance_minimal
+
+target:
+  binary: notes
+  command_pattern: "notes\\s+(\\S+)"
+  health_check: "./notes help"
+
+task:
+  prompt: |
+    You need to capture notes about a distributed systems project.
+    The project involves:
+    - Database migration strategy
+    - API design considerations
+    - Monitoring and alerting setup
+    - Deployment pipeline
+
+    Use the `notes` tool to:
+    1. Initialize the notes database
+    2. Create at least 4 notes covering the topics above
+    3. Tag at least 2 notes with "project"
+    4. Link related notes together (e.g., database migration to deployment pipeline)
+    5. Search for notes related to "design"
+    6. Export the notes as JSON
+
+setup:
+  commands:
+    - chmod +x notes
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: notes.db
+      description: Notes database should exist
+
+    - type: command_succeeds
+      command: "./notes export --format json"
+      description: Export should succeed
+
+    - type: command_json_path
+      command: "./notes export --format json"
+      path: "$.notes"
+      assertion: "len >= 4"
+      description: Should have at least 4 notes
+
+    - type: command_output_contains
+      command: "./notes list --tag project"
+      substring: "project"
+      description: At least 2 notes tagged with project
+
+    - type: command_output_contains
+      command: "./notes search design"
+      substring: "design"
+      description: Search for design should return results
+
+    - type: file_exists
+      path: links.txt
+      description: Links file should exist (notes were linked)
+
+    - type: no_transcript_errors
+      description: No notes commands should have failed

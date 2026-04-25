@@ -1,0 +1,61 @@
+# Example: Full Configuration
+# Demonstrates all optional scenario-level configuration fields.
+
+name: example_full_config
+description: |
+  Demonstrates the complete scenario schema including tier, tags,
+  tool_matrix, and run configuration.
+
+tier: 1
+tags:
+  - smoke
+  - config-demo
+  - full-schema
+
+tool_matrix:
+  - tool: mock
+    models:
+      - default
+      - test-model
+  - tool: opencode
+    models:
+      - gpt-4o
+
+template_folder: example_full_config
+
+target:
+  binary: config_tool
+  command_pattern: "config_tool\\s+(\\S+)"
+  health_check: "./config_tool help"
+
+task:
+  prompt: |
+    Use config_tool to write a greeting to output.txt:
+    ./config_tool write "Hello from full config"
+
+run:
+  timeout_secs: 300
+  max_turns: 20
+
+setup:
+  commands:
+    - chmod +x config_tool
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: output.txt
+      description: output.txt should exist
+
+    - type: file_contains
+      path: output.txt
+      substring: "Hello from full config"
+      description: output.txt should contain the greeting
+
+    - type: command_output_contains
+      command: "cat output.txt"
+      substring: "Hello from full config"
+      description: File contents should match via command gate
+
+    - type: no_transcript_errors
+      description: No config_tool errors in transcript

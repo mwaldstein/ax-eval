@@ -1,0 +1,96 @@
+# Example: Comprehensive Gates
+# This scenario exercises every built-in gate type to verify framework coverage.
+
+name: example_gates_comprehensive
+description: |
+  Exercises all built-in gate types (command_succeeds, command_output_contains,
+  command_output_matches, command_json_path, file_exists, file_contains,
+  file_matches, no_transcript_errors, script) plus a JSON script gate.
+
+template_folder: example_gates_comprehensive
+
+target:
+  binary: demo_tool
+  command_pattern: "demo_tool\\s+(\\S+)"
+  health_check: "./demo_tool help"
+
+task:
+  prompt: |
+    Use the demo_tool CLI to create a record and verify outputs.
+    Run these commands:
+    - ./demo_tool init
+    - ./demo_tool create "test item"
+    - ./demo_tool show --json
+    - ./demo_tool status
+
+setup:
+  commands:
+    - chmod +x demo_tool
+    - chmod +x scripts/*.sh
+
+evaluation:
+  gates:
+    # Basic command gate
+    - type: command_succeeds
+      command: "./demo_tool status"
+      description: Status command should succeed
+
+    # Output substring gate
+    - type: command_output_contains
+      command: "./demo_tool status"
+      substring: "ok"
+      description: Status should contain ok
+
+    # Output regex gate
+    - type: command_output_matches
+      command: "./demo_tool status"
+      pattern: "status:\\s*ok"
+      description: Status should match expected pattern
+
+    # JSON path gate (exists)
+    - type: command_json_path
+      command: "./demo_tool show --json"
+      path: "$.records"
+      assertion: "exists"
+      description: JSON output should have records array
+
+    # JSON path gate (len >=)
+    - type: command_json_path
+      command: "./demo_tool show --json"
+      path: "$.records"
+      assertion: "len >= 1"
+      description: Should have at least 1 record
+
+    # File gates
+    - type: file_exists
+      path: data.txt
+      description: data.txt should exist
+
+    - type: file_contains
+      path: data.txt
+      substring: "test item"
+      description: data.txt should contain the created item
+
+    - type: file_matches
+      path: data.txt
+      pattern: "item-[0-9]+: test item"
+      description: data.txt should match expected item format
+
+    # Transcript gate
+    - type: no_transcript_errors
+      description: No demo_tool commands should have failed
+
+    # Script gate (exit code only)
+    - type: script
+      command: "./scripts/check_data.sh"
+      description: Data integrity check via script gate
+
+    # Script gate (JSON output)
+    - type: script
+      command: "./scripts/check_json_gate.sh"
+      description: JSON script gate validates record count
+
+  composite:
+    judge_weight: 0.0
+    gate_weight: 1.0
+    interaction_weight: 0.0

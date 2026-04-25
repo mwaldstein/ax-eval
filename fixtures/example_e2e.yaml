@@ -1,0 +1,46 @@
+# E2E Test Scenario
+# Designed for fast execution with real LLM tools.
+# The task is trivial: run a simple CLI that writes a file.
+
+name: example_e2e
+description: |
+  Minimal end-to-end scenario for testing real LLM tools.
+  Task is trivial (run ./hello run) to keep execution fast and cheap.
+
+tier: 0
+tags:
+  - e2e
+  - smoke
+
+template_folder: example_e2e
+
+target:
+  binary: hello
+  command_pattern: "hello\\s+(\\S+)"
+
+task:
+  prompt: |
+    Run the hello tool to create output.txt:
+    ./hello run
+
+setup:
+  commands:
+    - chmod +x hello
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: output.txt
+      description: output.txt should exist
+
+    - type: file_contains
+      path: output.txt
+      substring: "hello"
+      description: output.txt should contain hello
+
+    - type: no_transcript_errors
+      description: No hello tool errors in transcript
+
+run:
+  timeout_secs: 60
+  max_turns: 5

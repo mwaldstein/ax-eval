@@ -35,6 +35,10 @@ These are not part of the current release plan.
 - Scenario validation command (dry-run but with schema checks)
 - Interactive scenario debugger
 - Global `[target]` section in config file (currently only per-scenario)
+- Native skills support — formal plugin/skill system for tool-specific LLM guidance beyond AGENTS.md
+- Expand e2e test scenarios beyond `example_e2e` (currently minimal smoke test)
+- Add session size test gate — measures token count or text size at completion, allowing comparison of guidance quality (poor guidance = larger session = more trial-and-error)
+- Add native metrics comparison command — `llm-tool-test compare --run1 <id> --run2 <id>` for with/without guidance evaluation
 
 ### Documentation
 

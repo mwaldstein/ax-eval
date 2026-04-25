@@ -1,0 +1,47 @@
+#!/bin/bash
+# simple_tool - Minimal mock CLI for judge demo
+
+set -e
+
+NOTES_FILE="notes.txt"
+
+usage() {
+    echo "Usage: simple_tool <command> [args...]"
+    echo "Commands:"
+    echo "  create <title>  - Create a note"
+    echo "  list            - List notes"
+    echo "  help            - Show help"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    create)
+        if [ $# -lt 1 ]; then
+            echo "Error: title required"
+            exit 1
+        fi
+        echo "NOTE: $1" >> "$NOTES_FILE"
+        echo "Created note: $1"
+        ;;
+    list)
+        if [ -f "$NOTES_FILE" ]; then
+            cat "$NOTES_FILE"
+        else
+            echo "No notes"
+        fi
+        ;;
+    help|--help|-h)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,81 @@
+#!/bin/bash
+# demo_tool - Mock CLI for comprehensive gate testing
+# Supports: init, create, show, status, help
+
+set -e
+
+DATA_FILE="data.txt"
+JSON_FILE="records.json"
+
+usage() {
+    echo "Usage: demo_tool <command> [args...]"
+    echo "Commands:"
+    echo "  init                 - Initialize workspace"
+    echo "  create <name>        - Create a record"
+    echo "  show [--json]        - Show records (JSON or text)"
+    echo "  status               - Show status"
+    echo "  help                 - Show this help"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    usage
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    init)
+        echo "Initialized" > "$DATA_FILE"
+        echo '{"records": []}' > "$JSON_FILE"
+        echo "Initialized workspace"
+        ;;
+    create)
+        if [ $# -lt 1 ]; then
+            echo "Error: name required"
+            exit 1
+        fi
+        NAME="$1"
+        ID="item-$RANDOM"
+        echo "$ID: $NAME" >> "$DATA_FILE"
+        # Update JSON
+        if [ -f "$JSON_FILE" ]; then
+            python3 -c "
+import json, sys
+with open('$JSON_FILE') as f:
+    data = json.load(f)
+data['records'].append({'id': '$ID', 'name': '$NAME'})
+with open('$JSON_FILE', 'w') as f:
+    json.dump(data, f)
+" 2>/dev/null || true
+        fi
+        echo "Created $ID"
+        ;;
+    show)
+        if [ "$1" == "--json" ]; then
+            if [ -f "$JSON_FILE" ]; then
+                cat "$JSON_FILE"
+            else
+                echo '{"records": []}'
+            fi
+        else
+            if [ -f "$DATA_FILE" ]; then
+                cat "$DATA_FILE"
+            else
+                echo "No data"
+            fi
+        fi
+        ;;
+    status)
+        echo "status: ok"
+        echo "mode: active"
+        ;;
+    help|--help|-h)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        exit 1
+        ;;
+esac

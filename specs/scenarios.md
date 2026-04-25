@@ -140,10 +140,6 @@ tags:                            # optional categorization tags
   - string
 
 tier: int                        # Priority tier, 0 = highest (default: 0)
-
-cost:
-  max_usd: float                 # Per-run budget limit
-  cache: bool                    # Whether to cache results (default: true)
 ```
 
 ### Complete Example
@@ -221,10 +217,6 @@ tags:
   - filtering
 
 tier: 1
-
-cost:
-  max_usd: 0.50
-  cache: true
 ```
 
 ---
@@ -383,18 +375,16 @@ Create multiple fixture variants with different AGENTS.md content, run the same 
 
 ```
 fixtures/
-├── taskmgr_guidance_minimal/
+├── notes_guidance_minimal/
 │   ├── AGENTS.md              # Bare minimum: just command names
-│   └── README.md
-├── taskmgr_guidance_minimal.yaml
-├── taskmgr_guidance_detailed/
-│   ├── AGENTS.md              # Full docs with examples and workflows
-│   └── README.md
-├── taskmgr_guidance_detailed.yaml
-├── taskmgr_guidance_structured/
-│   ├── AGENTS.md              # Structured with headers, tables, constraints
-│   └── README.md
-└── taskmgr_guidance_structured.yaml
+│   ├── README.md
+│   └── notes                  # Mock CLI tool
+├── example_guidance_minimal.yaml
+├── notes_guidance_rich/
+│   ├── AGENTS.md              # Full docs with examples, workflows, error handling
+│   ├── README.md
+│   └── notes                  # Same mock CLI tool
+└── example_guidance_rich.yaml
 ```
 
 Each scenario YAML uses the **same** task prompt and evaluation gates, but points to a different `template_folder`.
