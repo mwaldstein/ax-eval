@@ -1,6 +1,7 @@
 pub mod claude_code;
 pub mod mock;
 pub mod opencode;
+pub mod smart_mock;
 
 #[cfg(test)]
 mod mock_test;

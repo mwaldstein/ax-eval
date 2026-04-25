@@ -46,7 +46,22 @@ pub fn build_tool_matrix(
             .collect());
     }
 
-    // If scenario has a tool_matrix, use it (deprecated but still supported)
+    // Single tool/model mode takes precedence over scenario matrix when
+    // explicitly specified via CLI
+    if let Some(tool) = cli_tool {
+        let model = cli_model.as_deref().unwrap_or("default");
+        if let Err(e) = config.validate_tool_model(tool, model) {
+            if config.get_tool(tool).is_some() {
+                return Err(anyhow::anyhow!(e));
+            }
+        }
+        return Ok(vec![output::ToolModelConfig {
+            tool: tool.to_string(),
+            model: model.to_string(),
+        }]);
+    }
+
+    // If scenario has a tool_matrix, use it
     if let Some(scenario_matrix) = scenario_matrix {
         let mut matrix = Vec::new();
         for config in scenario_matrix {
@@ -65,8 +80,8 @@ pub fn build_tool_matrix(
         return Ok(matrix);
     }
 
-    // Single tool/model mode - default to "opencode" if no tool specified
-    let tool = cli_tool.as_deref().unwrap_or("opencode");
+    // Default to "opencode" if no tool specified
+    let tool = "opencode";
 
     // Validate that the tool supports the model if tool is configured
     if let Some(model) = cli_model {

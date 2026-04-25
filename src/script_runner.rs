@@ -55,6 +55,10 @@ impl ScriptRunner {
         events_path: Option<PathBuf>,
         target_env: HashMap<String, String>,
     ) -> Self {
+        // Ensure fixture_dir is absolute so that scripts referencing
+        // LLM_TOOL_TEST_FIXTURE_DIR resolve paths correctly regardless
+        // of the script's working directory.
+        let fixture_dir = fixture_dir.canonicalize().unwrap_or(fixture_dir);
         Self {
             fixture_dir,
             results_dir,
