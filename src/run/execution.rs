@@ -26,13 +26,11 @@ pub fn execute_tool(
 pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapter>> {
     use crate::adapter::{
         claude_code::ClaudeCodeAdapter, mock::MockAdapter, opencode::OpenCodeAdapter,
-        smart_mock::SmartMockAdapter,
     };
     let adapter: Box<dyn ToolAdapter> = match tool {
         "claude" | "claude-code" => Box::new(ClaudeCodeAdapter),
         "mock" => Box::new(MockAdapter),
         "opencode" => Box::new(OpenCodeAdapter),
-        "smart-mock" => Box::new(SmartMockAdapter),
         _ => anyhow::bail!("Unknown tool: {}", tool),
     };
 
