@@ -11,6 +11,8 @@ mod eval_helpers;
 mod eval_tests_score;
 mod evaluation;
 mod fixture;
+#[cfg(test)]
+mod fixture_tests;
 mod judge;
 mod output;
 mod results;

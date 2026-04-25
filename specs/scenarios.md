@@ -397,13 +397,20 @@ llm-tool-test run --all --tags guidance-test
 
 ### Comparing
 
-Compare `metrics.json` across variants:
-- Gate pass rate: which guidance leads to correct tool usage?
-- Judge score: which guidance produces higher-quality interactions?
-- Transcript length: which guidance leads to fewer wasted turns?
-- Cost: which guidance is most efficient?
+Compare `metrics.json` across variants. The primary signal is **interaction metrics** (Layer 1), not gate pass rate:
+
+| Metric | What it tells you |
+|--------|-------------------|
+| **Error rate** | Lower with better docs. High error rate means the LLM is guessing wrong. |
+| **Retry rate** | Lower with better docs. High retry means error messages aren't helping recovery. |
+| **Help-seeking** | Lower with better docs. High help-seeking means the AGENTS.md lacks upfront information. |
+| **First-try success** | Higher with better docs. Measures how often the LLM gets commands right the first time. |
+| **Command count** | Lower with better docs (for the same outcome). Measures efficiency. |
+| **Gate pass rate** | Should be similar across variants if the task is achievable. Differences here indicate the task itself is too hard or too easy, not the docs. |
 
 The `evaluation.md` reports are human-readable and can be compared side by side.
+
+**Important**: Keep gates minimal for guidance testing. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). See `specs/evaluation.md` for gate design philosophy.
 
 ### What to Vary
 

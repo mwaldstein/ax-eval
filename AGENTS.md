@@ -30,6 +30,7 @@ llm-tool-test/
 │   │   └── transcript.rs    # Transcript writing
 │   ├── adapter/             # LLM tool adapters
 │   │   ├── claude_code.rs   # Claude Code adapter
+│   │   ├── codex.rs         # OpenAI Codex adapter
 │   │   ├── mock.rs          # Mock adapter for testing
 │   │   ├── mock_test.rs     # Mock adapter tests
 │   │   ├── opencode.rs      # OpenCode adapter
@@ -121,7 +122,7 @@ Gates are evaluation assertions:
 - `script`: Custom script gate with structured output
 
 ### Adapters
-Adapters interface with LLM tools (OpenCode, Claude Code). Each adapter:
+Adapters interface with LLM tools (OpenCode, Claude Code, Codex). Each adapter:
 - Spawns the tool as a child process
 - Captures output via PTY
 - Returns structured transcript and events
@@ -146,8 +147,9 @@ Scripts extend the framework without modifying core code:
 1. Create new file in `src/adapter/<name>.rs`
 2. Implement `ToolAdapter` trait
 3. Register in `src/adapter/mod.rs`
-4. Add to config parsing in `src/config.rs`
+4. Add to adapter dispatch in `src/run/execution.rs`
 5. Add integration test in `tests/cli.rs`
+6. Add e2e test in `tests/e2e.rs` if the tool supports real-LLM execution
 
 ### Updating Scenario Schema
 
@@ -206,17 +208,63 @@ The framework is tested against itself using mock scenarios. Key test areas:
 - CLI commands (integration tests in `tests/cli.rs`)
 - Transcript analysis (command extraction, metrics)
 
-### End-to-End Tests
+### Evaluation Philosophy
 
-Real LLM e2e tests live in `tests/e2e.rs`. They require an installed LLM tool
-(opencode, claude, or claude-code) and are gated behind `LLM_TOOL_TEST_E2E=1`:
+Gates verify **outcomes**, not **process**. Because LLMs are non-deterministic,
+a scenario should ask "did the task get done?" rather than "did the LLM follow
+my expected steps without deviation?"
+
+- **Good gate**: `file_exists: report.pdf` — did the output get created?
+- **Bad gate**: `no_transcript_errors` in a discovery scenario — errors during
+  learning are expected and informative.
+
+For guidance testing (`example_guidance_minimal` vs `example_guidance_rich`),
+the primary signal is **interaction metrics** (error rate, retry rate, first-try
+success), not gate pass rate. Gates are a minimal sanity check that the task
+was completed. See `specs/evaluation.md` for the full design rationale.
+
+### Fixture Scenario Regression Tests
+
+Every example scenario in `fixtures/` has an automated regression test in
+`src/fixture_tests.rs`. These run the mock-tool commands directly (no real LLM),
+execute setup/post scripts, and verify all evaluation gates pass.
+
+```bash
+cargo test fixture_tests
+```
+
+These are the automated e2e tests -- they validate the framework and the scenario
+definitions themselves run correctly.
+
+### Running All Examples with a Real LLM
+
+All built-in example scenarios share the `examples` tag. Run them together with
+a real LLM tool via the CLI:
+
+```bash
+# List example scenarios
+llm-tool-test scenarios --tags examples
+
+# Run all examples with opencode
+llm-tool-test run --all --tags examples --tool opencode
+
+# Run all examples with a specific model
+llm-tool-test run --all --tags examples --tool opencode --model opencode/kimi-k2.6
+```
+
+### Real-LLM End-to-End Tests
+
+Tests in `tests/e2e.rs` exercise the framework with actual LLM adapters. They
+require an installed and authenticated LLM tool (opencode, claude, claude-code, or codex)
+and are gated behind `LLM_TOOL_TEST_E2E=1`:
 
 ```bash
 LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e
 ```
 
-These tests verify the complete flow with actual LLM adapters, including
-artifact generation (transcript, metrics, evaluation report).
+These are for manual validation or CI environments with LLM credentials. They
+verify artifact generation (transcript, metrics, evaluation report) with real
+adapters.
 
 ## Dependencies
 

@@ -4,6 +4,9 @@
 name: example_basic
 description: Demonstrates the scripts system with a mock taskmgr tool
 
+tags:
+  - examples
+
 template_folder: example_basic
 
 target:

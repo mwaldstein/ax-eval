@@ -130,11 +130,11 @@ for n in data['notes']:
         fi
         QUERY="$1"
         shift
-        SEARCH_CONTENT="false"
+        SEARCH_CONTENT="False"
         while [ $# -gt 0 ]; do
             case "$1" in
                 --content)
-                    SEARCH_CONTENT="true"
+                    SEARCH_CONTENT="True"
                     shift
                     ;;
                 *)

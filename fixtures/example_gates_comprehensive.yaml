@@ -7,6 +7,9 @@ description: |
   command_output_matches, command_json_path, file_exists, file_contains,
   file_matches, no_transcript_errors, script) plus a JSON script gate.
 
+tags:
+  - examples
+
 template_folder: example_gates_comprehensive
 
 target:

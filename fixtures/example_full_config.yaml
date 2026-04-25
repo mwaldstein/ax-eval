@@ -8,6 +8,7 @@ description: |
 
 tier: 1
 tags:
+  - examples
   - smoke
   - config-demo
   - full-schema

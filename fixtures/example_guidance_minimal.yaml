@@ -10,6 +10,7 @@ description: |
 
 tier: 1
 tags:
+  - examples
   - guidance-test
   - minimal-docs
 
@@ -62,14 +63,10 @@ evaluation:
       substring: "project"
       description: At least 2 notes tagged with project
 
-    - type: command_output_contains
-      command: "./notes search design"
-      substring: "design"
-      description: Search for design should return results
-
     - type: file_exists
       path: links.txt
       description: Links file should exist (notes were linked)
 
-    - type: no_transcript_errors
-      description: No notes commands should have failed
+    # Note: no_transcript_errors is intentionally omitted for guidance
+    # scenarios. Discovery errors are expected and measured via interaction
+    # metrics (error rate, retry rate, first-try success).

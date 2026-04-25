@@ -9,6 +9,7 @@ description: |
 
 tier: 0
 tags:
+  - examples
   - e2e
   - smoke
 

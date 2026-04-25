@@ -6,6 +6,9 @@ description: |
   Demonstrates LLM-as-judge evaluation with a rubric.
   The judge assesses transcript quality independently of gates.
 
+tags:
+  - examples
+
 template_folder: example_judge
 
 target:

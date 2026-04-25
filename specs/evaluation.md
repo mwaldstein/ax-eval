@@ -177,6 +177,53 @@ pub enum Gate {
 }
 ```
 
+### Gate Design Philosophy
+
+Gates verify **outcomes**, not **process**. A scenario should ask "did the task get done?" not "did the LLM follow my expected steps without deviation?"
+
+#### Outcome vs Process
+
+| Good Gate (outcome) | Bad Gate (process) |
+|---------------------|-------------------|
+| `file_exists: report.pdf` | Command used exact flag order |
+| `command_json_path: len >= 4` | No errors in transcript |
+| `file_contains: "migration"` | Search returned specific substring |
+
+LLMs are non-deterministic. Two runs with identical prompts may use different note titles, file names, or command sequences. Gates that require exact outputs or zero errors will flake and do not measure effectiveness.
+
+#### When to Use `no_transcript_errors`
+
+The `no_transcript_errors` gate asserts that every target-tool command in the transcript succeeded. This is appropriate for:
+- **Scaffolded scenarios** where the correct workflow is obvious (e.g., "run `./hello run`")
+- **Regression tests** verifying a tool the LLM already knows
+
+It is **inappropriate** for:
+- **Discovery/guidance scenarios** where the LLM must learn the tool via trial and error
+- **Complex multi-step tasks** where exploration is expected
+
+In discovery scenarios, errors are diagnostic data (Layer 1 interaction metrics), not failures.
+
+#### Minimal Gates for Guidance Testing
+
+When comparing AGENTS.md versions, the primary signal is Layer 1 interaction metrics (error rate, retry rate, help-seeking, first-try success). Gates should be a minimal sanity check that the task was completed:
+
+```yaml
+evaluation:
+  gates:
+    - type: file_exists
+      path: notes.db
+    - type: command_json_path
+      command: "./notes export --format json"
+      path: "$.notes"
+      assertion: "len >= 4"
+    - type: file_exists
+      path: links.txt
+```
+
+The comparison between guidance variants happens in `metrics.json` — lower error rates and higher first-try success rates tell you the richer documentation is working.
+
+---
+
 ### Gate Evaluation
 
 All gates are evaluated after the LLM agent finishes (or times out). Gate results are binary pass/fail with a message:
@@ -351,7 +398,9 @@ The secondary audience for llm-tool-test is guidance/skills authors who are test
 
 ### Primary Signal: Interaction Metrics
 
-For guidance authors, Layer 1 metrics are the most important signal. Gates and judge scores tell you whether the task was completed; interaction metrics tell you *why it was or wasn't*.
+For guidance authors, Layer 1 metrics are the most important signal. Gates tell you whether the task was completed; interaction metrics tell you *why it was or wasn't* and *how much friction the LLM experienced*.
+
+**Do not** use `no_transcript_errors` as a gate in guidance scenarios. Errors during discovery are expected and informative. The gate should only verify the final outcome (e.g., the expected files exist, the exported data has the right shape).
 
 ### Comparing Guidance Versions
 
@@ -363,7 +412,7 @@ AGENTS.md v1: error_rate=0.35, help_seeking=4, first_try_success=0.55
 AGENTS.md v2: error_rate=0.10, help_seeking=1, first_try_success=0.82
 ```
 
-This tells the author that v2 of their documentation is substantially better at helping the LLM use the tool.
+This tells the author that v2 of their documentation is substantially better at helping the LLM use the tool. The gate pass rate should be similar or identical across variants — the difference is in *how* the LLM got there.
 
 ### Diagnostic Patterns
 

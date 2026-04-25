@@ -104,7 +104,9 @@ fn synthesize_transcript_from_json(output: &str) -> String {
         };
 
         // Only process bash tool_use events
-        let Some(part) = event.get("part") else { continue };
+        let Some(part) = event.get("part") else {
+            continue;
+        };
         let Some(tool) = part.get("type").and_then(|v| v.as_str()) else {
             continue;
         };
@@ -299,7 +301,10 @@ mod tests {
     fn test_parse_token_usage_from_json_with_realistic_input() {
         let json_output = sample_opencode_json();
         let result = parse_token_usage_from_json(&json_output);
-        assert!(result.is_some(), "Should parse token usage from realistic JSON");
+        assert!(
+            result.is_some(),
+            "Should parse token usage from realistic JSON"
+        );
         let usage = result.unwrap();
         // 10+5 + 5+0 + 8+0 = 28 input, 20+15+25 = 60 output
         assert_eq!(usage.input, 28, "Expected 28 input tokens");
@@ -313,7 +318,11 @@ mod tests {
         assert!(result.is_some(), "Should parse cost from realistic JSON");
         let cost = result.unwrap();
         // 0.042 + 0.058 + 0.067 = 0.167
-        assert!((cost - 0.167).abs() < 0.001, "Expected ~$0.167 cost, got {}", cost);
+        assert!(
+            (cost - 0.167).abs() < 0.001,
+            "Expected ~$0.167 cost, got {}",
+            cost
+        );
     }
 
     #[test]
@@ -321,16 +330,40 @@ mod tests {
         let json_output = sample_opencode_json();
         let transcript = synthesize_transcript_from_json(&json_output);
 
-        assert!(transcript.contains("$ ./notes init"), "Should include init command");
-        assert!(transcript.contains("Initialized"), "Should include init output");
-        assert!(transcript.contains("exit code: 0"), "Should include init exit code");
+        assert!(
+            transcript.contains("$ ./notes init"),
+            "Should include init command"
+        );
+        assert!(
+            transcript.contains("Initialized"),
+            "Should include init output"
+        );
+        assert!(
+            transcript.contains("exit code: 0"),
+            "Should include init exit code"
+        );
 
-        assert!(transcript.contains("$ ./notes add \"Hello\""), "Should include add command");
-        assert!(transcript.contains("Created note 1"), "Should include add output");
+        assert!(
+            transcript.contains("$ ./notes add \"Hello\""),
+            "Should include add command"
+        );
+        assert!(
+            transcript.contains("Created note 1"),
+            "Should include add output"
+        );
 
-        assert!(transcript.contains("$ ./notes badcmd"), "Should include bad command");
-        assert!(transcript.contains("Error: unknown command"), "Should include error output");
-        assert!(transcript.contains("exit code: 1"), "Should include error exit code");
+        assert!(
+            transcript.contains("$ ./notes badcmd"),
+            "Should include bad command"
+        );
+        assert!(
+            transcript.contains("Error: unknown command"),
+            "Should include error output"
+        );
+        assert!(
+            transcript.contains("exit code: 1"),
+            "Should include error exit code"
+        );
     }
 
     #[test]
