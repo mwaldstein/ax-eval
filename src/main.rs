@@ -37,7 +37,9 @@ pub fn build_tool_matrix(
 ) -> anyhow::Result<Vec<output::ToolModelConfig>> {
     // If profile is specified, expand from config
     if let Some(profile_name) = cli_profile {
-        let matrix = config.build_profile_matrix(profile_name).map_err(|e| anyhow::anyhow!(e))?;
+        let matrix = config
+            .build_profile_matrix(profile_name)
+            .map_err(|e| anyhow::anyhow!(e))?;
         return Ok(matrix
             .into_iter()
             .map(|(tool, model)| output::ToolModelConfig { tool, model })
@@ -298,7 +300,8 @@ mod tests {
             },
         );
 
-        let result = build_tool_matrix(&None, &None, &Some("standard".to_string()), &config, &None).unwrap();
+        let result =
+            build_tool_matrix(&None, &None, &Some("standard".to_string()), &config, &None).unwrap();
 
         assert_eq!(result.len(), 1);
         assert_matrix_contains(&result, "opencode", "gpt-4o");
@@ -336,7 +339,8 @@ mod tests {
             },
         );
 
-        let result = build_tool_matrix(&None, &None, &Some("full".to_string()), &config, &None).unwrap();
+        let result =
+            build_tool_matrix(&None, &None, &Some("full".to_string()), &config, &None).unwrap();
 
         assert_eq!(result.len(), 4);
         assert_matrix_contains(&result, "opencode", "gpt-4o");

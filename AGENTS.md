@@ -182,7 +182,7 @@ Key crates:
 - `regex` - Pattern matching
 - `wait-timeout` - Script timeouts
 - `chrono` - Timestamps
-- `rusqlite` - Results database
+- `serde_json` / `serde_yaml` - Serialization (also used for results database)
 - `tempfile` - Test fixtures
 
 See `Cargo.toml` for complete list.

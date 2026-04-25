@@ -68,7 +68,7 @@ impl Config {
     }
 
     pub fn get_fixtures_path(&self) -> &str {
-        self.fixtures_path.as_deref().unwrap_or("llm-test-fixtures")
+        self.fixtures_path.as_deref().unwrap_or("fixtures")
     }
 
     pub fn get_results_path(&self) -> &str {

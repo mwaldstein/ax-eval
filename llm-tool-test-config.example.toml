@@ -3,16 +3,6 @@
 # Copy this file to `llm-tool-test-config.toml` in your working directory
 # to customize tool configurations and test profiles.
 
-# Target tool configuration (can also be defined per-scenario in YAML)
-[target]
-binary = "mytool"
-command_pattern = "mytool\\s+(\\S+)"
-health_check = "mytool --version"
-
-[target.env]
-MYTOOL_CONFIG = "/path/to/config.toml"
-MYTOOL_AUTH_TOKEN = "${MYTOOL_AUTH_TOKEN}"
-
 # Tool configurations define available LLM tools and their supported models
 [tools]
 

@@ -26,12 +26,12 @@ run:
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
 
-    let fixtures_dir = PathBuf::from("llm-test-fixtures");
+    let fixtures_dir = PathBuf::from("fixtures");
     std::fs::create_dir_all(&fixtures_dir).unwrap();
     let fixture_file = fixtures_dir.join("timeout_test_override.yaml");
     std::fs::write(&fixture_file, scenario_yaml).unwrap();
 
-    let template_dir = PathBuf::from("llm-test-fixtures/templates/qipu");
+    let template_dir = PathBuf::from("fixtures/templates/qipu");
     std::fs::create_dir_all(&template_dir).unwrap();
 
     let cli_timeout = 300;
@@ -81,12 +81,12 @@ evaluation:
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
 
-    let fixtures_dir = PathBuf::from("llm-test-fixtures");
+    let fixtures_dir = PathBuf::from("fixtures");
     std::fs::create_dir_all(&fixtures_dir).unwrap();
     let fixture_file = fixtures_dir.join("timeout_test_cli.yaml");
     std::fs::write(&fixture_file, scenario_yaml).unwrap();
 
-    let template_dir = PathBuf::from("llm-test-fixtures/templates/qipu");
+    let template_dir = PathBuf::from("fixtures/templates/qipu");
     std::fs::create_dir_all(&template_dir).unwrap();
 
     let cli_timeout = 60;

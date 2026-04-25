@@ -17,7 +17,7 @@ use anyhow::{Context, Result};
 ///
 /// * `model` - OpenAI model to use (e.g., "gpt-4o-mini")
 /// * `transcript_summary` - Summary of the LLM tool interaction
-/// * `store_export` - JSON export of the qipu store state
+/// * `store_export` - JSON export of the tool state
 /// * `task_description` - Description of the task that was performed
 /// * `rubric` - Evaluation rubric with criteria
 ///

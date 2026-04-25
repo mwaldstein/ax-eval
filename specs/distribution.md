@@ -33,7 +33,7 @@ Binary naming convention: `llm-tool-test-<version>-<target>.tar.gz` (or `.zip` f
 **Unix (macOS/Linux):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mwaldstein/llm-tool-test/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/anomalyco/llm-tool-test/main/scripts/install.sh | bash
 ```
 
 The installer should:
@@ -46,7 +46,7 @@ The installer should:
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/mwaldstein/llm-tool-test/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/anomalyco/llm-tool-test/main/scripts/install.ps1 | iex
 ```
 
 ### Cargo Install

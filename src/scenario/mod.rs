@@ -1,7 +1,7 @@
 //! Scenario loading and types for LLM tool testing.
 //!
 //! This module provides the core scenario structures and loading functionality.
-//! Scenarios define test cases for evaluating LLM tools against qipu workflows.
+//! Scenarios define test cases for evaluating LLM tools against CLI workflows.
 //!
 //! # Example
 //!
