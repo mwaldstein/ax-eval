@@ -77,6 +77,55 @@ pub fn execute_setup_commands(
     Ok((setup_success, setup_commands))
 }
 
+pub fn execute_health_check(
+    command: &str,
+    env: &TestEnv,
+    writer: &TranscriptWriter,
+    effective_timeout: u64,
+    target_env: Option<&HashMap<String, String>>,
+) -> anyhow::Result<()> {
+    if command.trim().is_empty() {
+        anyhow::bail!("target.health_check cannot be empty");
+    }
+
+    println!("Running target health check: {}", command);
+    let runner = crate::session::SessionRunner::new();
+    let env_vars: Vec<(String, String)> = target_env
+        .map(|vars| {
+            vars.iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect::<Vec<(String, String)>>()
+        })
+        .unwrap_or_default();
+
+    let (output, exit_code) = runner.run_command_with_env(
+        "sh",
+        &["-c", command],
+        &env.root,
+        effective_timeout,
+        &env_vars,
+    )?;
+    let success = exit_code == 0;
+
+    writer.append_event(&serde_json::json!({
+        "type": "health_check",
+        "command": command,
+        "exit_code": exit_code,
+        "output": output,
+        "success": success,
+    }))?;
+
+    if !success {
+        anyhow::bail!(
+            "target health check failed with exit code {}: {}",
+            exit_code,
+            output.trim()
+        );
+    }
+
+    Ok(())
+}
+
 #[allow(clippy::type_complexity)]
 pub fn prepare_writer_and_setup(
     results_dir: &Path,
@@ -99,6 +148,16 @@ pub fn prepare_writer_and_setup(
     } else {
         (true, vec![])
     };
+
+    if let Some(health_check) = &s.target.health_check {
+        execute_health_check(
+            health_check,
+            env,
+            &writer,
+            effective_timeout,
+            s.target.env.as_ref(),
+        )?;
+    }
 
     Ok((artifacts_dir, writer, setup_success, setup_commands))
 }
@@ -133,5 +192,49 @@ mod tests {
         assert!(setup_success);
         assert_eq!(commands.len(), 1);
         assert!(commands[0].1);
+    }
+
+    #[test]
+    fn health_check_runs_in_fixture_dir_with_target_env_vars() {
+        let dir = tempdir().expect("create temp dir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
+        std::fs::create_dir_all(&env.root).expect("create fixture root");
+
+        let artifacts_dir = dir.path().join("artifacts");
+        let results_dir = dir.path().join("results");
+        std::fs::create_dir_all(&results_dir).expect("create results dir");
+        let writer = TranscriptWriter::new(artifacts_dir, results_dir).expect("create writer");
+
+        let mut target_env = HashMap::new();
+        target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
+
+        execute_health_check(
+            "test \"$TARGET_ENV_TEST\" = \"works\"",
+            &env,
+            &writer,
+            10,
+            Some(&target_env),
+        )
+        .expect("run health check");
+    }
+
+    #[test]
+    fn health_check_fails_on_nonzero_exit() {
+        let dir = tempdir().expect("create temp dir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
+        std::fs::create_dir_all(&env.root).expect("create fixture root");
+
+        let artifacts_dir = dir.path().join("artifacts");
+        let results_dir = dir.path().join("results");
+        std::fs::create_dir_all(&results_dir).expect("create results dir");
+        let writer = TranscriptWriter::new(artifacts_dir, results_dir).expect("create writer");
+
+        let result = execute_health_check("exit 7", &env, &writer, 10, None);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("target health check failed"));
     }
 }
