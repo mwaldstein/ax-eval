@@ -9,7 +9,7 @@
 //! which exercises every fixture scenario with mock tools (no LLM required).
 //!
 //! To run these real-LLM tests:
-//!   LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e
+//!   LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e -- --ignored
 //!
 //! Supported tools (auto-detected):
 //!   - opencode
@@ -89,6 +89,7 @@ fn test_e2e_dry_run() {
 }
 
 #[test]
+#[ignore = "requires installed and authenticated opencode plus LLM_TOOL_TEST_E2E=1"]
 fn test_e2e_with_real_llm_opencode() {
     if !e2e_enabled() {
         eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
@@ -137,6 +138,7 @@ fn test_e2e_with_real_llm_opencode() {
 }
 
 #[test]
+#[ignore = "requires installed and authenticated claude/claude-code plus LLM_TOOL_TEST_E2E=1"]
 fn test_e2e_with_real_llm_claude() {
     if !e2e_enabled() {
         eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
@@ -175,6 +177,7 @@ fn test_e2e_with_real_llm_claude() {
 }
 
 #[test]
+#[ignore = "requires installed and authenticated codex plus LLM_TOOL_TEST_E2E=1"]
 fn test_e2e_with_real_llm_codex() {
     if !e2e_enabled() {
         eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
@@ -223,6 +226,7 @@ fn test_e2e_with_real_llm_codex() {
 }
 
 #[test]
+#[ignore = "requires an installed and authenticated LLM tool plus LLM_TOOL_TEST_E2E=1"]
 fn test_e2e_reports_results_artifacts() {
     if !e2e_enabled() {
         eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");

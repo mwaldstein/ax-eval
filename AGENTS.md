@@ -278,7 +278,7 @@ require an installed and authenticated LLM tool (opencode, claude, claude-code, 
 and are gated behind `LLM_TOOL_TEST_E2E=1`:
 
 ```bash
-LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e
+LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e -- --ignored
 ```
 
 These are for manual validation or CI environments with LLM credentials. They
