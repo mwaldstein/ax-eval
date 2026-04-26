@@ -24,7 +24,7 @@ pub fn run_single_scenario(
     results_db: &ResultsDB,
     cache: &Cache,
 ) -> anyhow::Result<ResultRecord> {
-    use crate::run::cache::{check_cache, compute_cache_key};
+    use crate::run::cache::{check_cache, compute_cache_key_with_fixture};
     use crate::run::execution::{create_adapter_and_check, determine_outcome, run_evaluation_flow};
     use crate::run::records::{build_result_record, finalize_execution, handle_dry_run};
     use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
@@ -40,7 +40,8 @@ pub fn run_single_scenario(
     std::fs::create_dir_all(&results_dir)?;
 
     let (env, scenario_yaml, prompt) = setup_scenario_env(s, scenario_path, &results_dir)?;
-    let cache_key = compute_cache_key(&scenario_yaml, &prompt, tool, model);
+    let cache_key =
+        compute_cache_key_with_fixture(&scenario_yaml, &prompt, &env.root, tool, model)?;
 
     if !no_cache {
         if let Some(cached) = check_cache(cache, &cache_key)? {

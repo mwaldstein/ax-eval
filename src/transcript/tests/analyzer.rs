@@ -65,7 +65,7 @@ fn test_iteration_ratio() {
     assert_eq!(metrics.total_commands, 5);
     assert_eq!(metrics.unique_commands, 2);
     assert_eq!(metrics.retry_count, 3);
-    assert_eq!(metrics.iteration_ratio, 2.5);
+    assert_eq!(metrics.iteration_ratio, 0.4);
 }
 
 #[test]

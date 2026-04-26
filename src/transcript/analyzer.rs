@@ -92,8 +92,8 @@ impl TranscriptAnalyzer {
             0.0
         };
 
-        let iteration_ratio = if !unique_commands.is_empty() {
-            total_commands as f64 / unique_commands.len() as f64
+        let iteration_ratio = if total_commands > 0 {
+            unique_commands.len() as f64 / total_commands as f64
         } else {
             0.0
         };

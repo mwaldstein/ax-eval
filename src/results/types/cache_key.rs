@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 /// Cache key for deduplicating test runs.
 ///
-/// Computed from scenario content, prompt, tool,
+/// Computed from scenario content, prompt, fixture contents, tool,
 /// and model to uniquely identify a test configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct CacheKey {
@@ -13,6 +13,9 @@ pub struct CacheKey {
     pub scenario_hash: String,
     /// Hash of the task prompt
     pub prompt_hash: String,
+    /// Hash of the fixture/template contents used for the run
+    #[serde(default)]
+    pub fixture_hash: String,
     /// Tool name
     pub tool: String,
     /// Model name
@@ -35,7 +38,19 @@ impl CacheKey {
     /// # Returns
     ///
     /// A computed `CacheKey`
+    #[cfg(test)]
     pub fn compute(scenario_yaml: &str, prompt: &str, tool: &str, model: &str) -> Self {
+        Self::compute_with_fixture(scenario_yaml, prompt, "", tool, model)
+    }
+
+    /// Compute a cache key from run parameters and fixture/template contents.
+    pub fn compute_with_fixture(
+        scenario_yaml: &str,
+        prompt: &str,
+        fixture_hash_input: &str,
+        tool: &str,
+        model: &str,
+    ) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(scenario_yaml.as_bytes());
         let scenario_hash = format!("{:x}", hasher.finalize());
@@ -44,9 +59,14 @@ impl CacheKey {
         hasher.update(prompt.as_bytes());
         let prompt_hash = format!("{:x}", hasher.finalize());
 
+        let mut hasher = Sha256::new();
+        hasher.update(fixture_hash_input.as_bytes());
+        let fixture_hash = format!("{:x}", hasher.finalize());
+
         Self {
             scenario_hash,
             prompt_hash,
+            fixture_hash,
             tool: tool.to_string(),
             model: model.to_string(),
         }
@@ -63,8 +83,8 @@ impl CacheKey {
         // Sanitize model name to avoid path separator issues in filenames
         let safe_model = self.model.replace(['/', '\\'], "_");
         format!(
-            "{}_{}_{}_{}",
-            self.scenario_hash, self.prompt_hash, self.tool, safe_model,
+            "{}_{}_{}_{}_{}",
+            self.scenario_hash, self.prompt_hash, self.fixture_hash, self.tool, safe_model,
         )
     }
 }

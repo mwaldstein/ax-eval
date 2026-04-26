@@ -15,6 +15,7 @@ fn test_cache_key_compute_basic() {
     assert_eq!(key.model, "gpt-4o");
     assert!(!key.scenario_hash.is_empty());
     assert!(!key.prompt_hash.is_empty());
+    assert!(!key.fixture_hash.is_empty());
 }
 
 #[test]
@@ -29,6 +30,23 @@ fn test_cache_key_consistent_hashes() {
 
     assert_eq!(key1.scenario_hash, key2.scenario_hash);
     assert_eq!(key1.prompt_hash, key2.prompt_hash);
+    assert_eq!(key1.fixture_hash, key2.fixture_hash);
+}
+
+#[test]
+fn test_cache_key_different_fixtures() {
+    let scenario_yaml = "name: test\ntask:\n  prompt: test";
+    let prompt = "Create a test note";
+    let tool = "opencode";
+    let model = "gpt-4o";
+
+    let key1 = CacheKey::compute_with_fixture(scenario_yaml, prompt, "fixture one", tool, model);
+    let key2 = CacheKey::compute_with_fixture(scenario_yaml, prompt, "fixture two", tool, model);
+
+    assert_eq!(key1.scenario_hash, key2.scenario_hash);
+    assert_eq!(key1.prompt_hash, key2.prompt_hash);
+    assert_ne!(key1.fixture_hash, key2.fixture_hash);
+    assert_ne!(key1.as_string(), key2.as_string());
 }
 
 #[test]
@@ -105,6 +123,7 @@ fn test_cache_key_as_string() {
 
     assert!(key_string.contains(&key.scenario_hash));
     assert!(key_string.contains(&key.prompt_hash));
+    assert!(key_string.contains(&key.fixture_hash));
     assert!(key_string.contains(&key.tool));
     assert!(key_string.contains(&key.model));
 }
