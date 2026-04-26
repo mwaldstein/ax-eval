@@ -177,9 +177,13 @@ impl ToolAdapter for CodexAdapter {
 
         // Use 'codex exec' with JSON format for structured output extraction
         let mut args = vec!["exec", "--json", "--full-auto", "--skip-git-repo-check"];
+        // Only pass --model when an explicit model is provided; "default" is not a
+        // valid Codex model name and will cause a 400 invalid_request_error.
         if let Some(model) = model {
-            args.push("--model");
-            args.push(model);
+            if model != "default" {
+                args.push("--model");
+                args.push(model);
+            }
         }
         args.push(&scenario.task.prompt);
 

@@ -122,6 +122,7 @@ fn test_e2e_with_real_llm_opencode() {
         &resolve_model("opencode"),
         "--timeout-secs",
         "60",
+        "--no-cache",
     ])
     .env("LLM_TOOL_TEST_ENABLED", "1");
 
@@ -159,6 +160,7 @@ fn test_e2e_with_real_llm_claude() {
         "claude",
         "--timeout-secs",
         "60",
+        "--no-cache",
     ])
     .env("LLM_TOOL_TEST_ENABLED", "1");
 
@@ -206,6 +208,7 @@ fn test_e2e_with_real_llm_codex() {
         &resolve_model("codex"),
         "--timeout-secs",
         "60",
+        "--no-cache",
     ])
     .env("LLM_TOOL_TEST_ENABLED", "1");
 
