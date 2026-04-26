@@ -80,10 +80,10 @@ llm-tool-test scenarios --tags capture
 llm-tool-test scenarios --tier 0
 ```
 
-### Show Scenario Details
+### Show Run Details
 
 ```bash
-llm-tool-test show capture_basic
+llm-tool-test show <run-id>
 ```
 
 ### Clean Artifacts
@@ -96,13 +96,22 @@ llm-tool-test clean --older-than "7d"
 llm-tool-test clean
 ```
 
-## Matrix Runs
+## Tool, Model, and Matrix Runs
 
-Test multiple tools/models in one run:
+Run a scenario with a specific agent tool and optional model:
 
 ```bash
-llm-tool-test run --all --tools opencode,claude-code --models gpt-4o,claude-sonnet
+llm-tool-test run --scenario capture_basic --tool opencode
+llm-tool-test run --scenario capture_basic --tool opencode --model gpt-4o
 ```
+
+Run a configured matrix with a profile from `llm-tool-test-config.toml`:
+
+```bash
+llm-tool-test run --all --profile quick
+```
+
+Scenarios can also define a `tool_matrix` to run multiple tool/model combinations without CLI flags.
 
 ## Interpreting Results
 
@@ -193,7 +202,7 @@ Copy `llm-tool-test-config.example.toml` as a starting point.
 
 **Composite score low**: Review which gates failed in evaluation.md
 
-**Tool not supported**: Available tools: opencode, claude-code. (Note: amp is experimental/de-prioritized)
+**Tool not supported**: Available tools: opencode, claude-code, codex, mock
 
 ## Results Location
 
