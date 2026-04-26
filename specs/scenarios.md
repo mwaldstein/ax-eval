@@ -6,13 +6,13 @@
 
 Define the scenario format, target tool configuration, and fixture structure for llm-tool-test.
 
-A scenario is the unit of testing. Each scenario defines a task for an LLM agent to attempt using a specific CLI tool, then evaluates the result. The framework is tool-agnostic: the scenario declares what tool is being tested and how to interact with it.
+A scenario is the unit of evaluation. Each scenario defines a task for an LLM agent to attempt using a specific CLI tool, then evaluates the result. The framework is tool-agnostic: the scenario declares what tool is being evaluated and how to interact with it.
 
 ---
 
 ## Target Tool Configuration
 
-Each scenario must declare the CLI tool under test. This is the **target tool** — the thing the LLM agent will be asked to use.
+Each scenario must declare the CLI tool under evaluation. This is the **target tool** — the thing the LLM agent will be asked to use.
 
 ### Fields
 
@@ -27,7 +27,7 @@ Each scenario must declare the CLI tool under test. This is the **target tool** 
 
 Target tool config can be defined in three ways, in order of precedence (highest first):
 
-1. **CLI flags** — for quick testing:
+1. **CLI flags** — for quick evaluation:
    ```bash
    llm-tool-test run --scenario basic --target-binary mytool
    ```
@@ -365,7 +365,7 @@ The working directory is preserved inside the results directory after the run co
 
 ## Guidance Testing Workflow
 
-For AGENTS.md authors testing which guidance produces the best LLM behavior.
+For AGENTS.md authors evaluating which guidance produces the best LLM behavior.
 
 ### Approach
 
@@ -410,7 +410,7 @@ Compare `metrics.json` across variants. The primary signal is **interaction metr
 
 The `evaluation.md` reports are human-readable and can be compared side by side.
 
-**Important**: Keep gates minimal for guidance testing. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). See `specs/evaluation.md` for gate design philosophy.
+**Important**: Keep gates minimal for guidance evaluation. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). Gates are fail-fast, not the primary evaluation signal. See `specs/evaluation.md` for gate design philosophy.
 
 ### What to Vary
 

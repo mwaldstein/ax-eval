@@ -85,7 +85,12 @@ pub fn print_result_summary(record: &ResultRecord) {
     );
     if let Some(score) = record.judge_score {
         let tier = ScoreTier::from_score(score);
-        println!("Judge Score: {:.2} ({})", score, tier);
+        let passed_str = match record.metrics.judge_passed {
+            Some(true) => "PASS",
+            Some(false) => "FAIL",
+            None => "N/A",
+        };
+        println!("Judge Score: {:.2} ({}) [{}]", score, tier, passed_str);
     }
     if let Some(composite_score) = record.metrics.composite_score {
         let composite_tier = ScoreTier::from_score(composite_score);

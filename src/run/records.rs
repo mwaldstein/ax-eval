@@ -27,7 +27,7 @@ pub fn build_result_record(
         timestamp: chrono::Utc::now(),
         duration_secs,
         cost_usd: cost,
-        gates_passed: metrics.gates_passed >= metrics.gates_total,
+        gates_passed: metrics.gates_passed >= metrics.gates_total && metrics.judge_passed.unwrap_or(true),
         metrics: EvaluationMetricsRecord {
             gates_passed: metrics.gates_passed,
             gates_total: metrics.gates_total,
@@ -40,6 +40,7 @@ pub fn build_result_record(
                     message: d.message,
                 })
                 .collect(),
+            judge_passed: metrics.judge_passed,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: metrics.efficiency.total_commands,
                 unique_commands: metrics.efficiency.unique_commands,
@@ -93,6 +94,7 @@ pub fn handle_dry_run(
             gates_passed: 0,
             gates_total: 0,
             details: vec![],
+            judge_passed: None,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 0,
                 unique_commands: 0,

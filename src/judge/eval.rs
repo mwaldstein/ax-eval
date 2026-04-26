@@ -1,106 +1,19 @@
-//! Evaluation execution for LLM-as-judge.
+//! Judge prompt construction for CLI-based LLM-as-judge evaluation.
 //!
-//! This module provides functionality for running LLM-based evaluations
-//! using OpenAI API or custom API endpoints.
+//! The judge is executed via the same CLI tool adapter framework used to run
+//! scenarios — not via direct API calls. This module builds the prompt that
+//! gets passed to the CLI tool.
 
-#[cfg(test)]
-use crate::judge::types::{JudgeResponse, Rubric};
-#[cfg(test)]
-use anyhow::{Context, Result};
+use crate::judge::types::Rubric;
 
-/// Run LLM-as-judge evaluation via OpenAI API.
+/// Build the judge prompt for CLI-based evaluation.
 ///
-/// This is a test-only implementation for future use. The production
-/// evaluation system uses CLI-based judge execution instead.
-///
-/// # Arguments
-///
-/// * `model` - OpenAI model to use (e.g., "gpt-4o-mini")
-/// * `transcript_summary` - Summary of the LLM tool interaction
-/// * `store_export` - JSON export of the tool state
-/// * `task_description` - Description of the task that was performed
-/// * `rubric` - Evaluation rubric with criteria
-///
-/// # Returns
-///
-/// * `Ok(JudgeResponse)` - Parsed judge evaluation
-/// * `Err` - API error or response parsing error
-///
-/// # Environment Variables
-///
-/// Requires either `OPENAI_API_KEY` or `LLM_TOOL_TEST_API_KEY` to be set.
-#[cfg(test)]
-pub async fn run_judge(
-    model: &str,
-    transcript_summary: &str,
-    store_export: &str,
-    task_description: &str,
-    rubric: &Rubric,
-) -> Result<JudgeResponse> {
-    let api_key = std::env::var("OPENAI_API_KEY")
-        .or_else(|_| std::env::var("LLM_TOOL_TEST_API_KEY"))
-        .context("OPENAI_API_KEY or LLM_TOOL_TEST_API_KEY environment variable must be set")?;
-
-    let client = reqwest::Client::new();
-
-    let prompt = build_judge_prompt(transcript_summary, store_export, task_description, rubric);
-
-    let request_body = serde_json::json!({
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are an expert evaluator. Analyze the provided transcript and store state against the given rubric. Return your evaluation as JSON only."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "response_format": { "type": "json_object" },
-        "temperature": 0.3,
-        "max_tokens": 2000,
-    });
-
-    let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&request_body)
-        .send()
-        .await
-        .context("Failed to call OpenAI API")?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-        anyhow::bail!("OpenAI API request failed: {} - {}", status, error_text);
-    }
-
-    let response_json: serde_json::Value = response
-        .json()
-        .await
-        .context("Failed to parse OpenAI API response")?;
-
-    let content = response_json
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-        .context("Invalid OpenAI API response format")?;
-
-    let judge_response: JudgeResponse = serde_json::from_str(content)
-        .with_context(|| format!("Failed to parse judge response JSON: {}", content))?;
-
-    Ok(judge_response)
-}
-
-#[cfg(test)]
+/// Constructs a prompt containing the task description, transcript file
+/// reference, rubric criteria, and required JSON response format.
+/// This prompt is passed to the CLI tool (e.g., `opencode run <prompt>`).
 pub fn build_judge_prompt(
-    transcript_summary: &str,
-    store_export: &str,
     task_description: &str,
+    transcript_path: &str,
     rubric: &Rubric,
 ) -> String {
     let criteria_text = rubric
@@ -111,22 +24,17 @@ pub fn build_judge_prompt(
         .join("\n");
 
     format!(
-        r#"Evaluate the following LLM tool interaction.
+        r#"Evaluate this LLM tool interaction.
 
-# Task
-{}
+Task: {}
 
-# Transcript Summary
-{}
-
-# Store State (JSON)
-{}
+Files to review:
+- @{} - The interaction transcript
 
 # Evaluation Criteria
 {}
 
-# Required Response Format
-Return JSON with this exact structure:
+Return evaluation as JSON with this structure:
 {{
   "scores": {{
     "criterion_id": <score_0_to_1>,
@@ -139,76 +47,6 @@ Return JSON with this exact structure:
 }}
 
 Provide JSON only, no additional text."#,
-        task_description, transcript_summary, store_export, criteria_text
+        task_description, transcript_path, criteria_text
     )
-}
-
-/// Run judge with a custom API client for testing.
-///
-/// Test helper that allows specifying a custom API base URL and key,
-/// useful for mocking in tests.
-#[cfg(test)]
-pub async fn run_judge_with_client(
-    model: &str,
-    transcript_summary: &str,
-    store_export: &str,
-    task_description: &str,
-    rubric: &Rubric,
-    api_base: &str,
-    api_key: &str,
-) -> Result<JudgeResponse> {
-    use reqwest::Client;
-
-    let client = Client::new();
-    let prompt = build_judge_prompt(transcript_summary, store_export, task_description, rubric);
-
-    let request_body = serde_json::json!({
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are an expert evaluator. Analyze the provided transcript and store state against the given rubric. Return your evaluation as JSON only."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "response_format": { "type": "json_object" },
-        "temperature": 0.3,
-        "max_tokens": 2000,
-    });
-
-    let response = client
-        .post(format!("{}/v1/chat/completions", api_base))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&request_body)
-        .send()
-        .await
-        .context("Failed to call OpenAI API")?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-        anyhow::bail!("OpenAI API request failed: {} - {}", status, error_text);
-    }
-
-    let response_json: serde_json::Value = response
-        .json()
-        .await
-        .context("Failed to parse OpenAI API response")?;
-
-    let content = response_json
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-        .context("Invalid OpenAI API response format")?;
-
-    let judge_response: JudgeResponse = serde_json::from_str(content)
-        .with_context(|| format!("Failed to parse judge response JSON: {}", content))?;
-
-    Ok(judge_response)
 }

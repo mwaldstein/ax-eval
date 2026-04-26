@@ -4,7 +4,7 @@ This file provides guidance for LLM agents working on the llm-tool-test codebase
 
 ## Project Overview
 
-`llm-tool-test` is a testing framework for evaluating LLM coding agents against structured test scenarios. It runs scenarios that test how well LLM agents use CLI tools.
+`llm-tool-test` is an evaluation framework for measuring how effectively LLM coding agents use CLI tools. It produces dimensional evaluation profiles (quantitative + qualitative scalar measurements), not just binary pass/fail stamps. Gates exist as fail-fast checks; the real value is in the evaluation profile — enabling comparisons like "does a new model increase token usage?" or "did the richer AGENTS.md reduce the error rate?"
 
 ## Project Structure
 
@@ -102,15 +102,27 @@ cargo run -- scenarios
 
 ## Key Concepts
 
+### Evaluation, Not Testing
+
+This framework evaluates, it does not merely test. The distinction:
+
+- **Testing** asks _"Did it pass?"_ — binary, terminable, final.
+- **Evaluation** asks _"How well did it go?"_ — scalar, dimensional, comparative.
+
+The primary output is the evaluation profile (quantitative + qualitative measurements on continuous scales), not a Pass/Fail stamp. Gates are fail-fast — they catch catastrophic failures early so you don't waste expensive judge calls on dead runs. But gates are not the point. The point is the profile.
+
+Binary gates are also a valid CI/CD use of the framework — a token-limit or cost gate that fails when a model or harness change breaks an assumption. The gate catches the regression; the profile tells you what changed and by how much.
+
 ### Scenarios
 A scenario is a YAML file defining:
-- **Target tool**: The CLI tool being tested
+- **Target tool**: The CLI tool being evaluated
 - **Task prompt**: Instructions given to the LLM agent
-- **Gates**: Pass/fail assertions evaluated after the run
+- **Gates**: Binary fail-fast assertions evaluated after the run
 - **Scripts**: Custom evaluation logic (post scripts, evaluators, script gates)
+- **Judge**: Optional rubric-based qualitative assessment
 
 ### Gates
-Gates are evaluation assertions:
+Gates are binary fail-fast assertions that catch catastrophic failures early. They are not the primary evaluation output — the evaluation profile (scalar metrics + judge score) is:
 - `command_succeeds`: Shell command returns exit 0
 - `command_output_contains`: Command stdout contains substring
 - `command_output_matches`: Command stdout matches regex
@@ -189,12 +201,13 @@ llm-tool-test run --all --tags guidance-test
 Compare `metrics.json` across results to see which guidance produces:
 - Lower error rates and help-seeking
 - Higher first-try success rate
-- Fewer total commands
+- Fewer total commands and lower token usage
+- Lower cost per task completion
 
 ## Specs Reference
 
 - `specs/scenarios.md` - Scenario YAML format
-- `specs/evaluation.md` - Gate types and evaluation layers
+- `specs/evaluation.md` - Evaluation layers (quantitative + qualitative)
 - `specs/scripts.md` - Script hooks and contracts
 - `specs/llm-user-validation.md` - Architecture overview
 
@@ -214,14 +227,20 @@ Gates verify **outcomes**, not **process**. Because LLMs are non-deterministic,
 a scenario should ask "did the task get done?" rather than "did the LLM follow
 my expected steps without deviation?"
 
+More importantly: gates are **fail-fast**, not **evaluation**. The framework's
+primary output is the evaluation profile (scalar measurements across all three
+layers), not a binary pass/fail stamp. Gates catch catastrophic failures; the
+profile captures nuance.
+
 - **Good gate**: `file_exists: report.pdf` — did the output get created?
 - **Bad gate**: `no_transcript_errors` in a discovery scenario — errors during
   learning are expected and informative.
 
 For guidance testing (`example_guidance_minimal` vs `example_guidance_rich`),
 the primary signal is **interaction metrics** (error rate, retry rate, first-try
-success), not gate pass rate. Gates are a minimal sanity check that the task
-was completed. See `specs/evaluation.md` for the full design rationale.
+success, token usage, cost), not gate pass rate. Gates are a minimal sanity
+check that the task was completed. See `specs/evaluation.md` for the full
+design rationale.
 
 ### Fixture Scenario Regression Tests
 

@@ -6,11 +6,45 @@
 
 Define how llm-tool-test evaluates the quality of LLM-tool interactions. The evaluation system must work for any CLI tool without domain-specific assumptions baked into the framework.
 
+### Evaluation vs. Testing
+
+This is an **evaluation framework**, not a testing tool. The distinction matters:
+
+- **Testing** asks _"Did it pass?"_ — binary, terminable, final.
+- **Evaluation** asks _"How well did it go?"_ — scalar, dimensional, comparative.
+
+The primary output is not a Pass/Fail stamp. It is an **evaluation profile**: a set of quantitative and qualitative measurements positioned along continuous scales. These measurements enable comparisons:
+
+- Does model B use fewer tokens than model A for the same task?
+- Did the updated AGENTS.md reduce the error rate?
+- Does claude-code achieve higher first-try success than opencode?
+- Has a tool version change degraded the interaction profile?
+
+Gates (binary pass/fail assertions) exist as a **fail-fast mechanism**: they catch catastrophic failures early so you don't waste an expensive judge call on a run that produced no output. Gates are necessary but they are not the point. The point is the profile.
+
+That said, binary gates are a perfectly valid use of the framework in CI/CD contexts — for example, a token-limit gate that fails if a model or harness change causes token usage to exceed a budget, or a cost gate that catches regressions. Used this way, the framework acts as a guardrail: "this change broke an assumption, it needs attention." The evaluation profile then tells you *what* changed and *how much*, which a binary gate alone cannot.
+
+### Quantitative vs. Qualitative
+
+The framework measures quality along two axes:
+
+**Quantitative** — directly measurable from the transcript and metadata:
+- Token usage, command count, error rate, first-try success rate, cost, duration, retry rate, help-seeking frequency
+- These answer questions like _"Does a new model increase token usage?"_ and _"Did the richer docs reduce retries?"_
+
+**Qualitative** — requiring intrinsic knowledge of how the tool is intended to be used:
+- Did the agent follow the documented workflow, or find a circuitous workaround?
+- Did it use the tool as its author intended?
+- Was the output well-organized and consistent with tool conventions?
+- These require judgment — from an LLM-as-judge scoring against a rubric that encodes the tool author's intent, or from a human reviewing the transcript.
+
+### Three Layers
+
 There are few universally applicable, objective measures of "did the LLM use this tool well." Rather than invent domain-specific metrics, the framework measures quality in three layers, ordered from cheapest to most expensive. Each layer answers a different question:
 
-1. **Interaction quality** — Did the LLM use the tool efficiently? (transcript-derived, always available)
-2. **Outcome assertions** — Did the task produce the right results? (scenario-author-defined gates)
-3. **LLM-as-judge** — Was the output subjectively good? (optional, rubric-driven)
+1. **Interaction quality** — Did the LLM use the tool efficiently? **(quantitative, transcript-derived, always available)** — the primary comparative signal
+2. **Outcome assertions (gates)** — Did the task produce the right results? **(binary, fail-fast, scenario-author-defined)** — necessary but not the point
+3. **LLM-as-judge** — Was the tool used as intended? **(qualitative, rubric-driven, optional)** — encodes intrinsic knowledge of how the tool should be used
 
 ---
 
@@ -92,6 +126,10 @@ pub struct InteractionMetrics {
 ## Layer 2: Outcome Assertions (Gates)
 
 Gates are deterministic, scenario-author-defined checks. They answer: "did the task produce correct results?" Gates are domain-specific by nature, but expressed through generic primitives.
+
+**Gates are a fail-fast mechanism, not the primary evaluation output.** Their role is to catch catastrophic failures early — when the agent didn't produce any output, created the wrong files, or failed the core task entirely. This prevents wasting an expensive judge call on a fundamentally broken run.
+
+The real evaluation value is in Layer 1 (quantitative metrics) and Layer 3 (qualitative assessment). Gates are the safety net.
 
 ### Gate Types
 
@@ -181,6 +219,8 @@ pub enum Gate {
 
 Gates verify **outcomes**, not **process**. A scenario should ask "did the task get done?" not "did the LLM follow my expected steps without deviation?"
 
+More importantly: gates are **fail-fast**, not **evaluation**. The framework's primary output is the evaluation profile (scalar measurements across all three layers), not a binary pass/fail stamp. Gates catch catastrophic failures; the profile captures nuance.
+
 #### Outcome vs Process
 
 | Good Gate (outcome) | Bad Gate (process) |
@@ -244,13 +284,16 @@ Gates are evaluated in declaration order. All gates run regardless of earlier fa
 
 Rubric-based qualitative assessment using a separate LLM call. This is the most expensive layer and is always optional.
 
+**This layer encodes intrinsic knowledge of how the tool is intended to be used.** Where Layer 1 measures _what happened_ (quantitative) and Layer 2 checks _whether the bare minimum was met_ (binary), Layer 3 evaluates _whether the tool was used well_ — a qualitative judgment that requires understanding the tool author's intent.
+
 ### When to Use
 
-Use the judge for subjective quality that gates can't capture:
-- Was the output well-organized?
+Use the judge for qualitative quality that quantitative metrics and gates cannot capture:
+- Was the output well-organized and consistent with tool conventions?
 - Did the LLM make reasonable decisions about how to structure data?
-- Did the LLM follow the conventions described in the documentation?
-- Did the LLM seem confused by the tool's interface?
+- Did the LLM follow the documented workflow, or discover the right path through trial and error?
+- Did the LLM seem confused by the tool's interface, or did it use the tool fluently?
+- Did the agent use the tool as its author intended, or find circuitous workarounds?
 
 ### Rubric Format
 
@@ -280,11 +323,22 @@ Rubric criteria are entirely scenario-specific. The framework imposes no default
 ### Judge Model
 
 The judge model should be:
-- **Cheap and fast** — the judge call should cost a small fraction of the test run itself.
+- **Cheap and fast** — the judge call should cost a small fraction of the run itself.
 - **Not the same model being tested** — to avoid self-evaluation bias.
-- Configurable via `LLM_TOOL_TEST_JUDGE` env var or scenario config.
+- Configurable via `--judge-model` CLI flag or `LLM_TOOL_TEST_JUDGE` env var.
 
 Recommended defaults: `gpt-4o-mini`, `claude-haiku`.
+
+### Judge Execution
+
+The judge is executed via the same CLI tool adapter framework used to run scenarios. This avoids a separate API dependency — the framework already knows how to invoke LLM tools and capture their output.
+
+Execution flow:
+1. Build a judge prompt containing the task description, transcript file reference, and rubric criteria.
+2. Invoke the configured CLI tool (e.g., `opencode run <prompt>`) via `SessionRunner`.
+3. Parse stdout as JSON into `JudgeResponse`.
+
+The judge tool and model are configurable independently of the scenario's target tool and the agent tool. The `--judge-model` flag sets the model used for judging; the CLI tool is the same adapter used for the run (e.g., `opencode`).
 
 ### Structured Output
 
@@ -302,7 +356,11 @@ The judge must return JSON matching the `JudgeResponse` schema:
 
 ### Pass Threshold
 
-The scenario configures a `pass_threshold` (0.0–1.0). The judge layer passes if `weighted_score >= pass_threshold`.
+The scenario configures a `pass_threshold` (0.0–1.0). The judge layer passes if `weighted_score >= pass_threshold`. This threshold **must be enforced** — if the weighted score falls below the threshold, the judge layer fails and the overall outcome is Fail.
+
+### Execution Guard
+
+The judge only runs **if all gates pass**. This prevents wasting an expensive LLM call on a run that fundamentally failed to produce output. If any gate fails, the judge is skipped and `judge_score` is `None`.
 
 ### Scenario Configuration
 
@@ -318,23 +376,16 @@ evaluation:
 
 ## Composite Scoring
 
-### Current Problem
+### Recommendation: Report Layers Independently for Comparative Evaluation
 
-The current implementation computes a single composite score with hardcoded weights:
+A single composite number obscures the dimensions that matter for comparative evaluation. If model A scores higher on gates but uses 3x more tokens than model B, collapsing that into one number loses the signal.
 
-```
-judge: 50%, gates: 30%, efficiency: 10%, quality: 10%
-```
+The default behavior should be:
 
-The `quality` component (`QualityMetrics`) is entirely domain-specific — it measures title length, tags per note, orphan notes, links per note. This does not generalize.
-
-### Recommendation: Report Layers Independently
-
-A single composite number is misleading when the components measure fundamentally different things. The default behavior should be:
-
-1. **Report each layer independently.** The evaluation output shows interaction metrics, gate results, and judge score as separate sections.
-2. **Each layer has its own pass/fail.** Gates pass if all gates pass. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail).
-3. **Overall outcome** is determined by gates and (if enabled) judge. Interaction metrics inform but don't gate.
+1. **Report each layer independently.** The evaluation output shows interaction metrics, gate results, and judge score as separate dimensions — because they answer different questions and are compared independently.
+2. **Each layer has its own pass/fail (for fail-fast only).** Gates pass if all gates pass. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail). These exist for fail-fast, not as the primary evaluation output.
+3. **The evaluation profile is the primary output.** The set of scalar measurements across all layers is what enables comparisons across models, harnesses, and documentation variants.
+4. **Overall outcome** is determined by gates and (if enabled) judge, but serves as a quick filter, not as the evaluation conclusion.
 
 ### Optional Composite Scoring
 
@@ -353,8 +404,8 @@ When `composite` is present, a composite score is computed. When absent, no comp
 ### Outcome Determination
 
 ```
-Outcome = Pass    if all gates pass AND (judge disabled OR judge passes)
-Outcome = Fail    if any gate fails OR (judge enabled AND judge fails)
+Outcome = Pass    if all gates pass AND (judge disabled OR judge passes threshold)
+Outcome = Fail    if any gate fails OR (judge enabled AND judge weighted_score < pass_threshold)
 ```
 
 Interaction metrics do not affect the outcome. They are diagnostic.
@@ -396,23 +447,38 @@ Drop `ReviewRequired` — a run either passes or fails. Human review is a workfl
 
 The secondary audience for llm-tool-test is guidance/skills authors who are testing whether their AGENTS.md or skill definitions help LLMs use a tool effectively.
 
-### Primary Signal: Interaction Metrics
+### Primary Signal: Quantitative Interaction Metrics
 
-For guidance authors, Layer 1 metrics are the most important signal. Gates tell you whether the task was completed; interaction metrics tell you *why it was or wasn't* and *how much friction the LLM experienced*.
+For guidance authors, Layer 1 metrics are the most important signal. Gates tell you whether the task was completed (fail-fast); interaction metrics tell you *how efficiently the LLM got there* and *how much friction it experienced*. This is the quantitative backbone of guidance evaluation.
 
 **Do not** use `no_transcript_errors` as a gate in guidance scenarios. Errors during discovery are expected and informative. The gate should only verify the final outcome (e.g., the expected files exist, the exported data has the right shape).
 
-### Comparing Guidance Versions
+### Comparing Guidance Versions — The Core Workflow
 
-The key workflow: run the same scenario with different AGENTS.md files and compare interaction metrics.
+The key workflow: run the same scenario with different AGENTS.md files and compare quantitative metrics.
 
 ```
 Scenario: create_and_link
-AGENTS.md v1: error_rate=0.35, help_seeking=4, first_try_success=0.55
-AGENTS.md v2: error_rate=0.10, help_seeking=1, first_try_success=0.82
+AGENTS.md v1: error_rate=0.35, first_try_success=0.55, tokens_out=4200, cost=$0.08
+AGENTS.md v2: error_rate=0.10, first_try_success=0.82, tokens_out=1800, cost=$0.03
 ```
 
-This tells the author that v2 of their documentation is substantially better at helping the LLM use the tool. The gate pass rate should be similar or identical across variants — the difference is in *how* the LLM got there.
+This tells the author that v2 of their documentation is substantially better — the LLM used fewer tokens, made fewer errors, and cost less. The gate pass rate should be similar or identical across variants — the difference is in *how* the LLM got there, not *whether* it arrived.
+
+### Qualitative Assessment of Guidance
+
+The judge (Layer 3) adds qualitative depth: did the LLM follow the documented workflow, or stumble into the right answer? A rubric for guidance evaluation encodes the intrinsic knowledge that the tool *should* be used in a specific way, not just that the task *was* completed:
+
+```yaml
+criteria:
+  - id: documentation_sufficiency
+    weight: 0.50
+    description: "Did the LLM appear to have sufficient information from the provided documentation to complete the task without confusion?"
+
+  - id: workflow_clarity
+    weight: 0.50
+    description: "Did the LLM follow the documented workflow, or discover the correct approach through trial and error?"
+```
 
 ### Diagnostic Patterns
 
@@ -423,21 +489,6 @@ This tells the author that v2 of their documentation is substantially better at 
 | Low error rate, high help-seeking | Docs don't include enough up front, but `--help` is good. Add more examples to AGENTS.md. |
 | High retry rate on specific commands | That command's error messages don't help the LLM correct its approach. |
 | High command count, task completed | Docs describe the commands but not the workflow. Add a "common workflows" section. |
-
-### Judge Prompting for Guidance Evaluation
-
-When evaluating documentation quality specifically, the judge rubric can include criteria like:
-
-```yaml
-criteria:
-  - id: documentation_sufficiency
-    weight: 0.50
-    description: "Did the LLM appear to have sufficient information from the provided documentation to complete the task without confusion?"
-
-  - id: workflow_clarity
-    weight: 0.50
-    description: "Did the LLM follow a logical workflow, or did it seem to discover the correct approach through trial and error?"
-```
 
 ---
 

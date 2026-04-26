@@ -1,8 +1,26 @@
 # LLM Tool Test
 
-A framework for verifying that CLI tools work correctly when driven by LLM coding agents. It launches real agents against your tool in isolated scenarios, captures full transcripts, and evaluates the results across multiple quality dimensions.
+An evaluation framework for measuring how effectively LLM coding agents use CLI tools. It launches real agents against your tool in isolated scenarios, captures full transcripts, and produces dimensional evaluation profiles — not just pass/fail stamps, but scalar measurements you can compare across models, harnesses, and documentation variants.
 
-The transcript is a first-class artifact. When a scenario fails, the transcript shows you exactly where the agent went wrong — whether due to unclear docs, missing guidance, or tool behavior the LLM couldn't navigate.
+The transcript is a first-class artifact. When a scenario produces unexpected results, the transcript shows you exactly where the agent went wrong — whether due to unclear docs, missing guidance, or tool behavior the LLM couldn't navigate.
+
+## Evaluation, Not Testing
+
+Traditional testing tools answer _"Did it pass?"_ — binary, terminable. This framework answers _"How well did it go?"_ — scalar, dimensional, comparative.
+
+**Quantitative measures** (from the transcript and metadata):
+- Token usage — does a new model increase token usage for the same task?
+- Command count, error rate, first-try success rate — how much friction did the agent experience?
+- Cost and duration — how expensive was the interaction?
+
+**Qualitative measures** (requiring intrinsic knowledge of how the tool is intended to be used):
+- Did the agent follow the documented workflow, or find circuitous workarounds?
+- Was the tool used as its author intended, or was it misused?
+- These require judgment — from an LLM-as-judge scoring against a rubric, or from a human reviewing the transcript.
+
+Gates (binary pass/fail assertions) exist as a **fail-fast mechanism** — catching catastrophic failures early — but they are not the primary output. The primary output is the evaluation profile.
+
+In CI/CD contexts, binary gates are a valid use of the framework — for example, a token-limit gate that fails if a model or harness change causes usage to exceed a budget. The gate catches the regression; the evaluation profile tells you what changed and how much.
 
 ## Who is this for?
 
@@ -12,15 +30,15 @@ The transcript is a first-class artifact. When a scenario fails, the transcript 
 
 ## How it works
 
-1. You define **scenarios** — structured test cases with a prompt, expected outcomes, and evaluation gates.
+1. You define **scenarios** — structured tasks with a prompt, evaluation gates, and optional judge rubrics.
 2. The framework launches a real LLM agent (opencode, claude-code) in an isolated environment with your tool available.
 3. The agent works through the prompt. The full interaction is captured as a **transcript**.
 4. Results are evaluated on three layers:
-   - **Interaction quality** — derived from the transcript (errors, retries, confusion)
-   - **Outcome assertions** — configurable gates that check concrete results (files created, commands succeed, expected output)
-   - **LLM-as-judge** — rubric-based evaluation of overall quality
+   - **Interaction quality** — quantitative metrics from the transcript (error rate, first-try success, token usage, command count, cost)
+   - **Outcome assertions (gates)** — binary fail-fast checks that catch catastrophic failures early
+   - **LLM-as-judge** — qualitative rubric-based evaluation of whether the tool was used as intended
 
-Each run produces an `evaluation.md` with pass/fail, metrics, and links to all artifacts.
+Each run produces an `evaluation.md` with the full evaluation profile, and a `metrics.json` with machine-readable scalar measurements for comparative analysis.
 
 ## Safety
 
@@ -90,21 +108,25 @@ llm-tool-test run --all --tools opencode,claude-code --models gpt-4o,claude-sonn
 
 Each run generates an `evaluation.md` with:
 
-**Summary**: Scenario name, tool, model, outcome (Pass/Fail)
+**Summary**: Scenario name, tool, model, outcome (Pass/Fail — fail-fast only)
 
-**Metrics**:
-- Gates Passed: X/N — test criteria satisfied
-- Duration: Time taken
-- Cost: Estimated API cost
-- Composite Score: Available when configured per scenario (0.0-1.0)
+**Evaluation Profile** (the primary output):
+- **Quantitative**: Gates Passed (X/N), Duration, Cost, Token Usage, Command Count, Error Rate, First-try Success Rate
+- **Qualitative**: Judge Score (0.0-1.0, when rubric configured), Judge Issues/Highlights
+- **Composite Score**: Available when configured per scenario (0.0-1.0)
 
 **Human Review**: Manual scoring section (you fill in)
 
 **Links**: Transcript, metrics, events
 
+**Compare across runs** to answer questions like:
+- Did the new model reduce token usage?
+- Did the richer AGENTS.md lower the error rate?
+- Does claude-code achieve higher first-try success than opencode?
+
 ### Gate Types
 
-Tests pass when all gates succeed. Gates are domain-independent assertions that verify outcomes after the LLM tool completes the task:
+Gates are binary fail-fast assertions that verify outcomes after the LLM tool completes the task. They catch catastrophic failures early — the real evaluation happens in the scalar metrics and judge layers.
 
 - `command_succeeds`: Shell command exits successfully (exit code 0)
 - `command_output_contains`: Command stdout contains expected substring

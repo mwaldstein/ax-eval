@@ -1,29 +1,56 @@
-# LLM User Validation
+# LLM User Evaluation
 
 **Status: Draft**
 
 ## Purpose
 
-llm-tool-test is a framework for validating that a CLI tool works well when used by LLM coding agents. This is **LLM User Validation** — testing the tool from the LLM's perspective rather than from a human user's perspective.
+llm-tool-test is an **evaluation framework** for measuring how effectively LLM coding agents use CLI tools. This is not a traditional testing tool — it does not produce a binary pass/fail verdict and stop. It produces **dimensional measurements** that answer questions like "how much did the new model increase token usage?" and "did the richer AGENTS.md reduce the error rate?"
+
+### Evaluation, Not Testing
+
+Traditional testing tools answer: _"Did it pass?"_ — a binary question with a binary answer.
+
+llm-tool-test answers: _"How well did it go?"_ — a scalar question measured across multiple dimensions:
+
+- **Quantitative**: token usage, command count, error rate, first-try success rate, cost, duration, retry rate
+- **Qualitative**: did the agent use the tool as intended? Did it follow documented conventions? Was its approach efficient or circuitous?
+
+Gates (binary pass/fail assertions) exist as a **fail-fast mechanism** — they catch catastrophic failures early so you don't waste an expensive judge call on a run that didn't produce any output. But gates are not the primary output of the framework. The primary output is the **evaluation profile**: a set of scalar measurements that can be compared across models, harnesses, documentation variants, and tool versions.
+
+That said, binary gates are a valid use of the framework in CI/CD — for example, a token-limit gate that fails if a model or harness change exceeds a budget, or a cost gate that catches regressions. The framework can serve as both a guardrail (binary) and a diagnostic (scalar). The profile tells you what changed and how much; the gate tells you whether that change is acceptable.
+
+### The Two Questions
 
 The framework serves two audiences:
 
-1. **CLI tool authors**: "Can an LLM use my tool effectively given my documentation?" — validates that the tool's CLI design, help output, error messages, and documentation are sufficient for an LLM agent to accomplish real tasks.
+1. **CLI tool authors**: "Can an LLM use my tool effectively given my documentation?" — measures whether the tool's CLI design, help output, error messages, and documentation are sufficient for an LLM agent to accomplish real tasks, and **how much friction** the agent experienced along the way.
 
-2. **Guidance authors**: "Does my AGENTS.md or documentation effectively guide LLMs?" — validates that project-level instructions, workflow descriptions, and tool usage patterns produce good outcomes when followed by an LLM agent.
+2. **Guidance authors**: "Does my AGENTS.md or documentation effectively guide LLMs?" — measures whether project-level instructions, workflow descriptions, and tool usage patterns produce good outcomes when followed by an LLM agent, and **how efficiently** the agent reached those outcomes.
 
-Both audiences share the same core question: if you give an LLM agent your tool's documentation and a task, can it accomplish the task?
+Both audiences share the same core question: if you give an LLM agent your tool's documentation and a task, **how well** does it accomplish the task?
 
 ## Core Concept
 
-The quality of an LLM-tool interaction reveals:
+An LLM-tool interaction reveals information along two axes:
 
-- Whether the tool's CLI design is LLM-friendly (flag names, subcommand structure, defaults)
-- Whether the documentation is clear and complete enough for an LLM to use without guessing
-- Whether error messages guide recovery (can the LLM self-correct after a mistake?)
-- Whether the tool's output is parseable and actionable (can the LLM extract IDs, status, and results?)
+**Quantitative** — directly measurable from the transcript and metadata:
+- How many tokens did the agent consume?
+- How many tool invocations did it make?
+- How many of those failed?
+- How long did the run take, and what did it cost?
+- How often did the agent get a command right on the first try?
 
-llm-tool-test automates this evaluation. It launches a real LLM coding agent in an isolated workspace, gives it a task that requires using the target CLI tool, captures the full interaction transcript, and evaluates the result against defined criteria.
+These answer questions like: _"Does a new model or harness increase token usage?"_ and _"Did switching to claude-sonnet reduce the error rate compared to gpt-4o?"_
+
+**Qualitative** — requiring intrinsic knowledge of how the tool is intended to be used:
+- Did the agent use the tool as its author intended, or did it find circuitous workarounds?
+- Did it follow documented conventions, or ignore them?
+- Was its approach efficient relative to the documented workflow, or did it discover the right path through trial and error?
+- Did it recover gracefully from errors, or flail?
+
+These require judgment — either from a human reviewing the transcript, or from an LLM-as-judge scoring against a rubric that encodes the tool author's intent.
+
+llm-tool-test automates both dimensions. It launches a real LLM coding agent in an isolated workspace, gives it a task that requires using the target CLI tool, captures the full interaction transcript, and produces a structured evaluation profile — not just a pass/fail stamp.
 
 The framework is tool-agnostic. It does not link against the target tool's code or assume anything about its internals. It treats the target tool as a black box — exactly as an LLM agent would.
 
@@ -72,18 +99,18 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 2. **Target Tool Configuration** — declares what CLI tool is being tested, including its commands and how to inspect its state.
 3. **LLM Agent Adapters** — invoke LLM coding agents (opencode, claude-code) that then use the target tool.
 4. **Transcript Capture** — records the full agent interaction via PTY.
-5. **Evaluator** — three-layer quality measurement. See [specs/evaluation.md](evaluation.md).
+5. **Evaluator** — three-layer evaluation producing a dimensional profile. Gates provide fail-fast; interaction metrics and judge provide the real value. See [specs/evaluation.md](evaluation.md).
 6. **Results & Artifacts** — structured output for analysis and review.
 
 ### Key Architectural Decisions
 
 1. **Separate binary**: `llm-tool-test` is a standalone tool, not a library or test harness linked into the target tool.
 
-2. **Black-box testing**: The harness treats the target as an external CLI tool. It doesn't link against the tool's library code.
+2. **Black-box evaluation**: The harness treats the target as an external CLI tool. It doesn't link against the tool's library code.
 
 3. **Adapter indirection**: The harness invokes LLM agents, not the target tool. The LLM agent invokes the target tool. This mirrors real-world usage.
 
-4. **Tool-agnostic**: The harness can test any CLI tool with appropriate scenario definitions and target tool configuration.
+4. **Tool-agnostic**: The harness can evaluate any CLI tool with appropriate scenario definitions and target tool configuration.
 
 ---
 
@@ -149,7 +176,7 @@ pub struct TokenUsage {
 
 ## Transcript Capture
 
-Transcripts are the primary artifact of a test run. For CLI tool authors, they reveal how the LLM interprets documentation and error messages. For guidance authors, they show exactly how the LLM follows (or deviates from) instructions.
+Transcripts are the primary artifact of a run. For CLI tool authors, they reveal how the LLM interprets documentation and error messages. For guidance authors, they show exactly how the LLM follows (or deviates from) instructions.
 
 ### PTY-Based Capture
 
@@ -240,11 +267,13 @@ See [specs/scripts.md](scripts.md) for details.
 
 ### 7. Evaluate
 
-The evaluator runs:
-- **Interaction quality metrics**: command error rate, self-correction, tool usage patterns (always runs)
-- **Gates**: built-in gates and script gates, all run regardless of earlier failures
-- **Custom evaluators**: scripts that produce additional metrics/scores (see [specs/scripts.md](scripts.md))
-- **LLM-as-judge**: qualitative assessment against a rubric (optional, if enabled and gates pass)
+The evaluator produces a dimensional evaluation profile:
+- **Interaction quality metrics**: quantitative measures — command error rate, first-try success rate, retry rate, help-seeking, command count, token usage, cost, duration (always runs)
+- **Gates**: binary fail-fast assertions — catch catastrophic failures early so expensive judge calls aren't wasted on dead runs. All gates run regardless of earlier failures so the full picture is available.
+- **Custom evaluators**: scripts that produce additional scalar metrics/scores (see [specs/scripts.md](scripts.md))
+- **LLM-as-judge**: qualitative assessment — rubric-based scoring that encodes the tool author's intent about how the tool should be used (optional, if enabled and gates pass)
+
+**The evaluation profile is the primary output.** Gates gate nothing beyond fail-fast; the scalar measurements across all layers are what enable comparisons across models, harnesses, and documentation variants.
 
 See [specs/evaluation.md](evaluation.md) for details.
 
@@ -347,6 +376,17 @@ llm-tool-test clean                         # Clean all artifacts
 ---
 
 ## Results Tracking
+
+### Purpose
+
+Results are not primarily for stamping Pass/Fail. They are for **comparative evaluation** — answering questions like:
+
+- Did the new model reduce token usage?
+- Did the richer AGENTS.md lower the error rate?
+- Does claude-code achieve higher first-try success than opencode on this tool?
+- Has a tool version change degraded the interaction profile?
+
+A single run produces a profile. Two runs produce a comparison. Many runs produce a trend.
 
 ### Storage
 

@@ -589,6 +589,7 @@ pub struct EvaluationMetrics {
     pub details: Vec<GateResult>,
     pub judge_score: Option<f64>,
     pub judge_response: Option<JudgeResponse>,
+    pub judge_passed: Option<bool>,
     pub efficiency: EfficiencyMetrics,
     /// Composite score is only computed if scenario configures composite weights
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -651,42 +652,27 @@ fn run_judge_evaluation(
 
     println!("Running LLM-as-judge evaluation...");
     let rubric_path = crate::utils::resolve_fixtures_path(&judge_config.rubric);
-    let _rubric = load_rubric(&rubric_path)
+    let rubric = load_rubric(&rubric_path)
         .with_context(|| format!("Failed to load rubric from {}", rubric_path.display()))?;
 
     let transcript_path = env_root.join("transcript.raw.txt");
-
-    let runner = crate::session::SessionRunner::new();
-    let prompt = format!(
-        r#"Evaluate this LLM tool interaction.
-
-Task: {}
-
-Files to review:
-- @{} - The interaction transcript
-
-Use the rubric at {} for evaluation.
-
-Return evaluation as JSON with this structure:
-{{
-  "scores": {{
-    "criterion_id": <score_0_to_1>,
-    ...
-  }},
-  "weighted_score": <weighted_average_0_to_1>,
-  "confidence": <confidence_0_to_1>,
-  "issues": ["issue1", "issue2", ...],
-  "highlights": ["good_practice1", "good_practice2", ...]
-}}
-
-Provide JSON only, no additional text."#,
-        scenario.task.prompt,
-        transcript_path.display(),
-        rubric_path.display()
+    let prompt = crate::judge::build_judge_prompt(
+        &scenario.task.prompt,
+        &transcript_path.display().to_string(),
+        &rubric,
     );
 
+    let judge_model = std::env::var("LLM_TOOL_TEST_JUDGE").ok();
+
+    let runner = crate::session::SessionRunner::new();
+    let args = if let Some(model) = &judge_model {
+        vec!["run", "--model", model, &prompt]
+    } else {
+        vec!["run", &prompt]
+    };
+
     let (output, exit_code) = runner
-        .run_command("opencode", &["run", &prompt], env_root, 300)
+        .run_command("opencode", &args, env_root, 300)
         .context("Judge execution failed")?;
 
     if exit_code != 0 {
@@ -714,13 +700,32 @@ fn maybe_run_judge(
     scenario: &Scenario,
     env_root: &Path,
     no_judge: bool,
-) -> Result<(Option<f64>, Option<JudgeResponse>)> {
+    gates_passed: usize,
+    gates_total: usize,
+) -> Result<(Option<f64>, Option<JudgeResponse>, Option<bool>)> {
     if let Some(judge_config) = &scenario.evaluation.judge {
         if judge_config.enabled && !no_judge {
-            return run_judge_evaluation(scenario, env_root);
+            if gates_passed < gates_total {
+                println!(
+                    "Skipping judge: {}/{} gates failed",
+                    gates_total - gates_passed,
+                    gates_total
+                );
+                return Ok((None, None, None));
+            }
+            let (score, response) = run_judge_evaluation(scenario, env_root)?;
+            let passed = score.map(|s| s >= judge_config.pass_threshold);
+            if let Some(p) = passed {
+                if p {
+                    println!("Judge passed: score {:.2} >= threshold {:.2}", score.unwrap_or(0.0), judge_config.pass_threshold);
+                } else {
+                    println!("Judge failed: score {:.2} < threshold {:.2}", score.unwrap_or(0.0), judge_config.pass_threshold);
+                }
+            }
+            return Ok((score, response, passed));
         }
     }
-    Ok((None, None))
+    Ok((None, None, None))
 }
 
 /// Run custom evaluator scripts from scenario configuration.
@@ -850,6 +855,7 @@ fn build_metrics(
     gates_passed: usize,
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
+    judge_passed: Option<bool>,
 ) -> EvaluationMetrics {
     let efficiency = compute_efficiency_or_default(
         env_root,
@@ -872,6 +878,7 @@ fn build_metrics(
         details,
         judge_score,
         judge_response,
+        judge_passed,
         efficiency,
         composite_score,
         evaluator_results: Vec::new(),
@@ -894,7 +901,9 @@ pub fn evaluate(
     };
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
-    let (judge_score, judge_response) = maybe_run_judge(scenario, env_root, no_judge)?;
+    let gates_total = scenario.evaluation.gates.len();
+    let (judge_score, judge_response, judge_passed) =
+        maybe_run_judge(scenario, env_root, no_judge, gates_passed, gates_total)?;
     let mut metrics = build_metrics(
         scenario,
         env_root,
@@ -902,6 +911,7 @@ pub fn evaluate(
         gates_passed,
         judge_score,
         judge_response,
+        judge_passed,
     );
 
     // Run custom evaluators after gates and judge evaluation

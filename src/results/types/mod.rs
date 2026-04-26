@@ -62,6 +62,9 @@ pub struct EvaluationMetricsRecord {
     pub gates_total: usize,
     /// Detailed results for each gate
     pub details: Vec<GateResultRecord>,
+    /// Whether the judge threshold was met (None if judge was not run)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge_passed: Option<bool>,
     /// Efficiency metrics
     pub efficiency: EfficiencyMetricsRecord,
     /// Composite quality score (0.0-1.0), only present if scenario configures composite weights

@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Define a scripts system that lets scenario authors run custom logic at defined points in the test lifecycle. Scripts are the primary extension mechanism — they keep the framework core generic while allowing tool-specific behavior to live outside the framework.
+Define a scripts system that lets scenario authors run custom logic at defined points in the evaluation lifecycle. Scripts are the primary extension mechanism — they keep the framework core generic while allowing tool-specific behavior to live outside the framework.
 
 Scripts replace the need for domain-specific gates, custom snapshot commands, and hardcoded evaluation logic. The framework provides the lifecycle hooks and a structured output contract; the scenario author provides the scripts.
 

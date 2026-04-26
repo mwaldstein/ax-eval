@@ -142,6 +142,7 @@ fn test_result_record_json_round_trip() {
                 passed: true,
                 message: "Passed".to_string(),
             }],
+            judge_passed: Some(true),
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 3,
                 unique_commands: 2,
@@ -202,6 +203,7 @@ fn test_result_record_json_skip_none_cache_key() {
             gates_passed: 2,
             gates_total: 2,
             details: vec![],
+            judge_passed: None,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 3,
                 unique_commands: 2,

@@ -172,6 +172,15 @@ pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
             "Fail: {}/{} gates passed",
             metrics.gates_passed, metrics.gates_total
         )
+    } else if let Some(judge_passed) = metrics.judge_passed {
+        if !judge_passed {
+            format!(
+                "Fail: judge score {:.2} below threshold",
+                metrics.judge_score.unwrap_or(0.0)
+            )
+        } else {
+            "Pass".to_string()
+        }
     } else {
         "Pass".to_string()
     }

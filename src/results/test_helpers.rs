@@ -46,6 +46,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
             gates_passed: 2,
             gates_total: 2,
             details: vec![],
+            judge_passed: Some(true),
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 3,
                 unique_commands: 2,
