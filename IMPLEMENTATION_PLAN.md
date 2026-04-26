@@ -429,10 +429,10 @@ The README currently lists domain-specific gates under "Domain-specific (evolvin
 
 **Status:** ✅ Complete
 
-Add `[target]` section to the example config showing how to configure the target tool globally.
+This was superseded by per-scenario `target:` configuration. A global `[target]` section remains a future enhancement and is not present in `llm-tool-test-config.example.toml`.
 
 **Files:**
-- ✅ `llm-tool-test-config.example.toml` — Added:
+- Superseded example:
   ```toml
   # Target tool configuration (can also be defined per-scenario in YAML)
   [target]
@@ -442,7 +442,7 @@ Add `[target]` section to the example config showing how to configure the target
 
   [target.env]
   MYTOOL_CONFIG = "/path/to/config.toml"
-  MYTOOL_AUTH_TOKEN = "${MYTOOL_AUTH_TOKEN}"
+  MYTOOL_AUTH_TOKEN = "token-value"
   ```
 
 **Verify:** ✅ `cargo build` — no compile errors. ✅ `cargo test` — all tests pass.

@@ -69,7 +69,8 @@ The framework is tool-agnostic. It does not link against the target tool's code 
                         │  Configuration  │     ┌─────────────────┐
                         └─────────────────┘     │  LLM Agent      │
                                                 │  (opencode,     │
-                                                │   claude-code)  │
+                                                │   claude-code,  │
+                                                │   codex, mock)  │
                                                 └────────┬────────┘
                                                          │ uses
                                                          ▼
@@ -97,7 +98,7 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 
 1. **Scenarios** — YAML files that define tasks and evaluation criteria. See [specs/scenarios.md](scenarios.md).
 2. **Target Tool Configuration** — declares what CLI tool is being tested, including its commands and how to inspect its state.
-3. **LLM Agent Adapters** — invoke LLM coding agents (opencode, claude-code) that then use the target tool.
+3. **LLM Agent Adapters** — invoke LLM coding agents (opencode, claude-code, codex, or mock) that then use the target tool.
 4. **Transcript Capture** — records the full agent interaction via PTY.
 5. **Evaluator** — three-layer evaluation producing a dimensional profile. Gates provide fail-fast; interaction metrics and judge provide the real value. See [specs/evaluation.md](evaluation.md).
 6. **Results & Artifacts** — structured output for analysis and review.
@@ -116,7 +117,7 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 
 ## LLM Agent Adapters
 
-Adapters handle the specifics of launching and communicating with each LLM coding agent. An important distinction: adapters invoke the **LLM coding agent** (opencode, claude-code), not the target CLI tool. The agent then uses the target tool autonomously.
+Adapters handle the specifics of launching and communicating with each LLM coding agent. An important distinction: adapters invoke the **LLM coding agent** (opencode, claude-code, codex, or mock), not the target CLI tool. The agent then uses the target tool autonomously.
 
 ### How Adapters Work
 
@@ -254,7 +255,7 @@ Execute any `setup` commands defined in the scenario (e.g., initializing the tar
 
 ### 4. Launch LLM Agent via Adapter
 
-The adapter launches the LLM coding agent (opencode, claude-code) in the prepared workspace with the scenario's task prompt. The agent autonomously reads documentation and uses the target CLI tool to accomplish the task.
+The adapter launches the LLM coding agent (opencode, claude-code, codex, or mock) in the prepared workspace with the scenario's task prompt. The agent autonomously reads documentation and uses the target CLI tool to accomplish the task.
 
 ### 5. Capture Transcript
 
@@ -361,8 +362,8 @@ llm-tool-test scenarios --tags capture      # Filter by tags
 llm-tool-test show <scenario-id>            # Show scenario details
 
 # Maintenance
-llm-tool-test clean --older-than 7d         # Clean old artifacts
-llm-tool-test clean                         # Clean all artifacts
+llm-tool-test clean --older-than 7d         # Clean cache and legacy transcript artifacts
+llm-tool-test clean                         # Clean cache and legacy transcript artifacts
 ```
 
 ---

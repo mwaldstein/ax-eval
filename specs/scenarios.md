@@ -34,10 +34,10 @@ target:
   health_check: "mytool --version"
   env:
     MYTOOL_CONFIG: "/etc/mytool/config.toml"
-    MYTOOL_AUTH_TOKEN: "${MYTOOL_AUTH_TOKEN}"
+    MYTOOL_AUTH_TOKEN: "token-value"
 ```
 
-If no target is specified, scenario loading fails with a clear error.
+If no target is specified, scenario loading fails with a clear error. Environment values are passed literally; shell-style `${VAR}` interpolation is not performed by the scenario loader.
 
 ### `command_pattern`
 

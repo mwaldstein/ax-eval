@@ -31,7 +31,7 @@ In CI/CD contexts, binary gates are a valid use of the framework — for example
 ## How it works
 
 1. You define **scenarios** — structured tasks with a prompt, evaluation gates, and optional judge rubrics.
-2. The framework launches a real LLM agent (opencode, claude-code) in an isolated environment with your tool available.
+2. The framework launches a real LLM agent (opencode, claude-code, codex, or mock) in an isolated environment with your tool available.
 3. The agent works through the prompt. The full interaction is captured as a **transcript**.
 4. Results are evaluated on three layers:
    - **Interaction quality** — quantitative metrics from the transcript (error rate, first-try success, token usage, command count, cost)
@@ -89,10 +89,10 @@ llm-tool-test show <run-id>
 ### Clean Artifacts
 
 ```bash
-# Clean old results (older than 7 days)
+# Clean cache and legacy transcript artifacts older than 7 days
 llm-tool-test clean --older-than "7d"
 
-# Clean all
+# Clean cache and legacy transcript artifacts
 llm-tool-test clean
 ```
 
@@ -168,12 +168,12 @@ cat llm-tool-test-results/<timestamp>*/transcript.raw.txt
 
 ## Configuration
 
-Optional `llm-tool-test-config.toml` for tool/model configuration and cost tracking:
+Optional `llm-tool-test-config.toml` for tool/model validation and matrix profiles:
 
 ```toml
 [tools.opencode]
 name = "opencode"
-command = "opencode"
+command = "opencode" # metadata only for built-in adapters today
 models = ["gpt-4o", "claude-sonnet"]
 
 [profiles.quick]
@@ -198,7 +198,7 @@ Copy `llm-tool-test-config.example.toml` as a starting point.
 
 **Timeout errors**: Increase timeout with `--timeout-secs 600`
 
-**Cache issues**: Disable caching with `--no-cache` or clean old results
+**Cache issues**: Disable caching with `--no-cache` or run `llm-tool-test clean` to clear cache entries
 
 **Composite score low**: Review which gates failed in evaluation.md
 

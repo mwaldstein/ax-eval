@@ -3,7 +3,9 @@
 # Copy this file to `llm-tool-test-config.toml` in your working directory
 # to customize tool configurations and test profiles.
 
-# Tool configurations define available LLM tools and their supported models
+# Tool configurations define known LLM tools and their supported models.
+# The `command` field is currently metadata for built-in adapters; adapter
+# launch binaries are selected by tool name in the runner.
 [tools]
 
 [tools.opencode]
@@ -13,8 +15,13 @@ models = ["gpt-4o", "claude-sonnet"]
 
 [tools.claude-code]
 name = "claude-code"
-command = "claude-code"
+command = "claude"
 models = ["claude-sonnet", "claude-haiku"]
+
+[tools.codex]
+name = "codex"
+command = "codex"
+models = ["gpt-5-codex"]
 
 # Profile configurations define test matrices (combinations of tools and models)
 [profiles]
