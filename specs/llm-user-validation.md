@@ -161,7 +161,7 @@ pub struct TokenUsage {
 
 - **Execution**: Launch the agent process with appropriate flags and prompt.
 - **Transcript capture**: Capture full PTY output from the agent session.
-- **Structured event emission**: When possible, adapters should emit structured events (`tool_call`, `tool_result` with exit codes) to `events.jsonl`. This feeds Layer 1 interaction metrics directly. Raw transcript parsing is the fallback when structured events are unavailable.
+- **Transcript normalization**: When an adapter receives structured JSON output, it should synthesize a plain-text transcript with commands and exit codes so Layer 1 metrics can be derived consistently.
 - **Cost/token tracking**: Parse actual cost and token usage from agent output when available. Do not estimate from character counts.
 - **Timeout enforcement**: Kill the agent process if it exceeds the configured timeout.
 
@@ -169,8 +169,10 @@ pub struct TokenUsage {
 
 | Adapter | Agent Invocation | Status |
 |---------|-----------------|--------|
-| opencode | `opencode <prompt>` | Primary |
-| claude-code | `claude --prompt <text>` | Primary |
+| opencode | `opencode run --format json <prompt>` | Primary |
+| claude-code | `claude run` with `prompt.txt` in the scenario workspace | Primary |
+| codex | `codex exec --json --full-auto <prompt>` | Primary |
+| mock | internal mock adapter | Test support |
 
 ---
 
@@ -191,7 +193,7 @@ Fallback to piped stdout/stderr if PTY is unavailable.
 
 ### Event Log Format
 
-Structured events extracted from the raw transcript:
+Structured events logged during the run:
 
 ```jsonl
 {"ts": 1705500000.123, "event": "spawn", "command": "opencode", "args": ["--prompt", "..."]}
@@ -218,14 +220,13 @@ llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/
 
 ```json
 {
-  "scenario_id": "capture_article_basic",
+  "scenario_id": "example_basic",
   "scenario_hash": "abc123def456",
   "tool": "opencode",
   "model": "claude-sonnet-4-20250514",
-  "target_tool_version": "0.1.0",
   "timestamp": "2025-01-17T12:00:00Z",
   "duration_secs": 45.3,
-  "cost_estimate_usd": 0.023,
+  "cost_usd": 0.023,
   "token_usage": {
     "input": 1500,
     "output": 800
@@ -241,7 +242,7 @@ A single scenario run proceeds through these steps:
 
 ### 1. Load Scenario
 
-Parse the YAML scenario file. Resolve the target tool configuration. Validate that all referenced fixtures, rubrics, and commands exist.
+Parse the YAML scenario file and its inline target tool configuration. Validate referenced fixtures, rubrics, and commands as they are used.
 
 ### 2. Prepare Isolated Workspace
 
@@ -257,7 +258,7 @@ The adapter launches the LLM coding agent (opencode, claude-code) in the prepare
 
 ### 5. Capture Transcript
 
-The full PTY output is captured during the agent session. After the agent exits (or is killed by timeout), the raw transcript is written to disk and structured events are extracted.
+The adapter captures agent output during the session. After the agent exits (or is killed by timeout), the raw or synthesized transcript is written to disk and run events are logged.
 
 ### 6. Post-Execution Scripts
 
@@ -285,21 +286,17 @@ Write the transcript, event log, metrics, and evaluation summary to the results 
 
 ## Cost Management
 
-LLM API calls are expensive. The harness enforces cost controls at multiple levels.
+LLM API calls are expensive, so the harness records available cost and token usage for trend analysis.
 
-### Budget Enforcement
+### Cost Tracking
 
-1. **Per-run limit**: From the scenario's `cost.max_usd` field.
-2. **Session limit**: From `--max-usd` flag or `LLM_TOOL_TEST_BUDGET_USD` environment variable.
-3. **Estimate before run**: Warn if estimated cost exceeds the limit.
-4. **Track actual cost**: Log actual cost (from adapter output) to results for trend analysis.
+The current implementation records actual cost when an adapter exposes it, and writes that cost to results for trend analysis. Budget enforcement is future work; there is no `--max-usd` flag today.
 
 ### Caching
 
 Cache key components:
 - Scenario YAML hash
 - Prompt content hash
-- Target tool version
 - Agent tool + model identifier
 
 If cache hit, reuse transcript and evaluation results. Disable with `--no-cache`.
@@ -308,9 +305,8 @@ If cache hit, reuse transcript and evaluation results. Disable with `--no-cache`
 
 `--dry-run` shows:
 - Scenarios that would run
-- Estimated prompt sizes
-- Estimated costs
-- Cache status (hit/miss)
+- Selected agent tool and model
+- Generated run metadata placeholder
 
 No LLM API calls are made.
 
@@ -318,9 +314,6 @@ No LLM API calls are made.
 
 ```bash
 LLM_TOOL_TEST_ENABLED=1          # Must be set to run tests (safety)
-LLM_TOOL_TEST_BUDGET_USD=5.00    # Session budget limit
-LLM_TOOL_TEST_TOOL=opencode      # Default LLM agent tool
-LLM_TOOL_TEST_JUDGE=gpt-4o-mini  # Judge model for LLM-as-judge evaluation
 ```
 
 ---
@@ -352,16 +345,15 @@ llm-tool-test-results/
 
 ```bash
 # Run scenarios
-llm-tool-test run --scenario capture_basic  # Run specific scenario
+llm-tool-test run --scenario example_basic  # Run specific scenario
 llm-tool-test run --all                     # Run all scenarios
 llm-tool-test run --all --tags capture      # Run by tags
 llm-tool-test run --all --tier 1            # Run by tier
-llm-tool-test run --tool opencode           # Run with specific agent
-llm-tool-test run --max-usd 1.00            # Budget limit
-llm-tool-test run --dry-run                 # Show what would run + cost estimate
+llm-tool-test run --scenario example_basic --tool opencode  # Run with specific agent
+llm-tool-test run --dry-run                 # Validate selection without LLM calls
 
 # Matrix runs
-llm-tool-test run --all --tools opencode,claude-code --models gpt-4o,claude-sonnet
+llm-tool-test run --all --profile quick
 
 # List and inspect scenarios
 llm-tool-test scenarios                     # List all scenarios

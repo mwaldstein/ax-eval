@@ -23,41 +23,21 @@ Each scenario must declare the CLI tool under evaluation. This is the **target t
 | `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens) |
 | `target.health_check` | string | no | Command to verify the tool is working before/after runs |
 
-### Configuration Sources
+### Configuration Source
 
-Target tool config can be defined in three ways, in order of precedence (highest first):
+Target tool config is defined inline in scenario YAML so each scenario is self-contained:
 
-1. **CLI flags** — for quick evaluation:
-   ```bash
-   llm-tool-test run --scenario basic --target-binary mytool
-   ```
+```yaml
+target:
+  binary: mytool
+  command_pattern: "mytool\\s+"
+  health_check: "mytool --version"
+  env:
+    MYTOOL_CONFIG: "/etc/mytool/config.toml"
+    MYTOOL_AUTH_TOKEN: "${MYTOOL_AUTH_TOKEN}"
+```
 
-2. **Inline in scenario YAML** — self-contained scenarios:
-   ```yaml
-   target:
-     binary: mytool
-     command_pattern: "mytool\\s+"
-     health_check: "mytool --version"
-     env:
-       MYTOOL_CONFIG: "/etc/mytool/config.toml"
-       MYTOOL_AUTH_TOKEN: "${MYTOOL_AUTH_TOKEN}"
-   ```
-
-3. **Shared config file** — referenced by scenarios to avoid repetition:
-   ```yaml
-   # llm-tool-test-config.toml or a dedicated target config
-   [target]
-   binary = "mytool"
-   command_pattern = "mytool\\s+"
-   health_check = "mytool --version"
-   ```
-
-   Then in the scenario YAML:
-   ```yaml
-   target: from_config
-   ```
-
-If no target is specified anywhere, the run fails with a clear error.
+If no target is specified, scenario loading fails with a clear error.
 
 ### `command_pattern`
 
@@ -93,7 +73,7 @@ Scenarios are YAML files. Each file defines one scenario.
 name: string                     # Human-readable name (required)
 description: string              # What this scenario tests (required)
 
-target:                          # Target tool configuration (required, or "from_config")
+target:                          # Target tool configuration (required)
   binary: string
   command_pattern: string        # optional
   health_check: string           # optional

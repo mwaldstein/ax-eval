@@ -56,7 +56,7 @@ This prevents accidental expensive LLM API calls.
 
 ```bash
 # Run single scenario
-llm-tool-test run --scenario capture_basic
+llm-tool-test run --scenario example_basic
 
 # Run all scenarios
 llm-tool-test run --all
@@ -66,7 +66,7 @@ llm-tool-test run --all --tags smoke
 llm-tool-test run --all --tier 1
 
 # Dry run (no LLM calls)
-llm-tool-test run --scenario capture_basic --dry-run
+llm-tool-test run --scenario example_basic --dry-run
 ```
 
 ### List Scenarios
@@ -101,8 +101,8 @@ llm-tool-test clean
 Run a scenario with a specific agent tool and optional model:
 
 ```bash
-llm-tool-test run --scenario capture_basic --tool opencode
-llm-tool-test run --scenario capture_basic --tool opencode --model gpt-4o
+llm-tool-test run --scenario example_basic --tool opencode
+llm-tool-test run --scenario example_basic --tool opencode --model gpt-4o
 ```
 
 Run a configured matrix with a profile from `llm-tool-test-config.toml`:
@@ -157,7 +157,7 @@ export LLM_TOOL_TEST_ENABLED=1
 llm-tool-test scenarios
 
 # 3. Run specific scenario
-llm-tool-test run --scenario capture_basic --tool opencode
+llm-tool-test run --scenario example_basic --tool opencode
 
 # 4. Check results
 cat llm-tool-test-results/<timestamp>*/evaluation.md

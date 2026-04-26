@@ -80,12 +80,9 @@ The pattern identifies target tool invocations in the transcript. If the pattern
 | **Completion** | Did the agent complete the task vs give up or time out | Basic pass/fail signal |
 | **Command count** | Total target-tool commands executed | Efficiency (fewer is better, given completion) |
 
-### Data Sources
+### Data Source
 
-Interaction metrics are derived from one of two data sources:
-
-- **Structured events (preferred)**: When `events.jsonl` is available, metrics are derived from `tool_call`/`tool_result` events which include explicit exit codes. This is the preferred source of truth.
-- **Transcript fallback**: When structured events are not available, the framework falls back to regex-based transcript analysis using `target.command_pattern`. In this fallback mode, exit code detection is approximate and error rate metrics may be less reliable.
+Interaction metrics are currently derived from `transcript.raw.txt` using `target.command_pattern`. Some adapters synthesize a plain-text transcript from their structured JSON output before analysis. Exit code detection is therefore only as reliable as the transcript or synthesized transcript content.
 
 ### Completion
 
@@ -133,7 +130,7 @@ The real evaluation value is in Layer 1 (quantitative metrics) and Layer 3 (qual
 
 ### Gate Types
 
-The current implementation includes domain-specific gates (`MinNotes`, `MinLinks`, `SearchHit`, `NoteExists`, `LinkExists`, `TagExists`, `ContentContains`, `DoctorPasses`). These must be replaced with generic primitives that any CLI tool author can use.
+The current implementation provides generic gate primitives that any CLI tool author can combine with scenario-specific commands and scripts.
 
 #### Generic Gates
 
@@ -146,7 +143,7 @@ The current implementation includes domain-specific gates (`MinNotes`, `MinLinks
 | `file_exists` | `path: String` | Assert file exists relative to work directory. |
 | `file_contains` | `path: String`, `substring: String` | Read file. Assert content contains substring. |
 | `file_matches` | `path: String`, `pattern: String` | Read file. Assert content matches regex pattern. |
-| `no_transcript_errors` | *(none)* | Assert no target-tool commands had non-zero exit codes. (Existing.) |
+| `no_transcript_errors` | *(none)* | Assert no target-tool commands had non-zero exit codes. |
 | `script` | `command: String`, `description: String` | Run script. Pass if exit code 0. Optionally returns structured JSON. See [specs/scripts.md](scripts.md). |
 
 #### `command_json_path` Assertions
@@ -183,19 +180,7 @@ evaluation:
     - type: no_transcript_errors
 ```
 
-This replaces the current domain-specific gates with equivalent generic ones. The scenario author brings domain knowledge; the framework provides the assertion primitives.
-
-#### Migration from Current Gates
-
-| Current Gate | Equivalent Generic Gate |
-|-------------|------------------------|
-| `MinNotes { count: 3 }` | `command_json_path { command: "my-tool list --format json", path: "$", assertion: "len >= 3" }` |
-| `MinLinks { count: 1 }` | `command_json_path { command: "my-tool export --format json", path: "$.links", assertion: "len >= 1" }` |
-| `SearchHit { query }` | `command_output_contains { command: "my-tool search '{query}'", substring: ... }` |
-| `NoteExists { id }` | `command_succeeds { command: "my-tool show {id}" }` |
-| `TagExists { tag }` | `command_output_contains { command: "my-tool list --format json", substring: "{tag}" }` |
-| `ContentContains { id, substring }` | `command_output_contains { command: "my-tool show {id}", substring: "{substring}" }` |
-| `DoctorPasses` | `command_succeeds { command: "my-tool doctor" }` |
+The scenario author brings domain knowledge; the framework provides the assertion primitives.
 
 #### Rust Representation
 
@@ -325,13 +310,13 @@ Rubric criteria are entirely scenario-specific. The framework imposes no default
 The judge model should be:
 - **Cheap and fast** — the judge call should cost a small fraction of the run itself.
 - **Not the same model being tested** — to avoid self-evaluation bias.
-- Configurable via `--judge-model` CLI flag or `LLM_TOOL_TEST_JUDGE` env var.
+- Configurable via the `--judge-model` CLI flag.
 
 Recommended defaults: `gpt-4o-mini`, `claude-haiku`.
 
 ### Judge Execution
 
-The judge is executed via the same CLI tool adapter framework used to run scenarios. This avoids a separate API dependency — the framework already knows how to invoke LLM tools and capture their output.
+The judge is executed via `opencode run`. This avoids a separate API dependency while keeping judge execution observable through the same command runner.
 
 Execution flow:
 1. Build a judge prompt containing the **tool name** (from `target.binary`), task description, transcript file reference, and rubric criteria. The tool name is parameterized so the judge can evaluate how effectively the agent used *that specific tool*.

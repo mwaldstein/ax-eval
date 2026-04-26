@@ -27,7 +27,7 @@ These are not part of the current release plan.
 
 ### Features
 
-- Budget enforcement (`--max-usd` flag) - CLI accepts it but no enforcement logic
+- Budget enforcement (`--max-usd` flag or equivalent) with actual enforcement logic
 - Cost estimation completion for adapters
 - HTML report generation option
 - JUnit XML output for CI integration
