@@ -657,6 +657,7 @@ fn run_judge_evaluation(
 
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(
+        &scenario.target.binary,
         &scenario.task.prompt,
         &transcript_path.display().to_string(),
         &rubric,

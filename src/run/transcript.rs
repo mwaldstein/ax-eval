@@ -87,6 +87,9 @@ pub fn write_transcript_files(
     let judge_score_1_to_5 = metrics.judge_score.map(|score| (score * 5.0).round());
     let judge_feedback = if let Some(ref response) = metrics.judge_response {
         let mut feedback = Vec::new();
+        if !response.rationale.is_empty() {
+            feedback.push(format!("**Rationale:**\n{}", response.rationale));
+        }
         if !response.issues.is_empty() {
             feedback.push(format!("**Issues:**\n{}", response.issues.join("\n")));
         }

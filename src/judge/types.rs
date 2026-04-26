@@ -40,7 +40,8 @@ pub struct OutputFormat {
 /// Response from an LLM-as-judge evaluation.
 ///
 /// Contains scores for each criterion, overall weighted score,
-/// and qualitative feedback about the evaluation.
+/// qualitative feedback about the evaluation, and a rationale
+/// explaining the overall assessment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JudgeResponse {
     /// Map of criterion IDs to scores (0.0-1.0)
@@ -53,4 +54,7 @@ pub struct JudgeResponse {
     pub issues: Vec<String>,
     /// List of positive highlights or good practices observed
     pub highlights: Vec<String>,
+    /// Rationale explaining the overall assessment
+    #[serde(default)]
+    pub rationale: String,
 }

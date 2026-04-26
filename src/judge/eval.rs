@@ -8,10 +8,11 @@ use crate::judge::types::Rubric;
 
 /// Build the judge prompt for CLI-based evaluation.
 ///
-/// Constructs a prompt containing the task description, transcript file
-/// reference, rubric criteria, and required JSON response format.
+/// Constructs a prompt containing the tool name, task description, transcript
+/// file reference, rubric criteria, and required JSON response format.
 /// This prompt is passed to the CLI tool (e.g., `opencode run <prompt>`).
 pub fn build_judge_prompt(
+    tool_name: &str,
     task_description: &str,
     transcript_path: &str,
     rubric: &Rubric,
@@ -24,17 +25,25 @@ pub fn build_judge_prompt(
         .join("\n");
 
     format!(
-        r#"Evaluate this LLM tool interaction.
+        r#"You are evaluating how effectively an LLM agent used the CLI tool `{tool_name}`.
 
-Task: {}
+Read the transcript at @{transcript_path}, then score the interaction against the criteria below.
 
-Files to review:
-- @{} - The interaction transcript
+## Task the agent was given
+{task_description}
 
-# Evaluation Criteria
-{}
+## Evaluation Criteria
+{criteria_text}
 
-Return evaluation as JSON with this structure:
+## Scoring Guidelines
+- Score each criterion 0.0–1.0. 0.0 = complete failure, 0.5 = partial, 1.0 = excellent.
+- Compute `weighted_score` as the weighted average across all criteria.
+- `confidence` reflects how certain you are in your scores (0.0–1.0). Lower confidence if the transcript is ambiguous or incomplete.
+- `issues`: specific problems observed (e.g., "Retried `{tool_name} create` 3 times with same args").
+- `highlights`: specific good practices observed (e.g., "Used `{tool_name} search` to verify data before proceeding").
+- `rationale`: 2–4 sentence explanation of the overall assessment — why the scores are what they are, what the agent did well, and where it struggled.
+
+Return JSON with this exact structure:
 {{
   "scores": {{
     "criterion_id": <score_0_to_1>,
@@ -43,10 +52,14 @@ Return evaluation as JSON with this structure:
   "weighted_score": <weighted_average_0_to_1>,
   "confidence": <confidence_0_to_1>,
   "issues": ["issue1", "issue2", ...],
-  "highlights": ["good_practice1", "good_practice2", ...]
+  "highlights": ["good_practice1", "good_practice2", ...],
+  "rationale": "<2-4 sentence explanation of the overall assessment>"
 }}
 
 Provide JSON only, no additional text."#,
-        task_description, transcript_path, criteria_text
+        tool_name = tool_name,
+        task_description = task_description,
+        transcript_path = transcript_path,
+        criteria_text = criteria_text,
     )
 }

@@ -334,7 +334,7 @@ Recommended defaults: `gpt-4o-mini`, `claude-haiku`.
 The judge is executed via the same CLI tool adapter framework used to run scenarios. This avoids a separate API dependency — the framework already knows how to invoke LLM tools and capture their output.
 
 Execution flow:
-1. Build a judge prompt containing the task description, transcript file reference, and rubric criteria.
+1. Build a judge prompt containing the **tool name** (from `target.binary`), task description, transcript file reference, and rubric criteria. The tool name is parameterized so the judge can evaluate how effectively the agent used *that specific tool*.
 2. Invoke the configured CLI tool (e.g., `opencode run <prompt>`) via `SessionRunner`.
 3. Parse stdout as JSON into `JudgeResponse`.
 
@@ -350,9 +350,12 @@ The judge must return JSON matching the `JudgeResponse` schema:
   "weighted_score": 0.83,
   "confidence": 0.80,
   "issues": ["Retried 'create' command 3 times with same args"],
-  "highlights": ["Good use of search to verify data was captured"]
+  "highlights": ["Good use of search to verify data was captured"],
+  "rationale": "The agent completed the task successfully but took a circuitous path, retrying the create command multiple times before correcting its syntax. It used search appropriately to verify intermediate results."
 }
 ```
+
+The `rationale` field is required — a 2–4 sentence explanation of the overall assessment that gives the evaluation consumer context for interpreting the scores.
 
 ### Pass Threshold
 

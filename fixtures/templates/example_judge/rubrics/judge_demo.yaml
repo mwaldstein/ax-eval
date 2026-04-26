@@ -13,4 +13,4 @@ criteria:
 
 output:
   format: json
-  require_fields: [scores, weighted_score, confidence, issues, highlights]
+  require_fields: [scores, weighted_score, confidence, issues, highlights, rationale]

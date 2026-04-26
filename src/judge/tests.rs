@@ -4,9 +4,8 @@ use super::eval::build_judge_prompt;
 use super::rubric::load_rubric;
 use super::types::{Criterion, OutputFormat, Rubric};
 
-#[test]
-fn test_build_judge_prompt() {
-    let rubric = Rubric {
+fn single_criterion_rubric() -> Rubric {
+    Rubric {
         criteria: vec![Criterion {
             id: "test_criterion".to_string(),
             weight: 1.0,
@@ -16,15 +15,34 @@ fn test_build_judge_prompt() {
             format: "json".to_string(),
             require_fields: vec!["scores".to_string()],
         },
-    };
+    }
+}
 
-    let prompt = build_judge_prompt("Test task", "/path/to/transcript.txt", &rubric);
+#[test]
+fn test_build_judge_prompt_includes_tool_name() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("my-tool", "Do the task", "/path/to/transcript.txt", &rubric);
 
-    assert!(prompt.contains("Test task"));
-    assert!(prompt.contains("/path/to/transcript.txt"));
+    assert!(prompt.contains("my-tool"));
+    assert!(prompt.contains("how effectively an LLM agent used the CLI tool `my-tool`"));
+}
+
+#[test]
+fn test_build_judge_prompt_includes_task_and_transcript() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("notes", "Create 3 notes", "/tmp/transcript.txt", &rubric);
+
+    assert!(prompt.contains("Create 3 notes"));
+    assert!(prompt.contains("/tmp/transcript.txt"));
+}
+
+#[test]
+fn test_build_judge_prompt_includes_criteria() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("notes", "task", "/t.txt", &rubric);
+
     assert!(prompt.contains("test_criterion"));
     assert!(prompt.contains("Test description"));
-    assert!(prompt.contains("weighted_score"));
 }
 
 #[test]
@@ -48,12 +66,30 @@ fn test_build_judge_prompt_multiple_criteria() {
         },
     };
 
-    let prompt = build_judge_prompt("Create 3 notes", "/tmp/transcript.txt", &rubric);
+    let prompt = build_judge_prompt("taskmgr", "Create tasks", "/tmp/t.txt", &rubric);
 
+    assert!(prompt.contains("taskmgr"));
     assert!(prompt.contains("correctness"));
     assert!(prompt.contains("efficiency"));
     assert!(prompt.contains("0.40"));
     assert!(prompt.contains("0.60"));
+}
+
+#[test]
+fn test_build_judge_prompt_requests_rationale() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("notes", "task", "/t.txt", &rubric);
+
+    assert!(prompt.contains("rationale"));
+}
+
+#[test]
+fn test_build_judge_prompt_uses_tool_name_in_examples() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("qipu", "task", "/t.txt", &rubric);
+
+    assert!(prompt.contains("`qipu create`"));
+    assert!(prompt.contains("`qipu search`"));
 }
 
 #[test]
