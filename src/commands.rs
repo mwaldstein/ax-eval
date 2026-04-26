@@ -73,12 +73,6 @@ pub fn handle_run_command(
     ctx: &ExecutionContext,
     config: &Config,
 ) -> anyhow::Result<()> {
-    if std::env::var("LLM_TOOL_TEST_ENABLED").is_err() {
-        anyhow::bail!(
-            "LLM testing is disabled for safety. Set LLM_TOOL_TEST_ENABLED=1 to run scenarios."
-        );
-    }
-
     let scenarios_to_run = if selection.all {
         let mut scenarios = Vec::new();
         let fixtures_dir = resolve_fixtures_path("");
