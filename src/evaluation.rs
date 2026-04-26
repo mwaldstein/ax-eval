@@ -1,5 +1,5 @@
 use crate::judge::{load_rubric, JudgeResponse};
-use crate::scenario::{Gate, Scenario};
+use crate::scenario::{Gate, JudgeConfig, Scenario};
 use crate::script_runner::ScriptRunner;
 use crate::transcript::EfficiencyMetrics;
 use anyhow::{Context, Result};
@@ -645,11 +645,11 @@ fn evaluate_gates(gates: &[Gate], ctx: &EvaluationContext<'_>) -> (Vec<GateResul
 }
 
 fn run_judge_evaluation(
+    judge_config: &JudgeConfig,
+    judge_model: Option<&str>,
     scenario: &Scenario,
     env_root: &Path,
 ) -> Result<(Option<f64>, Option<JudgeResponse>)> {
-    let judge_config = scenario.evaluation.judge.as_ref().unwrap();
-
     println!("Running LLM-as-judge evaluation...");
     let rubric_path = crate::utils::resolve_fixtures_path(&judge_config.rubric);
     let rubric = load_rubric(&rubric_path)
@@ -663,10 +663,8 @@ fn run_judge_evaluation(
         &rubric,
     );
 
-    let judge_model = std::env::var("LLM_TOOL_TEST_JUDGE").ok();
-
     let runner = crate::session::SessionRunner::new();
-    let args = if let Some(model) = &judge_model {
+    let args = if let Some(model) = judge_model {
         vec!["run", "--model", model, &prompt]
     } else {
         vec!["run", &prompt]
@@ -703,6 +701,7 @@ fn maybe_run_judge(
     no_judge: bool,
     gates_passed: usize,
     gates_total: usize,
+    judge_model: Option<&str>,
 ) -> Result<(Option<f64>, Option<JudgeResponse>, Option<bool>)> {
     if let Some(judge_config) = &scenario.evaluation.judge {
         if judge_config.enabled && !no_judge {
@@ -714,13 +713,20 @@ fn maybe_run_judge(
                 );
                 return Ok((None, None, None));
             }
-            let (score, response) = run_judge_evaluation(scenario, env_root)?;
+            let (score, response) =
+                run_judge_evaluation(judge_config, judge_model, scenario, env_root)?;
             let passed = score.map(|s| s >= judge_config.pass_threshold);
-            if let Some(p) = passed {
-                if p {
-                    println!("Judge passed: score {:.2} >= threshold {:.2}", score.unwrap_or(0.0), judge_config.pass_threshold);
+            if let Some(s) = score {
+                if s >= judge_config.pass_threshold {
+                    println!(
+                        "Judge passed: score {:.2} >= threshold {:.2}",
+                        s, judge_config.pass_threshold
+                    );
                 } else {
-                    println!("Judge failed: score {:.2} < threshold {:.2}", score.unwrap_or(0.0), judge_config.pass_threshold);
+                    println!(
+                        "Judge failed: score {:.2} < threshold {:.2}",
+                        s, judge_config.pass_threshold
+                    );
                 }
             }
             return Ok((score, response, passed));
@@ -815,14 +821,10 @@ fn run_evaluators(
                 }
             };
 
-            if result.error.is_some() {
-                eprintln!("Evaluator '{}' failed: {:?}", entry.name, result.error);
-            } else if result.summary.is_some() {
-                println!(
-                    "Evaluator '{}' result: {}",
-                    entry.name,
-                    result.summary.as_ref().unwrap()
-                );
+            if let Some(ref err) = result.error {
+                eprintln!("Evaluator '{}' failed: {:?}", entry.name, err);
+            } else if let Some(ref summary) = result.summary {
+                println!("Evaluator '{}' result: {}", entry.name, summary);
             }
 
             results.push(result);
@@ -891,6 +893,7 @@ pub fn evaluate(
     env_root: &Path,
     no_judge: bool,
     script_runner: Option<&ScriptRunner>,
+    judge_model: Option<&str>,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
 
@@ -903,8 +906,14 @@ pub fn evaluate(
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
     let gates_total = scenario.evaluation.gates.len();
-    let (judge_score, judge_response, judge_passed) =
-        maybe_run_judge(scenario, env_root, no_judge, gates_passed, gates_total)?;
+    let (judge_score, judge_response, judge_passed) = maybe_run_judge(
+        scenario,
+        env_root,
+        no_judge,
+        gates_passed,
+        gates_total,
+        judge_model,
+    )?;
     let mut metrics = build_metrics(
         scenario,
         env_root,

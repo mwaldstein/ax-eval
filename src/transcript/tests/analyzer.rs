@@ -256,3 +256,37 @@ fn test_analyze_with_target_custom_pattern_no_capture_group() {
     assert_eq!(metrics.total_commands, 3);
     assert_eq!(metrics.help_invocations, 1);
 }
+
+#[test]
+fn test_first_try_success_rate_all_succeed() {
+    let transcript = "taskmgr create\ntaskmgr list";
+    let metrics = TranscriptAnalyzer::analyze(transcript);
+
+    assert_eq!(metrics.first_try_success_rate, 1.0);
+}
+
+#[test]
+fn test_first_try_success_rate_first_fails_retry_succeeds() {
+    let transcript = "taskmgr create\nError: failed\ntaskmgr create";
+    let metrics = TranscriptAnalyzer::analyze(transcript);
+
+    assert_eq!(metrics.first_try_success_rate, 0.0);
+}
+
+#[test]
+fn test_first_try_success_rate_mixed_commands() {
+    let transcript =
+        "taskmgr init\nExit code: 0\ntaskmgr add\nExit code: 1\ntaskmgr add\nExit code: 0";
+    let metrics = TranscriptAnalyzer::analyze_with_exit_codes(transcript);
+
+    assert_eq!(metrics.total_commands, 3);
+    assert_eq!(metrics.first_try_success_rate, 1.0 / 3.0);
+}
+
+#[test]
+fn test_first_try_success_rate_unrelated_error_does_not_affect_other_commands() {
+    let transcript = "taskmgr init\nExit code: 1\ntaskmgr add\nExit code: 0";
+    let metrics = TranscriptAnalyzer::analyze_with_exit_codes(transcript);
+
+    assert_eq!(metrics.first_try_success_rate, 0.5);
+}

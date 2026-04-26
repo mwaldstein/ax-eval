@@ -1,5 +1,6 @@
 use crate::transcript::types::{CommandEvent, EfficiencyMetrics};
 use regex::Regex;
+use std::collections::HashMap;
 
 pub struct TranscriptAnalyzer;
 
@@ -73,17 +74,17 @@ impl TranscriptAnalyzer {
             commands.iter().map(|(c, _)| c.clone()).collect();
         let retry_count = total_commands.saturating_sub(unique_commands.len());
 
-        let first_try_success_count = commands
-            .iter()
-            .filter(|(cmd, _)| {
-                commands.iter().take_while(|(c, _)| c != cmd).count()
-                    == commands.iter().position(|(c, _)| c == cmd).unwrap_or(0)
-                    && !commands
-                        .iter()
-                        .take_while(|(c, _)| c != cmd)
-                        .any(|(_, e)| *e)
-            })
-            .count();
+        let mut seen_first: HashMap<String, bool> = HashMap::new();
+        let mut first_try_success_count: usize = 0;
+
+        for (cmd, is_error) in &commands {
+            if !seen_first.contains_key(cmd) {
+                seen_first.insert(cmd.clone(), !is_error);
+                if !is_error {
+                    first_try_success_count += 1;
+                }
+            }
+        }
 
         let first_try_success_rate = if total_commands > 0 {
             first_try_success_count as f64 / total_commands as f64

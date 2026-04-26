@@ -15,7 +15,10 @@ fn extract_json_lines(output: &str) -> Vec<&str> {
 
 fn extract_tokens_from_turn_completed(json: &Value) -> Option<(u64, u64)> {
     let usage = json.get("usage")?;
-    let input = usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+    let input = usage
+        .get("input_tokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     let cached_input = usage
         .get("cached_input_tokens")
         .and_then(|v| v.as_u64())
@@ -97,18 +100,12 @@ fn synthesize_transcript_from_json(output: &str) -> String {
             continue;
         }
 
-        let command = item
-            .get("command")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let command = item.get("command").and_then(|v| v.as_str()).unwrap_or("");
         let cmd_output = item
             .get("aggregated_output")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let exit_code = item
-            .get("exit_code")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let exit_code = item.get("exit_code").and_then(|v| v.as_i64()).unwrap_or(0);
         let status = item
             .get("status")
             .and_then(|v| v.as_str())

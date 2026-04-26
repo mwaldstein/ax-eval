@@ -27,7 +27,8 @@ pub fn build_result_record(
         timestamp: chrono::Utc::now(),
         duration_secs,
         cost_usd: cost,
-        gates_passed: metrics.gates_passed >= metrics.gates_total && metrics.judge_passed.unwrap_or(true),
+        gates_passed: metrics.gates_passed >= metrics.gates_total
+            && metrics.judge_passed.unwrap_or(true),
         metrics: EvaluationMetricsRecord {
             gates_passed: metrics.gates_passed,
             gates_total: metrics.gates_total,

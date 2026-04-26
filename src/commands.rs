@@ -79,10 +79,6 @@ pub fn handle_run_command(
         );
     }
 
-    if let Some(model) = &exec_config.judge_model {
-        std::env::set_var("LLM_TOOL_TEST_JUDGE", model);
-    }
-
     let scenarios_to_run = if selection.all {
         let mut scenarios = Vec::new();
         let fixtures_dir = resolve_fixtures_path("");
@@ -146,6 +142,7 @@ pub fn handle_run_command(
                 exec_config.no_cache,
                 exec_config.timeout_secs,
                 exec_config.no_judge,
+                exec_config.judge_model.as_deref(),
                 ctx.base_dir,
                 ctx.results_db,
                 ctx.cache,

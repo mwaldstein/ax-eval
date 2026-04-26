@@ -96,19 +96,24 @@ impl SessionRunner {
 
         // Spawn thread to wait for child process
         let child_clone = Arc::clone(&child);
-        let wait_thread = thread::spawn(move || {
-            let mut child_guard = child_clone.lock().unwrap();
-            match child_guard.wait() {
-                Ok(status) => {
+        let wait_thread = thread::spawn(move || loop {
+            let mut child_guard = child_clone.lock().unwrap_or_else(|e| e.into_inner());
+            match child_guard.try_wait() {
+                Ok(Some(status)) => {
                     let _ = status_tx.send(Ok(status));
+                    return;
+                }
+                Ok(None) => {
+                    drop(child_guard);
+                    thread::sleep(Duration::from_millis(50));
                 }
                 Err(e) => {
                     let _ = status_tx.send(Err(e));
+                    return;
                 }
             }
         });
 
-        // Wait for status with timeout
         let timeout_duration = Duration::from_secs(timeout_secs);
         let wait_result = status_rx.recv_timeout(timeout_duration);
 
@@ -118,7 +123,10 @@ impl SessionRunner {
                 return Err(anyhow::anyhow!("Failed to wait for child process"));
             }
             Err(_) => {
-                // Timeout occurred
+                let mut child_guard = child.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = child_guard.kill();
+                drop(child_guard);
+                let _ = status_rx.recv_timeout(Duration::from_secs(5));
                 return Err(anyhow::anyhow!(
                     "Command timed out after {} seconds",
                     timeout_secs
@@ -168,7 +176,6 @@ impl SessionRunner {
 
         let (status_tx, status_rx) = channel();
 
-        // Spawn threads to read stdout and stderr
         let stdout_thread = thread::spawn(move || {
             use std::io::Read;
             let mut buf = [0u8; 1024];
@@ -197,17 +204,26 @@ impl SessionRunner {
             output
         });
 
-        // Spawn thread to wait for child process
-        let wait_thread = thread::spawn(move || match child.wait() {
-            Ok(status) => {
-                let _ = status_tx.send(Ok(status));
-            }
-            Err(e) => {
-                let _ = status_tx.send(Err(e));
+        let child = Arc::new(Mutex::new(child));
+        let child_clone = Arc::clone(&child);
+        let wait_thread = thread::spawn(move || loop {
+            let mut child_guard = child_clone.lock().unwrap_or_else(|e| e.into_inner());
+            match child_guard.try_wait() {
+                Ok(Some(status)) => {
+                    let _ = status_tx.send(Ok(status));
+                    return;
+                }
+                Ok(None) => {
+                    drop(child_guard);
+                    thread::sleep(Duration::from_millis(50));
+                }
+                Err(e) => {
+                    let _ = status_tx.send(Err(e));
+                    return;
+                }
             }
         });
 
-        // Wait for status with timeout
         let timeout_duration = Duration::from_secs(timeout_secs);
         let wait_result = status_rx.recv_timeout(timeout_duration);
 
@@ -217,7 +233,10 @@ impl SessionRunner {
                 return Err(anyhow::anyhow!("Failed to wait for child process"));
             }
             Err(_) => {
-                // Timeout occurred
+                let mut child_guard = child.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = child_guard.kill();
+                drop(child_guard);
+                let _ = status_rx.recv_timeout(Duration::from_secs(5));
                 return Err(anyhow::anyhow!(
                     "Command timed out after {} seconds",
                     timeout_secs
@@ -225,7 +244,6 @@ impl SessionRunner {
             }
         };
 
-        // Collect output from both streams
         let mut combined_output = Vec::new();
         if let Ok(stdout_data) = stdout_thread.join() {
             combined_output.extend_from_slice(&stdout_data);
