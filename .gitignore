@@ -1,6 +1,6 @@
 target/
-Cargo.lock
 llm-tool-test-results/
+.codex
 *.log
 .DS_Store
 *.swp
