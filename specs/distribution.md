@@ -22,7 +22,7 @@ Each tagged release publishes pre-built binaries for:
 
 | Platform | Architecture |
 |----------|--------------|
-| macOS    | x86_64, aarch64 |
+| macOS    | aarch64 |
 | Linux    | x86_64, aarch64 |
 | Windows  | x86_64 |
 
@@ -95,7 +95,6 @@ On tagged releases (`v*`), automation should:
 
 Use Rust cross-compilation targets:
 
-- `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 - `x86_64-unknown-linux-gnu`
 - `aarch64-unknown-linux-gnu`
