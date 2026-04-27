@@ -218,6 +218,20 @@ All test artifacts stored in `llm-tool-test-results/<timestamp>-<tool>-<model>-<
 
 ## Installation
 
+Install the latest GitHub release on macOS or Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.sh | sh
+```
+
+Install the latest GitHub release on Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.ps1 | iex
+```
+
+Build locally from source:
+
 ```bash
 cargo build --release
 # Binary will be at target/release/llm-tool-test
