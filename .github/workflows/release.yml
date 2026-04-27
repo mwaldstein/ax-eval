@@ -18,6 +18,7 @@ jobs:
     name: Validate Tag
     runs-on: ubuntu-latest
     outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
@@ -36,6 +37,11 @@ jobs:
           if [ "$version" != "$cargo_version" ]; then
             printf 'Tag version %s does not match Cargo.toml version %s\n' "$version" "$cargo_version" >&2
             exit 1
+          fi
+          if [[ "$version" == *-* ]]; then
+            printf 'prerelease=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'prerelease=false\n' >> "$GITHUB_OUTPUT"
           fi
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
@@ -124,3 +130,4 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+          prerelease: ${{ needs.validate.outputs.prerelease }}
