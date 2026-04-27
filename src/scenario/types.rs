@@ -116,6 +116,9 @@ pub struct Evaluation {
 pub struct JudgeConfig {
     /// Whether judge evaluation is enabled
     pub enabled: bool,
+    /// Optional CLI tool to use for judge evaluation
+    #[serde(default)]
+    pub tool: Option<String>,
     /// Path to the rubric YAML file
     pub rubric: String,
     /// Minimum score threshold to pass (0.0-1.0)

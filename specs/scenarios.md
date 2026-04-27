@@ -104,6 +104,7 @@ evaluation:
       ...gate_params
   judge:                         # optional LLM-as-judge configuration
     enabled: bool
+    tool: string                  # optional judge CLI tool: opencode, codex, claude, claude-code (default: opencode)
     rubric: string               # Path to rubric YAML
     pass_threshold: float        # 0.0-1.0
 
@@ -174,6 +175,7 @@ evaluation:
     - type: no_transcript_errors
   judge:
     enabled: true
+    tool: opencode
     rubric: rubrics/task_organization_v1.yaml
     pass_threshold: 0.70
 

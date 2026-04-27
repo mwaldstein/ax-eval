@@ -24,6 +24,35 @@ evaluation:
 }
 
 #[test]
+fn test_judge_config_with_tool() {
+    let yaml = r#"
+name: test
+description: "Test"
+template_folder: fixture
+target:
+  binary: tool
+task:
+  prompt: "Test prompt"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+  judge:
+    enabled: true
+    tool: codex
+    rubric: rubrics/test.yaml
+    pass_threshold: 0.75
+"#;
+    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let judge = scenario.evaluation.judge.expect("judge config");
+
+    assert!(judge.enabled);
+    assert_eq!(judge.tool.as_deref(), Some("codex"));
+    assert_eq!(judge.rubric, "rubrics/test.yaml");
+    assert_eq!(judge.pass_threshold, 0.75);
+}
+
+#[test]
 fn test_command_output_contains_gate() {
     let yaml = r#"
 name: test

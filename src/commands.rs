@@ -23,6 +23,7 @@ pub struct ExecutionConfig {
     pub no_cache: bool,
     pub timeout_secs: u64,
     pub judge_model: Option<String>,
+    pub judge_tool: Option<String>,
     pub no_judge: bool,
 }
 
@@ -137,6 +138,7 @@ pub fn handle_run_command(
                 exec_config.timeout_secs,
                 exec_config.no_judge,
                 exec_config.judge_model.as_deref(),
+                exec_config.judge_tool.as_deref(),
                 ctx.base_dir,
                 ctx.results_db,
                 ctx.cache,

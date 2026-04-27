@@ -96,6 +96,7 @@ pub fn run_evaluation_flow(
     effective_timeout: u64,
     no_judge: bool,
     judge_model: Option<&str>,
+    judge_tool: Option<&str>,
     writer: &TranscriptWriter,
     transcript_dir: &Path,
     results_dir: &Path,
@@ -161,8 +162,14 @@ pub fn run_evaluation_flow(
     );
 
     println!("Running evaluation...");
-    let metrics =
-        crate::evaluation::evaluate(s, &env.root, no_judge, Some(&script_runner), judge_model)?;
+    let metrics = crate::evaluation::evaluate(
+        s,
+        &env.root,
+        no_judge,
+        Some(&script_runner),
+        judge_model,
+        judge_tool,
+    )?;
     println!("Evaluation metrics: {:?}", metrics);
 
     Ok((output, exit_code, cost, token_usage, duration, metrics))

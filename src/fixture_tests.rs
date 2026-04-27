@@ -104,8 +104,9 @@ mod tests {
             target_env,
         );
 
-        let metrics = evaluation::evaluate(&scenario, &env.root, true, Some(&script_runner), None)
-            .expect("evaluate");
+        let metrics =
+            evaluation::evaluate(&scenario, &env.root, true, Some(&script_runner), None, None)
+                .expect("evaluate");
 
         assert_eq!(
             metrics.gates_passed, metrics.gates_total,

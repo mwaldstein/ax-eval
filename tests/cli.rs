@@ -16,6 +16,16 @@ fn test_cli_help() {
 }
 
 #[test]
+fn test_run_help_includes_judge_tool_option() {
+    llm_tool_test()
+        .args(["run", "--help"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--judge-tool"));
+}
+
+#[test]
 fn test_cli_version() {
     llm_tool_test()
         .arg("--version")

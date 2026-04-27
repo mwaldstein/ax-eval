@@ -105,6 +105,12 @@ llm-tool-test run --scenario example_basic --tool opencode
 llm-tool-test run --scenario example_basic --tool opencode --model gpt-4o
 ```
 
+Use a specific judge tool/model for LLM-as-judge evaluation. Judge tool selection is independent of the agent tool:
+
+```bash
+llm-tool-test run --scenario example_judge --tool codex --judge-tool claude-code --judge-model claude-sonnet
+```
+
 Run a configured matrix with a profile from `llm-tool-test-config.toml`:
 
 ```bash

@@ -10,7 +10,7 @@ use crate::judge::types::Rubric;
 ///
 /// Constructs a prompt containing the tool name, task description, transcript
 /// file reference, rubric criteria, and required JSON response format.
-/// This prompt is passed to the CLI tool (e.g., `opencode run <prompt>`).
+/// This prompt is passed to a supported judge CLI tool.
 pub fn build_judge_prompt(
     tool_name: &str,
     task_description: &str,

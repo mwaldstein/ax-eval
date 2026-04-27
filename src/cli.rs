@@ -63,6 +63,10 @@ pub enum Commands {
         #[arg(long)]
         judge_model: Option<String>,
 
+        /// Tool to use for LLM-as-judge evaluation (defaults to judge config or opencode)
+        #[arg(long)]
+        judge_tool: Option<String>,
+
         /// Disable LLM-as-judge evaluation
         #[arg(long)]
         no_judge: bool,

@@ -305,7 +305,7 @@ output:
 
 Rubric criteria are entirely scenario-specific. The framework imposes no default criteria — the scenario author defines what matters.
 
-### Judge Model
+### Judge Tool And Model
 
 The judge model should be:
 - **Cheap and fast** — the judge call should cost a small fraction of the run itself.
@@ -314,16 +314,26 @@ The judge model should be:
 
 Recommended defaults: `gpt-4o-mini`, `claude-haiku`.
 
+The judge CLI tool is configurable independently of the scenario target tool and the agent tool. It resolves in this order:
+- `--judge-tool` CLI flag.
+- `evaluation.judge.tool` in the scenario.
+- `opencode` default.
+
+Supported judge tools are `opencode`, `codex`, `claude`, and `claude-code`.
+
 ### Judge Execution
 
-The judge is executed via `opencode run`. This avoids a separate API dependency while keeping judge execution observable through the same command runner.
+The judge is executed via a supported local CLI. This avoids a separate API dependency while keeping judge execution observable through the same command runner.
 
 Execution flow:
 1. Build a judge prompt containing the **tool name** (from `target.binary`), task description, transcript file reference, and rubric criteria. The tool name is parameterized so the judge can evaluate how effectively the agent used *that specific tool*.
-2. Invoke the configured CLI tool (e.g., `opencode run <prompt>`) via `SessionRunner`.
+2. Invoke the configured CLI tool via `SessionRunner`.
 3. Parse stdout as JSON into `JudgeResponse`.
 
-The judge tool and model are configurable independently of the scenario's target tool and the agent tool. The `--judge-model` flag sets the model used for judging; the CLI tool is the same adapter used for the run (e.g., `opencode`).
+Current judge invocations:
+- `opencode`: `opencode run [--model <model>] <prompt>`
+- `codex`: `codex exec --full-auto --skip-git-repo-check [--model <model>] <prompt>`
+- `claude` / `claude-code`: `claude run [--model <model>] <prompt>`
 
 ### Structured Output
 
@@ -356,6 +366,7 @@ The judge only runs **if all gates pass**. This prevents wasting an expensive LL
 evaluation:
   judge:
     enabled: true
+    tool: opencode
     rubric: rubrics/capture_v1.yaml
     pass_threshold: 0.70
 ```

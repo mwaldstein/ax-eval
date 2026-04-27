@@ -129,6 +129,7 @@ fn main() -> anyhow::Result<()> {
             dry_run,
             no_cache,
             judge_model,
+            judge_tool,
             no_judge,
             timeout_secs,
         } => {
@@ -166,6 +167,7 @@ fn main() -> anyhow::Result<()> {
                 no_cache: *no_cache,
                 timeout_secs: *timeout_secs,
                 judge_model: judge_model.clone(),
+                judge_tool: judge_tool.clone(),
                 no_judge: *no_judge,
             };
 

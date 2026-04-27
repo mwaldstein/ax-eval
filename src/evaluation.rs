@@ -647,10 +647,12 @@ fn evaluate_gates(gates: &[Gate], ctx: &EvaluationContext<'_>) -> (Vec<GateResul
 fn run_judge_evaluation(
     judge_config: &JudgeConfig,
     judge_model: Option<&str>,
+    judge_tool: Option<&str>,
     scenario: &Scenario,
     env_root: &Path,
 ) -> Result<(Option<f64>, Option<JudgeResponse>)> {
     println!("Running LLM-as-judge evaluation...");
+    let tool = resolve_judge_tool(judge_config, judge_tool);
     let rubric_path = crate::utils::resolve_fixtures_path(&judge_config.rubric);
     let rubric = load_rubric(&rubric_path)
         .with_context(|| format!("Failed to load rubric from {}", rubric_path.display()))?;
@@ -664,14 +666,11 @@ fn run_judge_evaluation(
     );
 
     let runner = crate::session::SessionRunner::new();
-    let args = if let Some(model) = judge_model {
-        vec!["run", "--model", model, &prompt]
-    } else {
-        vec!["run", &prompt]
-    };
+    let command = build_judge_command(tool, judge_model, &prompt)?;
+    let args = command.args.iter().map(String::as_str).collect::<Vec<_>>();
 
     let (output, exit_code) = runner
-        .run_command("opencode", &args, env_root, 300)
+        .run_command(&command.binary, &args, env_root, 300)
         .context("Judge execution failed")?;
 
     if exit_code != 0 {
@@ -695,6 +694,54 @@ fn run_judge_evaluation(
     Ok((Some(response.weighted_score), Some(response)))
 }
 
+fn resolve_judge_tool<'a>(judge_config: &'a JudgeConfig, judge_tool: Option<&'a str>) -> &'a str {
+    judge_tool
+        .or(judge_config.tool.as_deref())
+        .unwrap_or("opencode")
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct JudgeCommand {
+    binary: String,
+    args: Vec<String>,
+}
+
+fn build_judge_command(
+    tool: &str,
+    judge_model: Option<&str>,
+    prompt: &str,
+) -> Result<JudgeCommand> {
+    let mut command = match tool {
+        "opencode" => JudgeCommand {
+            binary: "opencode".to_string(),
+            args: vec!["run".to_string()],
+        },
+        "codex" => JudgeCommand {
+            binary: "codex".to_string(),
+            args: vec![
+                "exec".to_string(),
+                "--full-auto".to_string(),
+                "--skip-git-repo-check".to_string(),
+            ],
+        },
+        "claude" | "claude-code" => JudgeCommand {
+            binary: "claude".to_string(),
+            args: vec!["run".to_string()],
+        },
+        _ => anyhow::bail!("Unsupported judge tool: {}", tool),
+    };
+
+    if let Some(model) = judge_model {
+        if tool != "codex" || model != "default" {
+            command.args.push("--model".to_string());
+            command.args.push(model.to_string());
+        }
+    }
+
+    command.args.push(prompt.to_string());
+    Ok(command)
+}
+
 fn maybe_run_judge(
     scenario: &Scenario,
     env_root: &Path,
@@ -702,6 +749,7 @@ fn maybe_run_judge(
     gates_passed: usize,
     gates_total: usize,
     judge_model: Option<&str>,
+    judge_tool: Option<&str>,
 ) -> Result<(Option<f64>, Option<JudgeResponse>, Option<bool>)> {
     if let Some(judge_config) = &scenario.evaluation.judge {
         if judge_config.enabled && !no_judge {
@@ -714,7 +762,7 @@ fn maybe_run_judge(
                 return Ok((None, None, None));
             }
             let (score, response) =
-                run_judge_evaluation(judge_config, judge_model, scenario, env_root)?;
+                run_judge_evaluation(judge_config, judge_model, judge_tool, scenario, env_root)?;
             let passed = score.map(|s| s >= judge_config.pass_threshold);
             if let Some(s) = score {
                 if s >= judge_config.pass_threshold {
@@ -894,6 +942,7 @@ pub fn evaluate(
     no_judge: bool,
     script_runner: Option<&ScriptRunner>,
     judge_model: Option<&str>,
+    judge_tool: Option<&str>,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
 
@@ -913,6 +962,7 @@ pub fn evaluate(
         gates_passed,
         gates_total,
         judge_model,
+        judge_tool,
     )?;
     let mut metrics = build_metrics(
         scenario,
@@ -937,6 +987,91 @@ mod tests {
 
     fn temp_env() -> tempfile::TempDir {
         tempfile::tempdir().expect("tempdir")
+    }
+
+    #[test]
+    fn judge_tool_resolution_prefers_cli_then_config_then_default() {
+        let mut judge_config = JudgeConfig {
+            enabled: true,
+            tool: Some("codex".to_string()),
+            rubric: "rubrics/test.yaml".to_string(),
+            pass_threshold: 0.7,
+        };
+
+        assert_eq!(
+            resolve_judge_tool(&judge_config, Some("claude-code")),
+            "claude-code"
+        );
+        assert_eq!(resolve_judge_tool(&judge_config, None), "codex");
+
+        judge_config.tool = None;
+        assert_eq!(resolve_judge_tool(&judge_config, None), "opencode");
+    }
+
+    #[test]
+    fn judge_command_uses_tool_specific_invocation() {
+        assert_eq!(
+            build_judge_command("opencode", Some("gpt-4o-mini"), "judge prompt").unwrap(),
+            JudgeCommand {
+                binary: "opencode".to_string(),
+                args: vec![
+                    "run".to_string(),
+                    "--model".to_string(),
+                    "gpt-4o-mini".to_string(),
+                    "judge prompt".to_string(),
+                ],
+            }
+        );
+
+        assert_eq!(
+            build_judge_command("codex", Some("gpt-5.1"), "judge prompt").unwrap(),
+            JudgeCommand {
+                binary: "codex".to_string(),
+                args: vec![
+                    "exec".to_string(),
+                    "--full-auto".to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    "--model".to_string(),
+                    "gpt-5.1".to_string(),
+                    "judge prompt".to_string(),
+                ],
+            }
+        );
+
+        assert_eq!(
+            build_judge_command("claude-code", Some("claude-haiku"), "judge prompt").unwrap(),
+            JudgeCommand {
+                binary: "claude".to_string(),
+                args: vec![
+                    "run".to_string(),
+                    "--model".to_string(),
+                    "claude-haiku".to_string(),
+                    "judge prompt".to_string(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn judge_command_skips_default_codex_model() {
+        assert_eq!(
+            build_judge_command("codex", Some("default"), "judge prompt").unwrap(),
+            JudgeCommand {
+                binary: "codex".to_string(),
+                args: vec![
+                    "exec".to_string(),
+                    "--full-auto".to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    "judge prompt".to_string(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn judge_command_rejects_unknown_tool() {
+        let error = build_judge_command("unknown", None, "judge prompt").unwrap_err();
+        assert!(error.to_string().contains("Unsupported judge tool"));
     }
 
     #[test]
