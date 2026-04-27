@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $Repo = if ($env:LLM_TOOL_TEST_REPO) { $env:LLM_TOOL_TEST_REPO } else { 'mwaldstein/llm-tool-test' }
 $InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { Join-Path $HOME '.local\bin' }
 $Version = if ($env:LLM_TOOL_TEST_VERSION) { $env:LLM_TOOL_TEST_VERSION } else { 'latest' }
+$IncludePrereleases = $env:LLM_TOOL_TEST_INCLUDE_PRERELEASES -in @('1', 'true')
 $BinName = 'llm-tool-test'
 
 function Resolve-Version {
@@ -12,7 +13,13 @@ function Resolve-Version {
         return $RequestedVersion.TrimStart('v')
     }
 
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+    if ($IncludePrereleases) {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" | Select-Object -First 1
+    }
+    else {
+        # GitHub's latest endpoint ignores prereleases.
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+    }
     if (-not $release.tag_name) {
         throw "Unable to resolve latest release for $Repo"
     }

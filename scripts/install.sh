@@ -4,6 +4,7 @@ set -eu
 repo="${LLM_TOOL_TEST_REPO:-mwaldstein/llm-tool-test}"
 install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
 version="${LLM_TOOL_TEST_VERSION:-latest}"
+include_prereleases="${LLM_TOOL_TEST_INCLUDE_PRERELEASES:-0}"
 bin_name="llm-tool-test"
 
 need_cmd() {
@@ -59,7 +60,12 @@ resolve_version() {
 
   need_cmd sed
   tmp_json="$tmp_dir/latest.json"
-  download "https://api.github.com/repos/$repo/releases/latest" "$tmp_json"
+  if [ "$include_prereleases" = "1" ] || [ "$include_prereleases" = "true" ]; then
+    download "https://api.github.com/repos/$repo/releases" "$tmp_json"
+  else
+    # GitHub's latest endpoint ignores prereleases.
+    download "https://api.github.com/repos/$repo/releases/latest" "$tmp_json"
+  fi
   tag="$(sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' "$tmp_json" | sed -n '1p')"
   if [ -z "$tag" ]; then
     printf 'error: unable to resolve latest release for %s\n' "$repo" >&2

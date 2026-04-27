@@ -38,7 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scr
 
 The installer should:
 - Detect platform and architecture
-- Download the appropriate binary from GitHub releases
+- Download the appropriate binary from GitHub releases, ignoring prereleases by default
 - Install to `~/.local/bin` (or `/usr/local/bin` with `sudo`)
 - Verify checksums
 - Provide PATH setup guidance if needed

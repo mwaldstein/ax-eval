@@ -230,6 +230,8 @@ Install the latest GitHub release on Windows PowerShell:
 irm https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.ps1 | iex
 ```
 
+Installers ignore prereleases by default. Set `LLM_TOOL_TEST_INCLUDE_PRERELEASES=1` to install the newest beta release, or set `LLM_TOOL_TEST_VERSION` to install an exact version.
+
 Build locally from source:
 
 ```bash
