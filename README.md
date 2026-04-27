@@ -31,7 +31,7 @@ In CI/CD contexts, binary gates are a valid use of the framework — for example
 ## How it works
 
 1. You define **scenarios** — structured tasks with a prompt, evaluation gates, and optional judge rubrics.
-2. The framework launches a real LLM agent (opencode, claude-code, codex, or mock) in an isolated environment with your tool available.
+2. The framework launches a real LLM agent (opencode, claude-code, or codex) in an isolated environment with your tool available.
 3. The agent works through the prompt. The full interaction is captured as a **transcript**.
 4. Results are evaluated on three layers:
    - **Interaction quality** — quantitative metrics from the transcript (error rate, first-try success, token usage, command count, cost)
@@ -118,6 +118,8 @@ llm-tool-test run --all --profile quick
 ```
 
 Scenarios can also define a `tool_matrix` to run multiple tool/model combinations without CLI flags.
+
+The `mock` adapter is internal test support for adapter plumbing. It does not execute the target tool or mutate fixture state, so it is not intended for validating scenario outcomes.
 
 ## Interpreting Results
 
@@ -208,7 +210,7 @@ Copy `llm-tool-test-config.example.toml` as a starting point.
 
 **Composite score low**: Review which gates failed in evaluation.md
 
-**Tool not supported**: Available tools: opencode, claude-code, codex, mock
+**Tool not supported**: Runtime agent tools are opencode, claude-code, and codex. The `mock` adapter exists for internal adapter tests only and does not complete scenario tasks.
 
 ## Results Location
 
