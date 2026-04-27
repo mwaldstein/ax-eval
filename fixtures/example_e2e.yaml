@@ -44,4 +44,3 @@ evaluation:
 
 run:
   timeout_secs: 60
-  max_turns: 5

@@ -36,7 +36,6 @@ task:
 
 run:
   timeout_secs: 300
-  max_turns: 20
 
 setup:
   commands:

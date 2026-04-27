@@ -13,4 +13,3 @@ This fixture demonstrates all optional scenario configuration fields.
 - `tags: [smoke, config-demo, full-schema]`
 - `tool_matrix` with mock and opencode tools
 - `run.timeout_secs: 300`
-- `run.max_turns: 20`

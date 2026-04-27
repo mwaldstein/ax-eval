@@ -16,14 +16,12 @@ evaluation:
       command: "true"
 run:
   timeout_secs: 600
-  max_turns: 40
 "#;
     let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.run.is_some());
     let run = scenario.run.unwrap();
     assert_eq!(run.timeout_secs, Some(600));
-    assert_eq!(run.max_turns, Some(40));
 }
 
 #[test]
@@ -68,5 +66,4 @@ run:
     assert!(scenario.run.is_some());
     let run = scenario.run.unwrap();
     assert_eq!(run.timeout_secs, Some(300));
-    assert_eq!(run.max_turns, None);
 }

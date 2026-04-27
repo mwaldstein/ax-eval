@@ -3,6 +3,7 @@ mod support;
 use crate::support::llm_tool_test;
 use predicates::prelude::*;
 use std::fs;
+use std::process::Command;
 use tempfile::tempdir;
 
 #[test]
@@ -496,7 +497,39 @@ fn test_clean_command_with_older_than() {
         .env("LLM_TOOL_TEST_ENABLED", "1")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Cache cleared"));
+        .stdout(predicate::str::contains("Cleaned 0 cache file(s)"));
+}
+
+#[test]
+fn test_clean_command_with_older_than_keeps_new_cache_files() {
+    let dir = tempdir().unwrap();
+    let cache_dir = dir.path().join("llm-tool-test-results").join("cache");
+    fs::create_dir_all(&cache_dir).unwrap();
+
+    let old_cache_file = cache_dir.join("old-cache-entry");
+    let new_cache_file = cache_dir.join("new-cache-entry");
+    fs::write(&old_cache_file, "old").unwrap();
+    fs::write(&new_cache_file, "new").unwrap();
+
+    let status = Command::new("touch")
+        .args(["-d", "2 hours ago"])
+        .arg(&old_cache_file)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    llm_tool_test()
+        .current_dir(dir.path())
+        .args(["clean", "--older-than", "1h"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Cleaned 1 cache file(s) older than 1h, kept 1",
+        ));
+
+    assert!(!old_cache_file.exists());
+    assert!(new_cache_file.exists());
 }
 
 #[test]

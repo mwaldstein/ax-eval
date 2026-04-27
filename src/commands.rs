@@ -268,10 +268,16 @@ pub fn handle_clean_command(
         None
     };
 
-    // Clean cache
     println!("Cleaning cache...");
-    cache.clear()?;
-    println!("Cache cleared");
+    let (cache_removed_count, cache_kept_count) = cache.clear_older_than(cutoff_time)?;
+    if let Some(duration_str) = older_than {
+        println!(
+            "Cleaned {} cache file(s) older than {}, kept {}",
+            cache_removed_count, duration_str, cache_kept_count
+        );
+    } else {
+        println!("Cleaned {} cache file(s)", cache_removed_count);
+    }
 
     // Clean old transcripts
     let transcripts_dir = base_dir.join("transcripts");

@@ -4,6 +4,7 @@
 /// prompt, and tool configuration to avoid redundant test runs.
 use crate::results::types::{CacheKey, ResultRecord};
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use std::path::{Path, PathBuf};
 
 /// File-based cache for test results.
@@ -87,19 +88,35 @@ impl Cache {
         Ok(())
     }
 
-    /// Clear all cached results.
+    /// Clear cached results older than the optional cutoff.
     ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - On success
-    /// * `Err` - IO error
-    pub fn clear(&self) -> Result<()> {
+    /// If `cutoff` is `None`, all cached results are removed.
+    /// Returns `(removed_count, kept_count)`.
+    pub fn clear_older_than(&self, cutoff: Option<DateTime<Utc>>) -> Result<(usize, usize)> {
+        let mut removed_count = 0;
+        let mut kept_count = 0;
+
         for entry in std::fs::read_dir(&self.cache_dir)? {
             let path = entry?.path();
-            if path.is_file() {
+            if !path.is_file() {
+                continue;
+            }
+
+            let should_delete = if let Some(cutoff_time) = cutoff {
+                let modified = std::fs::metadata(&path)?.modified()?;
+                DateTime::<Utc>::from(modified) < cutoff_time
+            } else {
+                true
+            };
+
+            if should_delete {
                 std::fs::remove_file(path)?;
+                removed_count += 1;
+            } else {
+                kept_count += 1;
             }
         }
-        Ok(())
+
+        Ok((removed_count, kept_count))
     }
 }

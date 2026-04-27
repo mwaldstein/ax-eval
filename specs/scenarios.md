@@ -114,7 +114,6 @@ tool_matrix:                     # optional
 
 run:
   timeout_secs: int              # Execution timeout (default: 300)
-  max_turns: int                 # optional turn limit
 
 tags:                            # optional categorization tags
   - string
@@ -189,7 +188,6 @@ tool_matrix:
 
 run:
   timeout_secs: 300
-  max_turns: 30
 
 tags:
   - task-management

@@ -68,9 +68,6 @@ pub struct RunConfig {
     /// Optional timeout in seconds
     #[serde(default)]
     pub timeout_secs: Option<u64>,
-    /// Optional maximum number of turns/interactions
-    #[serde(default)]
-    pub max_turns: Option<usize>,
 }
 
 /// Setup commands to prepare the test environment.

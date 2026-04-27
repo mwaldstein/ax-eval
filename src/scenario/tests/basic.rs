@@ -164,7 +164,6 @@ tool_matrix:
     models: [default]
 run:
   timeout_secs: 600
-  max_turns: 40
 evaluation:
   gates:
     - type: command_succeeds
@@ -186,7 +185,6 @@ setup:
     assert!(scenario.run.is_some());
     let run = scenario.run.unwrap();
     assert_eq!(run.timeout_secs, Some(600));
-    assert_eq!(run.max_turns, Some(40));
 
     // Setup
     assert!(scenario.setup.is_some());
