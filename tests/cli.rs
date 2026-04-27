@@ -178,6 +178,81 @@ evaluation:
 }
 
 #[test]
+fn test_scenarios_command_with_tags_filter_matches_any_tag() {
+    let dir = tempdir().unwrap();
+
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let smoke_scenario = r#"
+name: smoke_scenario
+description: "Smoke scenario"
+tier: 0
+tags:
+  - smoke
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let integration_scenario = r#"
+name: integration_scenario
+description: "Integration scenario"
+tier: 0
+tags:
+  - integration
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let docs_scenario = r#"
+name: docs_scenario
+description: "Docs scenario"
+tier: 0
+tags:
+  - docs
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+
+    fs::write(fixtures_dir.join("smoke_scenario.yaml"), smoke_scenario).unwrap();
+    fs::write(
+        fixtures_dir.join("integration_scenario.yaml"),
+        integration_scenario,
+    )
+    .unwrap();
+    fs::write(fixtures_dir.join("docs_scenario.yaml"), docs_scenario).unwrap();
+
+    llm_tool_test()
+        .current_dir(dir.path())
+        .args(["scenarios", "--tags", "smoke", "--tags", "integration"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("smoke_scenario"))
+        .stdout(predicate::str::contains("integration_scenario"))
+        .stdout(predicate::str::contains("docs_scenario").not());
+}
+
+#[test]
 fn test_run_command_dry_run() {
     let dir = tempdir().unwrap();
 
@@ -262,6 +337,94 @@ evaluation:
         .env("LLM_TOOL_TEST_ENABLED", "1")
         .assert()
         .success();
+}
+
+#[test]
+fn test_run_command_with_tags_matches_any_tag() {
+    let dir = tempdir().unwrap();
+
+    let fixtures_dir = dir.path().join("fixtures");
+    let qipu_dir = fixtures_dir.join("qipu");
+    fs::create_dir_all(&qipu_dir).unwrap();
+
+    let smoke_scenario = r#"
+name: smoke_run_scenario
+description: "Smoke run scenario"
+tier: 0
+tags:
+  - smoke
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let integration_scenario = r#"
+name: integration_run_scenario
+description: "Integration run scenario"
+tier: 0
+tags:
+  - integration
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let docs_scenario = r#"
+name: docs_run_scenario
+description: "Docs run scenario"
+tier: 0
+tags:
+  - docs
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+
+    fs::write(qipu_dir.join("smoke_run_scenario.yaml"), smoke_scenario).unwrap();
+    fs::write(
+        qipu_dir.join("integration_run_scenario.yaml"),
+        integration_scenario,
+    )
+    .unwrap();
+    fs::write(qipu_dir.join("docs_run_scenario.yaml"), docs_scenario).unwrap();
+
+    llm_tool_test()
+        .current_dir(dir.path())
+        .args([
+            "run",
+            "--all",
+            "--tags",
+            "smoke",
+            "--tags",
+            "integration",
+            "--dry-run",
+        ])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Loaded scenario: smoke_run_scenario",
+        ))
+        .stdout(predicate::str::contains(
+            "Loaded scenario: integration_run_scenario",
+        ))
+        .stdout(predicate::str::contains("Loaded scenario: docs_run_scenario").not());
 }
 
 #[test]

@@ -88,7 +88,7 @@ pub fn handle_run_command(
             let tags_match = if selection.tags.is_empty() {
                 true
             } else {
-                selection.tags.iter().all(|tag| s.tags.contains(tag))
+                selection.tags.iter().any(|tag| s.tags.contains(tag))
             };
 
             let tier_match = s.tier <= selection.tier;
@@ -196,7 +196,7 @@ pub fn handle_list_command(
             let tags_match = if tags.is_empty() {
                 true
             } else {
-                tags.iter().all(|tag| scenario_tags.contains(tag))
+                tags.iter().any(|tag| scenario_tags.contains(tag))
             };
             tier_match && tags_match
         })
