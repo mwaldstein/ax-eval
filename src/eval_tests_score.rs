@@ -11,6 +11,7 @@ fn test_compute_composite_score_with_judge() {
         help_invocations: 0,
         first_try_success_rate: 0.8,
         iteration_ratio: 1.5,
+        completed: true,
     };
 
     let composite = compute_composite_score(Some(0.9), 3, 3, &efficiency, None);
@@ -29,6 +30,7 @@ fn test_compute_composite_score_without_judge() {
         help_invocations: 0,
         first_try_success_rate: 0.8,
         iteration_ratio: 1.5,
+        completed: true,
     };
 
     let composite = compute_composite_score(None, 3, 3, &efficiency, None);
@@ -47,6 +49,7 @@ fn test_compute_composite_score_empty_store() {
         help_invocations: 0,
         first_try_success_rate: 0.0,
         iteration_ratio: 0.0,
+        completed: false,
     };
 
     let composite = compute_composite_score(None, 0, 0, &efficiency, None);
@@ -64,6 +67,7 @@ fn test_compute_composite_score_clamped() {
         help_invocations: 0,
         first_try_success_rate: 1.5,
         iteration_ratio: 1.5,
+        completed: true,
     };
 
     let composite = compute_composite_score(Some(1.5), 3, 3, &efficiency, None);

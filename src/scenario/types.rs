@@ -213,6 +213,9 @@ pub enum Gate {
         command: String,
         /// Human-readable gate description
         description: String,
+        /// Timeout in seconds (default: 30)
+        #[serde(default = "default_script_timeout")]
+        timeout_secs: u64,
     },
 }
 

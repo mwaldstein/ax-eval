@@ -206,9 +206,11 @@ evaluation:
         Gate::Script {
             command,
             description,
+            timeout_secs,
         } => {
             assert_eq!(command, "./scripts/check.sh");
             assert_eq!(description, "custom check");
+            assert_eq!(*timeout_secs, 30);
         }
         _ => panic!("Expected Script gate"),
     }

@@ -93,6 +93,7 @@ pub struct EfficiencyMetrics {
     pub help_invocations: usize,
     pub first_try_success_rate: f64,
     pub iteration_ratio: f64,
+    pub completed: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

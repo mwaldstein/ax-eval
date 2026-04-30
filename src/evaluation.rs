@@ -68,7 +68,8 @@ impl GateEvaluator for Gate {
             Gate::Script {
                 command,
                 description,
-            } => eval_script(command, description, ctx.script_runner),
+                timeout_secs,
+            } => eval_script(command, description, *timeout_secs, ctx.script_runner),
         }
     }
 }
@@ -471,6 +472,7 @@ fn evaluate_json_assertion(
 fn eval_script(
     command: &str,
     description: &str,
+    timeout_secs: u64,
     script_runner: Option<&ScriptRunner>,
 ) -> GateResult {
     let runner = match script_runner {
@@ -484,7 +486,7 @@ fn eval_script(
         }
     };
 
-    let result = match runner.run(command, 30) {
+    let result = match runner.run(command, timeout_secs) {
         Ok(r) => r,
         Err(e) => {
             return GateResult {
@@ -499,7 +501,10 @@ fn eval_script(
         return GateResult {
             gate_type: "Script".to_string(),
             passed: false,
-            message: format!("Script '{}' timed out after 30 seconds", command),
+            message: format!(
+                "Script '{}' timed out after {} seconds",
+                command, timeout_secs
+            ),
         };
     }
 
@@ -886,19 +891,25 @@ fn compute_efficiency_or_default(
     env_root: &Path,
     target_binary: &str,
     command_pattern: Option<&str>,
+    completed: bool,
 ) -> EfficiencyMetrics {
-    crate::eval_helpers::compute_efficiency_metrics(env_root, target_binary, command_pattern)
-        .unwrap_or(EfficiencyMetrics {
-            total_commands: 0,
-            unique_commands: 0,
-            error_count: 0,
-            retry_count: 0,
-            help_invocations: 0,
-            first_try_success_rate: 0.0,
-            iteration_ratio: 0.0,
-        })
+    let mut metrics =
+        crate::eval_helpers::compute_efficiency_metrics(env_root, target_binary, command_pattern)
+            .unwrap_or(EfficiencyMetrics {
+                total_commands: 0,
+                unique_commands: 0,
+                error_count: 0,
+                retry_count: 0,
+                help_invocations: 0,
+                first_try_success_rate: 0.0,
+                iteration_ratio: 0.0,
+                completed: false,
+            });
+    metrics.completed = completed;
+    metrics
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_metrics(
     scenario: &Scenario,
     env_root: &Path,
@@ -907,11 +918,13 @@ fn build_metrics(
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
+    completed: bool,
 ) -> EvaluationMetrics {
     let efficiency = compute_efficiency_or_default(
         env_root,
         &scenario.target.binary,
         scenario.target.command_pattern.as_deref(),
+        completed,
     );
     let composite_score = scenario.evaluation.composite.as_ref().map(|weights| {
         crate::eval_helpers::compute_composite_score(
@@ -943,6 +956,7 @@ pub fn evaluate(
     script_runner: Option<&ScriptRunner>,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
+    completed: bool,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
 
@@ -972,6 +986,7 @@ pub fn evaluate(
         judge_score,
         judge_response,
         judge_passed,
+        completed,
     );
 
     // Run custom evaluators after gates and judge evaluation
@@ -1187,7 +1202,7 @@ mod tests {
             std::collections::HashMap::new(),
         );
 
-        let result = eval_script("true", "should pass", Some(&runner));
+        let result = eval_script("true", "should pass", 30, Some(&runner));
         assert!(result.passed, "Exit code 0 should pass: {}", result.message);
     }
 
@@ -1205,7 +1220,7 @@ mod tests {
             std::collections::HashMap::new(),
         );
 
-        let result = eval_script("false", "should fail", Some(&runner));
+        let result = eval_script("false", "should fail", 30, Some(&runner));
         assert!(
             !result.passed,
             "Exit code 1 should fail: {}",
@@ -1231,6 +1246,7 @@ mod tests {
         let result = eval_script(
             "echo '{\"passed\": true, \"message\": \"Custom check passed\"}'",
             "json gate",
+            30,
             Some(&runner),
         );
         assert!(
@@ -1259,6 +1275,7 @@ mod tests {
         let result = eval_script(
             "echo '{\"passed\": false, \"message\": \"Custom check failed\"}'",
             "json gate",
+            30,
             Some(&runner),
         );
         assert!(
@@ -1271,7 +1288,7 @@ mod tests {
 
     #[test]
     fn script_gate_without_runner_fails() {
-        let result = eval_script("true", "no runner", None);
+        let result = eval_script("true", "no runner", 30, None);
         assert!(!result.passed);
         assert!(result.message.contains("Script runner not available"));
     }

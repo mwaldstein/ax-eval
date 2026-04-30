@@ -162,6 +162,7 @@ pub fn run_evaluation_flow(
     );
 
     println!("Running evaluation...");
+    let completed = exit_code == 0;
     let metrics = crate::evaluation::evaluate(
         s,
         &env.root,
@@ -169,6 +170,7 @@ pub fn run_evaluation_flow(
         Some(&script_runner),
         judge_model,
         judge_tool,
+        completed,
     )?;
     println!("Evaluation metrics: {:?}", metrics);
 

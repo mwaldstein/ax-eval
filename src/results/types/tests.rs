@@ -152,6 +152,10 @@ fn test_result_record_json_round_trip() {
         timestamp: chrono::Utc::now(),
         duration_secs: 45.5,
         cost_usd: Some(0.01),
+        token_usage: Some(TokenUsageRecord {
+            input: 1500,
+            output: 800,
+        }),
         gates_passed: true,
         metrics: EvaluationMetricsRecord {
             gates_passed: 2,
@@ -170,6 +174,7 @@ fn test_result_record_json_round_trip() {
                 help_invocations: 0,
                 first_try_success_rate: 1.0,
                 iteration_ratio: 1.5,
+                completed: true,
             },
             composite_score: Some(0.95),
             evaluator_results: vec![],
@@ -191,6 +196,7 @@ fn test_result_record_json_round_trip() {
     assert_eq!(deserialized.timestamp, original.timestamp);
     assert_eq!(deserialized.duration_secs, original.duration_secs);
     assert_eq!(deserialized.cost_usd, original.cost_usd);
+    assert_eq!(deserialized.token_usage, original.token_usage);
     assert_eq!(deserialized.gates_passed, original.gates_passed);
     assert_eq!(
         deserialized.metrics.gates_passed,
@@ -217,6 +223,7 @@ fn test_result_record_json_skip_none_cache_key() {
         timestamp: chrono::Utc::now(),
         duration_secs: 45.5,
         cost_usd: Some(0.01),
+        token_usage: None,
         gates_passed: true,
         metrics: EvaluationMetricsRecord {
             gates_passed: 2,
@@ -231,6 +238,7 @@ fn test_result_record_json_skip_none_cache_key() {
                 help_invocations: 0,
                 first_try_success_rate: 1.0,
                 iteration_ratio: 1.5,
+                completed: true,
             },
             composite_score: Some(0.85),
             evaluator_results: vec![],

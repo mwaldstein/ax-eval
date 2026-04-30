@@ -106,6 +106,7 @@ impl TranscriptAnalyzer {
             help_invocations,
             first_try_success_rate,
             iteration_ratio,
+            completed: false,
         }
     }
 

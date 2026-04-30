@@ -1,6 +1,9 @@
+use crate::adapter::TokenUsage as AdapterTokenUsage;
 use crate::evaluation::EvaluationMetrics;
 use crate::output;
-use crate::results::{Cache, CacheKey, EvaluationMetricsRecord, ResultRecord, ResultsDB};
+use crate::results::{
+    Cache, CacheKey, EvaluationMetricsRecord, ResultRecord, ResultsDB, TokenUsageRecord,
+};
 use crate::scenario::Scenario;
 use std::path::Path;
 
@@ -14,6 +17,7 @@ pub fn build_result_record(
     outcome: String,
     duration_secs: f64,
     cost: Option<f64>,
+    token_usage: Option<AdapterTokenUsage>,
     transcript_path: String,
 ) -> ResultRecord {
     use crate::results::{EfficiencyMetricsRecord, EvaluatorResultRecord, GateResultRecord};
@@ -27,6 +31,10 @@ pub fn build_result_record(
         timestamp: chrono::Utc::now(),
         duration_secs,
         cost_usd: cost,
+        token_usage: token_usage.map(|tu| TokenUsageRecord {
+            input: tu.input,
+            output: tu.output,
+        }),
         gates_passed: metrics.gates_passed >= metrics.gates_total
             && metrics.judge_passed.unwrap_or(true),
         metrics: EvaluationMetricsRecord {
@@ -50,6 +58,7 @@ pub fn build_result_record(
                 help_invocations: metrics.efficiency.help_invocations,
                 first_try_success_rate: metrics.efficiency.first_try_success_rate,
                 iteration_ratio: metrics.efficiency.iteration_ratio,
+                completed: metrics.efficiency.completed,
             },
             composite_score: metrics.composite_score,
             evaluator_results: metrics
@@ -90,6 +99,7 @@ pub fn handle_dry_run(
         timestamp: chrono::Utc::now(),
         duration_secs: 0.0,
         cost_usd: None,
+        token_usage: None,
         gates_passed: true,
         metrics: EvaluationMetricsRecord {
             gates_passed: 0,
@@ -104,6 +114,7 @@ pub fn handle_dry_run(
                 help_invocations: 0,
                 first_try_success_rate: 0.0,
                 iteration_ratio: 0.0,
+                completed: false,
             },
             composite_score: None,
             evaluator_results: vec![],

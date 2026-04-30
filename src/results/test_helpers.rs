@@ -41,6 +41,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
         timestamp: Utc::now(),
         duration_secs: 45.5,
         cost_usd: Some(0.01),
+        token_usage: None,
         gates_passed: true,
         metrics: EvaluationMetricsRecord {
             gates_passed: 2,
@@ -55,6 +56,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
                 help_invocations: 0,
                 first_try_success_rate: 1.0,
                 iteration_ratio: 1.5,
+                completed: true,
             },
             composite_score: Some(0.9),
             evaluator_results: vec![],

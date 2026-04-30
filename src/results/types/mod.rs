@@ -35,6 +35,9 @@ pub struct ResultRecord {
     /// Estimated cost in USD (if tool reports it)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,
+    /// Token usage (input/output counts, if tool reports it)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_usage: Option<TokenUsageRecord>,
     /// Whether all gates passed
     pub gates_passed: bool,
     /// Detailed evaluation metrics
@@ -111,6 +114,8 @@ pub struct EfficiencyMetricsRecord {
     pub first_try_success_rate: f64,
     /// Ratio of total commands to unique commands
     pub iteration_ratio: f64,
+    /// Whether the agent completed the task (exited normally with exit code 0)
+    pub completed: bool,
 }
 
 /// Result of evaluating a single gate.
@@ -122,4 +127,13 @@ pub struct GateResultRecord {
     pub passed: bool,
     /// Human-readable message about the result
     pub message: String,
+}
+
+/// Token usage record for a test run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TokenUsageRecord {
+    /// Number of input tokens
+    pub input: usize,
+    /// Number of output tokens
+    pub output: usize,
 }

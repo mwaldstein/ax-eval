@@ -87,7 +87,7 @@ pub fn run_single_scenario(
         &output,
         exit_code,
         cost,
-        token_usage,
+        token_usage.clone(),
         duration,
         &metrics,
         &outcome,
@@ -106,6 +106,7 @@ pub fn run_single_scenario(
         outcome,
         duration.as_secs_f64(),
         cost,
+        token_usage,
         transcript_path,
     );
 
