@@ -1,16 +1,30 @@
 # LLM Tool Test
 
-Benchmark how well LLM agents can use your CLI.
+Evaluate how well coding agents can use your CLI.
 
-`llm-tool-test` runs real coding agents against your command-line tool in isolated scenarios, captures full transcripts, and turns the run into an evaluation profile: quantitative interaction metrics, outcome gates, and optional rubric-based judge scoring.
+`llm-tool-test` is an evaluation framework for agent-facing command-line tools. It runs real coding agents against your CLI in isolated scenarios, captures the full transcript, and produces an evaluation profile with interaction metrics, outcome gates, and optional rubric-based judge scoring.
 
-Agents are users now. A CLI that feels obvious to a human can still confuse an agent: the agent may choose the wrong subcommand, miss required setup, retry after unclear errors, or spend far more tokens than expected. `llm-tool-test` helps tool authors see those failures directly and compare whether changes to docs, help text, prompts, models, or AGENTS.md guidance actually improved agent behavior.
+Agents are users now. Your CLI can be perfectly usable by humans and still expensive for agents: wrong subcommands, missed setup, retries after vague errors, extra token burn, or model-specific confusion. `llm-tool-test` turns those failures into transcripts and metrics you can compare across docs, help text, prompts, AGENTS.md guidance, models, and releases.
+
+Today, `llm-tool-test` focuses on CLIs because command-line tools are the interface coding agents already use. The broader problem is agent-tool interaction: can an agent discover, operate, and recover from mistakes with the tools we give it?
 
 ## Who It Is For
 
-`llm-tool-test` is primarily for CLI authors who want to know whether LLM agents can operate their tools successfully.
+`llm-tool-test` is primarily for CLI authors who want to know whether coding agents can operate their tools successfully and efficiently.
 
-It is also useful for people writing agent-facing documentation, AGENTS.md files, coding-agent skills, or evaluation harnesses that need to compare model and guidance changes over time.
+It is also useful for people writing agent-facing documentation, AGENTS.md files, coding-agent skills, or evaluation harnesses that need repeatable evidence about how model and guidance changes affect tool usage.
+
+An agent-facing CLI is any command-line tool you expect coding agents to install, inspect, and operate through docs, `--help`, README files, AGENTS.md guidance, or task prompts.
+
+## What It Helps You Decide
+
+- Did a documentation, help text, or AGENTS.md change reduce retries and errors?
+- Where exactly did the agent misunderstand the CLI?
+- Which agent tool or model handles this workflow more reliably?
+- Did a new model improve success while increasing token usage or cost?
+- Did a CLI release make agent usage worse?
+
+`llm-tool-test` is not a public leaderboard. It gives you repeatable, scenario-based evaluations for the CLI workflows your users and agents actually need.
 
 ## Install
 
@@ -67,18 +81,24 @@ For detailed commands, scenario authoring, configuration, troubleshooting, and C
 
 ## What You Get
 
+Each run answers two questions at the same time:
+
+1. Did the agent complete the task?
+2. How much friction did the agent hit along the way?
+
+The result is an evaluation profile you can compare across scenario runs. It combines:
+
+- **Interaction metrics**: command count, error rate, first-try success rate, duration, token usage, and cost when available
+- **Outcome gates**: fail-fast assertions such as files existing, commands succeeding, or JSON output matching expectations
+- **Optional judge scoring**: rubric-based qualitative assessment of whether the agent used the tool as intended
+- **Transcript evidence**: the full interaction showing where the agent succeeded, hesitated, retried, or went off course
+
 Each run produces a directory under `llm-tool-test-results/` with artifacts such as:
 
 - `evaluation.md`: human-readable evaluation profile
 - `metrics.json`: machine-readable scalar metrics
 - `transcript.raw.txt`: full agent transcript for debugging
 - `events.jsonl`: structured event log
-
-An evaluation profile combines:
-
-- **Interaction metrics**: command count, error rate, first-try success rate, duration, token usage, and cost when available
-- **Outcome gates**: fail-fast assertions such as files existing, commands succeeding, or JSON output matching expectations
-- **Optional judge scoring**: rubric-based qualitative assessment of whether the agent used the tool as intended
 
 Example metrics shape:
 
@@ -99,9 +119,9 @@ Example metrics shape:
 }
 ```
 
-The transcript is a first-class artifact. When a run produces surprising results, it shows where the agent went wrong: unclear docs, missing setup guidance, confusing help output, fragile command behavior, or a model-specific failure.
+When a run produces surprising results, the transcript shows where the agent went wrong: unclear docs, missing setup guidance, confusing help output, fragile command behavior, or a model-specific failure.
 
-## What A Scenario Looks Like
+## What a Scenario Looks Like
 
 Scenarios are YAML files that describe the agent task, the fixture environment, and the checks to run after the agent exits.
 
@@ -127,17 +147,11 @@ See [docs/user-guide.md](docs/user-guide.md) for the practical authoring guide a
 
 `llm-tool-test` does not replace unit tests, integration tests, or end-to-end tests. Those should still verify deterministic behavior in your CLI.
 
-This framework evaluates a different question: how well does an LLM agent operate the CLI as a user?
+It evaluates a different question: how well does a coding agent operate the CLI as a user?
 
-Traditional tests ask, "Did the system pass?" `llm-tool-test` asks, "How well did the agent interaction go?" Gates catch catastrophic failures, but the primary output is the evaluation profile: scalar measurements and qualitative evidence you can compare across runs.
+Unit and integration tests tell you whether the CLI works. Simple evals tell you whether an agent eventually produced the right output. `llm-tool-test` shows how the interaction went: retries, wrong turns, token and cost burn, transcript evidence, and qualitative rubric scoring.
 
-## Questions You Can Answer
-
-- Did a new model reduce command retries or increase token usage?
-- Did richer AGENTS.md guidance lower the error rate?
-- Did better `--help` text improve first-try success?
-- Does `claude-code`, `opencode`, or `codex` handle this workflow more reliably?
-- Where exactly did the agent misunderstand the CLI?
+That makes it a combined integration-test and evaluation harness. Scenarios give you repeatable setup, execution, gates, scripts, and artifacts. The evaluation profile gives you scalar measurements and qualitative evidence you can compare across documentation changes, model changes, prompt changes, and CLI releases.
 
 ## When To Use It
 
