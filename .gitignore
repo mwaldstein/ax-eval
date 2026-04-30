@@ -6,3 +6,4 @@ llm-tool-test-results/
 *.swp
 *.swo
 *~
+.agents/
