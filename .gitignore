@@ -7,3 +7,4 @@ llm-tool-test-results/
 *.swo
 *~
 .agents/
+skills-lock.json
