@@ -1,32 +1,21 @@
 # Distribution
 
-**Status: Early Draft**
-
-## Goals
-
-- Provide multiple installation methods to meet users where they are.
-- Minimize friction: one command should get a working `llm-tool-test` binary.
-- Support all major developer platforms (macOS, Linux, Windows).
-- Enable automated releases with pre-built binaries.
-
-## Non-goals
-
-- Distribution of plugins or extensions (out of scope for this spec).
-- Package manager submission/maintenance automation (manual for now).
+**Status: Implemented**
 
 ## Installation Methods
 
 ### Primary: Pre-built Binaries (GitHub Releases)
 
-Each tagged release publishes pre-built binaries for:
+Tagged releases publish pre-built binaries for all targets via the `release.yml` workflow:
 
-| Platform | Architecture |
-|----------|--------------|
-| macOS    | aarch64 |
-| Linux    | x86_64, aarch64 |
-| Windows  | x86_64 |
+| Platform | Architecture | Runner |
+|----------|-------------|--------|
+| macOS    | aarch64 | `macos-14` |
+| Linux    | x86_64 | `ubuntu-latest` |
+| Linux    | aarch64 | `ubuntu-24.04-arm` |
+| Windows  | x86_64 | `windows-latest` |
 
-Binary naming convention: `llm-tool-test-<version>-<target>.tar.gz` (or `.zip` for Windows).
+Binary naming: `llm-tool-test-<version>-<target>.tar.gz` (`.zip` for Windows).
 
 ### Quick Install Scripts
 
@@ -36,12 +25,13 @@ Binary naming convention: `llm-tool-test-<version>-<target>.tar.gz` (or `.zip` f
 curl -fsSL https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.sh | sh
 ```
 
-The installer should:
-- Detect platform and architecture
-- Download the appropriate binary from GitHub releases, ignoring prereleases by default
-- Install to `~/.local/bin` (or `/usr/local/bin` with `sudo`)
-- Verify checksums
-- Provide PATH setup guidance if needed
+The installer:
+- Detects platform and architecture
+- Downloads the appropriate binary from GitHub releases
+- Ignores prereleases by default (set `LLM_TOOL_TEST_INCLUDE_PRERELEASES=1` to include)
+- Installs to `~/.local/bin` (override with `INSTALL_DIR`)
+- Verifies SHA-256 checksums
+- Prints PATH setup guidance if needed
 
 **Windows (PowerShell):**
 
@@ -49,28 +39,35 @@ The installer should:
 irm https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.ps1 | iex
 ```
 
-### Cargo Install
+Same behavior as the Unix installer: platform detection, checksum verification, prerelease filtering.
+
+### Environment Variables (Install Scripts)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_TOOL_TEST_REPO` | `mwaldstein/llm-tool-test` | GitHub repo for releases |
+| `INSTALL_DIR` | `~/.local/bin` | Installation directory |
+| `LLM_TOOL_TEST_VERSION` | `latest` | Version to install (or `latest`) |
+| `LLM_TOOL_TEST_INCLUDE_PRERELEASES` | `0` | Set `1`/`true` to consider prereleases |
+
+### Cargo Install (Future)
 
 ```bash
 cargo install llm-tool-test
 ```
 
-Requires publishing to crates.io. This is the canonical "from source" method for Rust users.
+Requires publishing to crates.io. Not yet available.
 
-### Homebrew (macOS/Linux)
+### Homebrew (Future)
 
 ```bash
 brew tap mwaldstein/llm-tool-test
 brew install llm-tool-test
 ```
 
-Requires:
-- A Homebrew tap repository (`homebrew-llm-tool-test`)
-- Formula that downloads pre-built binaries or builds from source
+Requires a Homebrew tap repository. Not yet available.
 
 ### Package Managers (Future)
-
-Candidates for future support:
 
 | Manager | Platform | Priority |
 |---------|----------|----------|
@@ -80,62 +77,69 @@ Candidates for future support:
 | Scoop   | Windows | Low |
 | deb/rpm | Debian/RHEL | Low |
 
+---
+
 ## Release Automation
 
-### GitHub Actions Workflow
+### CI (`ci.yml`)
 
-On tagged releases (`v*`), automation should:
+Runs on push to `master` and on pull requests:
 
-1. Build binaries for all target platforms (cross-compilation or matrix)
-2. Generate checksums (`SHA256SUMS`)
-3. Create GitHub release with binaries and checksums attached
-4. Optionally publish to crates.io
+1. `cargo fmt --check`
+2. `cargo clippy --all-targets -- -D warnings`
+3. `cargo test --all-targets`
+4. `cargo build --release --locked`
+
+### Release (`release.yml`)
+
+Triggered by pushing a `v*` tag. Three jobs:
+
+1. **Validate** — checks tag version matches `Cargo.toml` version, detects prerelease (version contains `-`).
+
+2. **Build** — matrix across all 4 targets, builds release binaries, packages as `.tar.gz` (Unix) or `.zip` (Windows), uploads as artifacts.
+
+3. **Publish** — downloads all build artifacts, generates `SHA256SUMS`, creates GitHub release with `softprops/action-gh-release@v3`. Prerelease tags are marked accordingly.
 
 ### Targets
 
-Use Rust cross-compilation targets:
-
-- `aarch64-apple-darwin`
-- `x86_64-unknown-linux-gnu`
-- `aarch64-unknown-linux-gnu`
-- `x86_64-pc-windows-msvc`
+| Target | Archive |
+|--------|---------|
+| `aarch64-apple-darwin` | `.tar.gz` |
+| `x86_64-unknown-linux-gnu` | `.tar.gz` |
+| `aarch64-unknown-linux-gnu` | `.tar.gz` |
+| `x86_64-pc-windows-msvc` | `.zip` |
 
 ### Versioning
 
-- Follow semver (`MAJOR.MINOR.PATCH`)
+- Semver (`MAJOR.MINOR.PATCH`)
 - Git tags: `v1.2.3`
-- `llm-tool-test --version` output must match the release tag
-
-## Verification
+- Prerelease tags: `v1.2.3-beta.1` (version contains `-`)
+- Tag version must match `Cargo.toml` version (enforced by `release.yml`)
 
 ### Checksums
 
-Every release includes a `SHA256SUMS` file. Install scripts should verify checksums before executing binaries.
+Every release includes a `SHA256SUMS` file. Install scripts verify checksums before executing binaries.
 
 ### Signatures (Future)
 
 Consider GPG or sigstore signing for releases.
 
+---
+
 ## Repository Structure
 
 ```
 scripts/
-  install.sh       # Unix installer
-  install.ps1      # Windows installer
+  install.sh       # Unix installer (macOS/Linux)
+  install.ps1      # Windows installer (PowerShell)
 .github/
   workflows/
-    release.yml    # Release automation
+    ci.yml         # CI: lint, test, build on push/PR
+    release.yml    # Release: build + publish on tag
 ```
 
-## Validation
+## Remaining Work
 
-This spec is considered implemented when:
-
-- `cargo install llm-tool-test` works from crates.io
-- GitHub releases include binaries for all listed platforms
-- Install scripts successfully install on macOS, Linux, and Windows
-- `brew install` works via tap
-
-## References
-
-- [beads INSTALLING.md](https://github.com/steveyegge/beads/blob/main/docs/INSTALLING.md) — inspiration for multi-method distribution
+- [ ] Publish to crates.io (`cargo install llm-tool-test`)
+- [ ] Create Homebrew tap and formula
+- [ ] GPG or sigstore release signing
