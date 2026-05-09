@@ -69,7 +69,7 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
     use crate::run::execution::{
         create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
     };
-    use crate::run::records::{build_result_record, finalize_execution, handle_dry_run};
+    use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
     use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
     use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
 
@@ -132,18 +132,19 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
         .artifacts_dir()
         .to_string_lossy()
         .to_string();
-    let record = build_result_record(
-        s,
+    let record = ResultRecordInput {
+        scenario: s,
         tool,
         model,
-        &cache_key,
-        evaluation.metrics,
+        cache_key: &cache_key,
+        metrics: evaluation.metrics,
         outcome,
-        evaluation.duration.as_secs_f64(),
-        evaluation.cost,
-        evaluation.token_usage,
+        duration_secs: evaluation.duration.as_secs_f64(),
+        cost: evaluation.cost,
+        token_usage: evaluation.token_usage,
         transcript_path,
-    );
+    }
+    .build();
 
     finalize_execution(
         request.results_db,
