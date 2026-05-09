@@ -4,11 +4,24 @@ use crate::transcript::TranscriptWriter;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+pub struct ScenarioWorkspace {
+    pub env: TestEnv,
+    pub scenario_yaml: String,
+    pub prompt: String,
+}
+
+pub struct PreparedScenarioRun {
+    pub transcript_dir: PathBuf,
+    pub writer: TranscriptWriter,
+    pub setup_success: bool,
+    pub setup_commands: Vec<(String, bool, String)>,
+}
+
 pub fn setup_scenario_env(
     s: &Scenario,
     scenario_path: &std::path::Path,
     results_dir: &Path,
-) -> anyhow::Result<(TestEnv, String, String)> {
+) -> anyhow::Result<ScenarioWorkspace> {
     let scenario_yaml = std::fs::read_to_string(scenario_path)?;
     let prompt = s.task.prompt.clone();
 
@@ -22,7 +35,11 @@ pub fn setup_scenario_env(
 
     println!("Environment created at: {:?}", env.root);
 
-    Ok((env, scenario_yaml, prompt))
+    Ok(ScenarioWorkspace {
+        env,
+        scenario_yaml,
+        prompt,
+    })
 }
 
 #[allow(clippy::type_complexity)]
@@ -132,7 +149,7 @@ pub fn prepare_writer_and_setup(
     env: &TestEnv,
     s: &Scenario,
     effective_timeout: u64,
-) -> anyhow::Result<(PathBuf, TranscriptWriter, bool, Vec<(String, bool, String)>)> {
+) -> anyhow::Result<PreparedScenarioRun> {
     let artifacts_dir = results_dir.join("artifacts");
     std::fs::create_dir_all(&artifacts_dir)?;
     let writer = TranscriptWriter::new(artifacts_dir.clone(), results_dir.to_path_buf())?;
@@ -159,7 +176,12 @@ pub fn prepare_writer_and_setup(
         )?;
     }
 
-    Ok((artifacts_dir, writer, setup_success, setup_commands))
+    Ok(PreparedScenarioRun {
+        transcript_dir: artifacts_dir,
+        writer,
+        setup_success,
+        setup_commands,
+    })
 }
 
 #[cfg(test)]

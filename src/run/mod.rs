@@ -26,10 +26,12 @@ pub fn run_single_scenario(
     cache: &Cache,
 ) -> anyhow::Result<ResultRecord> {
     use crate::run::cache::{check_cache, compute_cache_key_with_fixture};
-    use crate::run::execution::{create_adapter_and_check, determine_outcome, run_evaluation_flow};
+    use crate::run::execution::{
+        create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
+    };
     use crate::run::records::{build_result_record, finalize_execution, handle_dry_run};
     use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
-    use crate::run::transcript::write_transcript_files;
+    use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
 
     let effective_timeout = s
         .run
@@ -40,9 +42,14 @@ pub fn run_single_scenario(
     let results_dir = crate::run::utils::get_results_dir(tool, model, &s.name);
     std::fs::create_dir_all(&results_dir)?;
 
-    let (env, scenario_yaml, prompt) = setup_scenario_env(s, scenario_path, &results_dir)?;
-    let cache_key =
-        compute_cache_key_with_fixture(&scenario_yaml, &prompt, &env.root, tool, model)?;
+    let workspace = setup_scenario_env(s, scenario_path, &results_dir)?;
+    let cache_key = compute_cache_key_with_fixture(
+        &workspace.scenario_yaml,
+        &workspace.prompt,
+        &workspace.env.root,
+        tool,
+        model,
+    )?;
 
     if !no_cache {
         if let Some(cached) = check_cache(cache, &cache_key)? {
@@ -58,55 +65,48 @@ pub fn run_single_scenario(
 
     let adapter = create_adapter_and_check(tool)?;
 
-    let (transcript_dir, writer, setup_success, setup_commands) =
-        prepare_writer_and_setup(&results_dir, &env, s, effective_timeout)?;
+    let prepared = prepare_writer_and_setup(&results_dir, &workspace.env, s, effective_timeout)?;
 
-    let (output, exit_code, cost, token_usage, duration, metrics) = run_evaluation_flow(
-        adapter.as_ref(),
-        s,
-        &env,
+    let evaluation = run_evaluation_flow(EvaluationFlowInput {
+        adapter: adapter.as_ref(),
+        scenario: s,
+        env: &workspace.env,
         tool,
         model,
         effective_timeout,
         no_judge,
         judge_model,
         judge_tool,
-        &writer,
-        &transcript_dir,
-        &results_dir,
-    )?;
+        writer: &prepared.writer,
+        transcript_dir: &prepared.transcript_dir,
+        results_dir: &results_dir,
+    })?;
 
-    let outcome = determine_outcome(&metrics);
+    let outcome = determine_outcome(&evaluation.metrics);
 
-    write_transcript_files(
-        &writer,
-        s,
+    write_transcript_files(TranscriptFilesInput {
+        writer: &prepared.writer,
+        scenario: s,
         tool,
         model,
-        &cache_key,
-        &output,
-        exit_code,
-        cost,
-        token_usage.clone(),
-        duration,
-        &metrics,
-        &outcome,
-        setup_success,
-        setup_commands,
-        &env,
-    )?;
+        cache_key: &cache_key,
+        evaluation: &evaluation,
+        outcome: &outcome,
+        setup_success: prepared.setup_success,
+        setup_commands: prepared.setup_commands,
+    })?;
 
-    let transcript_path = transcript_dir.to_string_lossy().to_string();
+    let transcript_path = prepared.transcript_dir.to_string_lossy().to_string();
     let record = build_result_record(
         s,
         tool,
         model,
         &cache_key,
-        metrics,
+        evaluation.metrics,
         outcome,
-        duration.as_secs_f64(),
-        cost,
-        token_usage,
+        evaluation.duration.as_secs_f64(),
+        evaluation.cost,
+        evaluation.token_usage,
         transcript_path,
     );
 
@@ -116,7 +116,7 @@ pub fn run_single_scenario(
         &cache_key,
         &record,
         &results_dir,
-        setup_success,
+        prepared.setup_success,
     )
 }
 

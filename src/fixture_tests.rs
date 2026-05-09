@@ -34,9 +34,9 @@ mod tests {
         let results_dir = temp_dir.path().join("results");
         std::fs::create_dir_all(&results_dir).expect("create results dir");
 
-        let (env, _scenario_yaml, _prompt) =
-            setup_scenario_env(&scenario, Path::new(scenario_path), &results_dir)
-                .expect("setup scenario env");
+        let workspace = setup_scenario_env(&scenario, Path::new(scenario_path), &results_dir)
+            .expect("setup scenario env");
+        let env = workspace.env;
 
         let target_env: HashMap<String, String> = scenario.target.env.clone().unwrap_or_default();
 
