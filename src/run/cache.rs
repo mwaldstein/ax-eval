@@ -40,7 +40,7 @@ fn hash_fixture_contents(root: &Path) -> anyhow::Result<String> {
         hasher.update([0]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn collect_files(root: &Path, dir: &Path, files: &mut Vec<PathBuf>) -> anyhow::Result<()> {

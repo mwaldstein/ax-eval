@@ -53,15 +53,15 @@ impl CacheKey {
     ) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(scenario_yaml.as_bytes());
-        let scenario_hash = format!("{:x}", hasher.finalize());
+        let scenario_hash = hex::encode(hasher.finalize());
 
         let mut hasher = Sha256::new();
         hasher.update(prompt.as_bytes());
-        let prompt_hash = format!("{:x}", hasher.finalize());
+        let prompt_hash = hex::encode(hasher.finalize());
 
         let mut hasher = Sha256::new();
         hasher.update(fixture_hash_input.as_bytes());
-        let fixture_hash = format!("{:x}", hasher.finalize());
+        let fixture_hash = hex::encode(hasher.finalize());
 
         Self {
             scenario_hash,
