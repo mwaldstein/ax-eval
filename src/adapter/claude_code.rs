@@ -1,7 +1,6 @@
-use super::ToolAdapter;
+use super::{normalize, ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
 use crate::session::SessionRunner;
-use std::fs;
 use std::path::Path;
 
 pub struct ClaudeCodeAdapter;
@@ -35,17 +34,21 @@ impl ToolAdapter for ClaudeCodeAdapter {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
-    ) -> anyhow::Result<(String, i32, Option<f64>, Option<super::TokenUsage>)> {
+    ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
-        let mut args = vec!["run"];
+        let mut args = vec![
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages",
+        ];
         if let Some(model) = model {
             args.push("--model");
             args.push(model);
         }
-
-        let prompt_path = cwd.join("prompt.txt");
-        fs::write(&prompt_path, &scenario.task.prompt)?;
+        args.push(&scenario.task.prompt);
 
         let target_env = scenario
             .target
@@ -61,6 +64,6 @@ impl ToolAdapter for ClaudeCodeAdapter {
         let (output, exit_code) =
             runner.run_command_with_env("claude", &args, cwd, timeout_secs, &target_env)?;
 
-        Ok((output, exit_code, None, None))
+        Ok(normalize::claude_code_output(output, exit_code))
     }
 }

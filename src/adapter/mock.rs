@@ -1,5 +1,6 @@
-use super::ToolAdapter;
+use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
+use crate::transcript::InteractionMetricsSource;
 use std::path::Path;
 
 pub struct MockAdapter;
@@ -30,9 +31,17 @@ impl ToolAdapter for MockAdapter {
         _cwd: &Path,
         _model: Option<&str>,
         _timeout_secs: u64,
-    ) -> anyhow::Result<(String, i32, Option<f64>, Option<super::TokenUsage>)> {
+    ) -> anyhow::Result<ToolRunOutput> {
         // Generate mock output without executing any commands
         let transcript = self.generate_transcript(scenario);
-        Ok((transcript, 0, None, None))
+        Ok(ToolRunOutput {
+            transcript,
+            raw_output: None,
+            exit_code: 0,
+            cost_usd: None,
+            token_usage: None,
+            metrics_source: InteractionMetricsSource::TranscriptRegex,
+            command_events: Vec::new(),
+        })
     }
 }

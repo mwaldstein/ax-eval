@@ -4,7 +4,10 @@ pub mod types;
 pub mod writer;
 
 pub use analyzer::TranscriptAnalyzer;
-pub use types::{EfficiencyMetrics, EvaluationReport, RunMetadata, RunReport, TokenUsage};
+pub use types::{
+    CommandEvent, EfficiencyMetrics, EvaluationReport, InteractionMetricsSource, RunMetadata,
+    RunReport, TokenUsage,
+};
 pub use writer::TranscriptWriter;
 
 #[cfg(test)]

@@ -13,6 +13,7 @@ mod tests {
     use crate::run::setup::setup_scenario_env;
     use crate::scenario::load;
     use crate::script_runner::ScriptRunner;
+    use crate::transcript::InteractionMetricsSource;
     use std::collections::HashMap;
     use std::path::Path;
     use std::process::Command as StdCommand;
@@ -111,6 +112,8 @@ mod tests {
             Some(&script_runner),
             None,
             None,
+            InteractionMetricsSource::TranscriptRegex,
+            &[],
             true,
         )
         .expect("evaluate");

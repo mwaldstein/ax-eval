@@ -1,5 +1,5 @@
 use crate::transcript::redact::redact_sensitive;
-use crate::transcript::types::{EvaluationReport, RunMetadata, RunReport};
+use crate::transcript::types::{CommandEvent, EvaluationReport, RunMetadata, RunReport};
 use serde_json::json;
 use std::fs;
 use std::io::Write;
@@ -28,6 +28,17 @@ impl TranscriptWriter {
         fs::write(self.base_dir.join("transcript.raw.txt"), content)?;
         // Also generate human-readable version from the content
         self.generate_human_transcript(content)?;
+        Ok(())
+    }
+
+    pub fn write_tool_output(&self, content: &str) -> anyhow::Result<()> {
+        fs::write(self.base_dir.join("tool-output.raw.txt"), content)?;
+        Ok(())
+    }
+
+    pub fn write_command_events(&self, events: &[CommandEvent]) -> anyhow::Result<()> {
+        let json = serde_json::to_string_pretty(events)?;
+        fs::write(self.base_dir.join("command-events.json"), json)?;
         Ok(())
     }
 

@@ -38,6 +38,18 @@ impl TranscriptAnalyzer {
         Self::analyze_with_events(transcript, Some(commands))
     }
 
+    pub fn analyze_command_events_for_target(
+        events: &[CommandEvent],
+        target_binary: &str,
+    ) -> EfficiencyMetrics {
+        let target_events = Self::target_command_events(events, target_binary);
+        Self::analyze_command_events(&target_events)
+    }
+
+    pub fn analyze_command_events(events: &[CommandEvent]) -> EfficiencyMetrics {
+        Self::analyze_with_events("", Some(events.to_vec()))
+    }
+
     pub fn analyze_with_pattern(transcript: &str, command_pattern: &str) -> EfficiencyMetrics {
         let commands = Self::extract_commands_with_pattern(transcript, command_pattern);
         Self::analyze_with_events(transcript, Some(commands))
@@ -108,6 +120,52 @@ impl TranscriptAnalyzer {
             iteration_ratio,
             completed: false,
         }
+    }
+
+    fn target_command_events(events: &[CommandEvent], target_binary: &str) -> Vec<CommandEvent> {
+        events
+            .iter()
+            .filter_map(|event| {
+                Self::target_subcommand(&event.command, target_binary).map(|command| CommandEvent {
+                    command,
+                    exit_code: event.exit_code,
+                })
+            })
+            .collect()
+    }
+
+    fn target_subcommand(command: &str, target_binary: &str) -> Option<String> {
+        let tokens = shell_like_tokens(command);
+        let target = std::path::Path::new(target_binary)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(target_binary);
+
+        for (index, token) in tokens.iter().enumerate() {
+            if token.contains(char::is_whitespace) {
+                if let Some(subcommand) = Self::target_subcommand(token, target_binary) {
+                    return Some(subcommand);
+                }
+            }
+
+            let token_binary = std::path::Path::new(token)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(token);
+
+            if token_binary == target {
+                let subcommand = tokens
+                    .get(index + 1)
+                    .map(String::as_str)
+                    .unwrap_or("command");
+                if subcommand == "--help" || tokens[index + 1..].iter().any(|arg| arg == "--help") {
+                    return Some("help".to_string());
+                }
+                return Some(subcommand.to_string());
+            }
+        }
+
+        None
     }
 
     fn is_error_line(line: &str) -> bool {
@@ -193,4 +251,53 @@ impl TranscriptAnalyzer {
 
         commands
     }
+}
+
+fn shell_like_tokens(command: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+
+    for ch in command.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+
+        if let Some(quote_char) = quote {
+            if ch == quote_char {
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+            continue;
+        }
+
+        if ch.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            continue;
+        }
+
+        current.push(ch);
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
 }

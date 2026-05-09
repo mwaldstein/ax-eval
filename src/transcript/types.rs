@@ -96,7 +96,13 @@ pub struct EfficiencyMetrics {
     pub completed: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InteractionMetricsSource {
+    StructuredToolCalls,
+    TranscriptRegex,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandEvent {
     pub command: String,
     pub exit_code: Option<i32>,

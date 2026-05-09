@@ -52,9 +52,9 @@ evaluation:
         let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
 
         assert!(result.is_ok());
-        let (output, exit_code, _cost, _token_usage) = result.unwrap();
-        assert_eq!(exit_code, 0, "Exit code should be 0");
-        assert!(!output.is_empty(), "Output should not be empty");
+        let output = result.unwrap();
+        assert_eq!(output.exit_code, 0, "Exit code should be 0");
+        assert!(!output.transcript.is_empty(), "Output should not be empty");
     }
 
     #[test]
@@ -80,9 +80,9 @@ evaluation:
         let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
 
         assert!(result.is_ok());
-        let (output, exit_code, _cost, _token_usage) = result.unwrap();
-        assert_eq!(exit_code, 0);
-        assert!(!output.is_empty());
+        let output = result.unwrap();
+        assert_eq!(output.exit_code, 0);
+        assert!(!output.transcript.is_empty());
     }
 
     #[test]
@@ -106,9 +106,9 @@ evaluation:
         let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
 
         assert!(result.is_ok());
-        let (_output, _exit_code, cost, token_usage) = result.unwrap();
+        let output = result.unwrap();
         // Mock adapter doesn't report cost or token usage
-        assert!(cost.is_none());
-        assert!(token_usage.is_none());
+        assert!(output.cost_usd.is_none());
+        assert!(output.token_usage.is_none());
     }
 }
