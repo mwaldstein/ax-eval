@@ -70,9 +70,8 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
         create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
     };
     use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
-    use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
+    use crate::run::setup::{prepare_writer_and_setup, PreparedRunContext};
     use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
-    use crate::target_env::TargetEnvironment;
 
     let s = request.scenario;
     let tool = request.tool;
@@ -82,17 +81,8 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
     let results_dir = plan.results_dir;
     std::fs::create_dir_all(&results_dir)?;
 
-    let workspace = setup_scenario_env(s, request.scenario_path, &results_dir)?;
-    let cache_key = workspace.cache_key(tool, model)?;
-
-    let mut scenario = s.clone();
-    scenario.target.env = TargetEnvironment::expanded_from_config(
-        s.target.env.as_ref(),
-        &workspace.env.root,
-        &results_dir,
-    )
-    .into_config_env();
-    let s = &scenario;
+    let context = PreparedRunContext::new(s, request.scenario_path, &results_dir)?;
+    let cache_key = context.cache_key(tool, model)?;
 
     if let Some(cached) = request.cached_record(&cache_key)? {
         println!("Cache HIT! Using cached result: {}", cached.id);
@@ -106,13 +96,12 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
 
     let adapter = create_adapter_and_check(tool)?;
 
-    let prepared =
-        prepare_writer_and_setup(&results_dir, &workspace.env, s, plan.effective_timeout)?;
+    let prepared = prepare_writer_and_setup(&context, s, plan.effective_timeout)?;
 
     let evaluation = run_evaluation_flow(EvaluationFlowInput {
         adapter: adapter.as_ref(),
         scenario: s,
-        env: &workspace.env,
+        env: &context.workspace.env,
         tool,
         model,
         effective_timeout: plan.effective_timeout,
@@ -121,6 +110,7 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
         judge_tool: request.judge_tool,
         writer: &prepared.writer,
         artifacts: &prepared.artifacts,
+        target_env: &context.target_env,
     })?;
 
     let outcome = determine_outcome(&evaluation.metrics);

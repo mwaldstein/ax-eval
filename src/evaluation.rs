@@ -147,6 +147,7 @@ pub struct EvaluationInput<'a> {
     pub adapter_capability: AdapterEvidenceCapability,
     pub transcript_path: PathBuf,
     pub completed: bool,
+    pub target_env: &'a TargetEnvironment,
 }
 
 pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
@@ -157,7 +158,6 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         scenario.target.binary.clone(),
         scenario.target.command_pattern.clone(),
     );
-    let target_env = TargetEnvironment::from_config(scenario.target.env.as_ref());
     let interaction_profile =
         crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
             target: &target,
@@ -170,7 +170,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
 
     let ctx = GateEvaluationContext {
         env_root: input.env_root,
-        target_env: &target_env,
+        target_env: input.target_env,
         script_runner: input.script_runner,
         interaction_profile: &interaction_profile,
     };
@@ -257,6 +257,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
             transcript_path: dir.path().join("unused-transcript.raw.txt"),
             completed: true,
+            target_env: &TargetEnvironment::default(),
         })
         .expect("evaluate");
 

@@ -47,6 +47,7 @@ impl ToolAdapter for CodexAdapter {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
+        target_env: &TargetEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
@@ -59,8 +60,7 @@ impl ToolAdapter for CodexAdapter {
         }
         args.push(&scenario.task.prompt);
 
-        let target_env =
-            TargetEnvironment::from_config(scenario.target.env.as_ref()).to_session_env();
+        let target_env = target_env.to_session_env();
 
         let (output, exit_code) =
             runner.run_command_with_env("codex", &args, cwd, timeout_secs, &target_env)?;

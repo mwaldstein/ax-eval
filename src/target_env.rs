@@ -7,12 +7,6 @@ pub struct TargetEnvironment {
 }
 
 impl TargetEnvironment {
-    pub fn from_config(target_env: Option<&HashMap<String, String>>) -> Self {
-        Self {
-            vars: target_env.cloned().unwrap_or_default(),
-        }
-    }
-
     pub fn expanded_from_config(
         target_env: Option<&HashMap<String, String>>,
         fixture_dir: &Path,
@@ -36,14 +30,6 @@ impl TargetEnvironment {
 
     pub fn as_map(&self) -> &HashMap<String, String> {
         &self.vars
-    }
-
-    pub fn into_config_env(self) -> Option<HashMap<String, String>> {
-        if self.vars.is_empty() {
-            None
-        } else {
-            Some(self.vars)
-        }
     }
 
     pub fn to_session_env(&self) -> Vec<(String, String)> {
@@ -109,7 +95,12 @@ mod tests {
         target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
         target_env.insert("ANOTHER_VAR".to_string(), "also works".to_string());
 
-        let session_env = TargetEnvironment::from_config(Some(&target_env)).to_session_env();
+        let session_env = TargetEnvironment::expanded_from_config(
+            Some(&target_env),
+            Path::new(""),
+            Path::new(""),
+        )
+        .to_session_env();
 
         assert!(session_env.contains(&("TARGET_ENV_TEST".to_string(), "works".to_string())));
         assert!(session_env.contains(&("ANOTHER_VAR".to_string(), "also works".to_string())));

@@ -122,6 +122,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::TranscriptRegexFallback,
             transcript_path: env.root.join("transcript.raw.txt"),
             completed: true,
+            target_env: &target_env,
         })
         .expect("evaluate");
 

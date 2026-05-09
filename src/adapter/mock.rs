@@ -1,5 +1,6 @@
 use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
+use crate::target_env::TargetEnvironment;
 use crate::transcript::{CommandEvent, InteractionInput};
 use std::path::Path;
 
@@ -50,6 +51,7 @@ impl ToolAdapter for MockAdapter {
         _cwd: &Path,
         _model: Option<&str>,
         _timeout_secs: u64,
+        _target_env: &TargetEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let transcript = self.generate_transcript(scenario);
         let command_events = self.generate_command_events(scenario);

@@ -3,7 +3,6 @@ use crate::run::artifacts::RunArtifacts;
 use crate::scenario::{Scenario, Setup};
 use crate::target_env::TargetEnvironment;
 use crate::transcript::TranscriptWriter;
-use std::collections::HashMap;
 use std::path::Path;
 
 pub struct ScenarioWorkspace {
@@ -21,6 +20,38 @@ impl ScenarioWorkspace {
             tool,
             model,
         )
+    }
+}
+
+pub struct PreparedRunContext {
+    pub workspace: ScenarioWorkspace,
+    pub target_env: TargetEnvironment,
+    pub artifacts: RunArtifacts,
+}
+
+impl PreparedRunContext {
+    pub fn new(
+        scenario: &Scenario,
+        scenario_path: &std::path::Path,
+        results_dir: &Path,
+    ) -> anyhow::Result<Self> {
+        let workspace = setup_scenario_env(scenario, scenario_path, results_dir)?;
+        let target_env = TargetEnvironment::expanded_from_config(
+            scenario.target.env.as_ref(),
+            &workspace.env.root,
+            results_dir,
+        );
+        let artifacts = RunArtifacts::new(results_dir, &workspace.env);
+
+        Ok(Self {
+            workspace,
+            target_env,
+            artifacts,
+        })
+    }
+
+    pub fn cache_key(&self, tool: &str, model: &str) -> anyhow::Result<crate::results::CacheKey> {
+        self.workspace.cache_key(tool, model)
     }
 }
 
@@ -68,13 +99,13 @@ pub fn execute_setup_commands(
     env: &TestEnv,
     writer: &TranscriptWriter,
     effective_timeout: u64,
-    target_env: Option<&HashMap<String, String>>,
+    target_env: &TargetEnvironment,
 ) -> anyhow::Result<(bool, Vec<SetupCommandReport>)> {
     println!("Running {} setup command(s)...", setup.commands.len());
     let runner = crate::session::SessionRunner::new();
     let mut setup_success = true;
     let mut setup_commands: Vec<SetupCommandReport> = Vec::new();
-    let env_vars = TargetEnvironment::from_config(target_env).to_session_env();
+    let env_vars = target_env.to_session_env();
 
     for (i, cmd) in setup.commands.iter().enumerate() {
         println!("  Command {}/{}: {}", i + 1, setup.commands.len(), cmd);
@@ -117,7 +148,7 @@ pub fn execute_health_check(
     env: &TestEnv,
     writer: &TranscriptWriter,
     effective_timeout: u64,
-    target_env: Option<&HashMap<String, String>>,
+    target_env: &TargetEnvironment,
 ) -> anyhow::Result<()> {
     if command.trim().is_empty() {
         anyhow::bail!("target.health_check cannot be empty");
@@ -125,7 +156,7 @@ pub fn execute_health_check(
 
     println!("Running target health check: {}", command);
     let runner = crate::session::SessionRunner::new();
-    let env_vars = TargetEnvironment::from_config(target_env).to_session_env();
+    let env_vars = target_env.to_session_env();
 
     let (output, exit_code) = runner.run_command_with_env(
         "sh",
@@ -156,21 +187,20 @@ pub fn execute_health_check(
 }
 
 pub fn prepare_writer_and_setup(
-    results_dir: &Path,
-    env: &TestEnv,
+    context: &PreparedRunContext,
     s: &Scenario,
     effective_timeout: u64,
 ) -> anyhow::Result<PreparedScenarioRun> {
-    let artifacts = RunArtifacts::new(results_dir, env);
+    let artifacts = context.artifacts.clone();
     let writer = artifacts.writer()?;
 
     let (setup_success, setup_commands) = if let Some(setup) = &s.setup {
         execute_setup_commands(
             setup,
-            env,
+            &context.workspace.env,
             &writer,
             effective_timeout,
-            s.target.env.as_ref(),
+            &context.target_env,
         )?
     } else {
         (true, vec![])
@@ -179,10 +209,10 @@ pub fn prepare_writer_and_setup(
     if let Some(health_check) = &s.target.health_check {
         execute_health_check(
             health_check,
-            env,
+            &context.workspace.env,
             &writer,
             effective_timeout,
-            s.target.env.as_ref(),
+            &context.target_env,
         )?;
     }
 
@@ -198,6 +228,7 @@ pub fn prepare_writer_and_setup(
 mod tests {
     use super::*;
     use crate::scenario::Setup;
+    use std::collections::HashMap;
     use tempfile::tempdir;
 
     #[test]
@@ -209,7 +240,8 @@ mod tests {
         let artifacts_dir = dir.path().join("artifacts");
         let results_dir = dir.path().join("results");
         std::fs::create_dir_all(&results_dir).expect("create results dir");
-        let writer = TranscriptWriter::new(artifacts_dir, results_dir).expect("create writer");
+        let writer =
+            TranscriptWriter::new(artifacts_dir, results_dir.clone()).expect("create writer");
 
         let setup = Setup {
             commands: vec!["test \"$TARGET_ENV_TEST\" = \"works\"".to_string()],
@@ -217,8 +249,11 @@ mod tests {
         let mut target_env = HashMap::new();
         target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
 
+        let target_env =
+            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir);
+
         let (setup_success, commands) =
-            execute_setup_commands(&setup, &env, &writer, 10, Some(&target_env))
+            execute_setup_commands(&setup, &env, &writer, 10, &target_env)
                 .expect("run setup commands");
 
         assert!(setup_success);
@@ -277,12 +312,10 @@ mod tests {
             "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
         );
         let expanded =
-            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir)
-                .into_config_env();
+            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir);
 
-        let (success, reports) =
-            execute_setup_commands(&setup, &env, &writer, 10, expanded.as_ref())
-                .expect("run setup commands");
+        let (success, reports) = execute_setup_commands(&setup, &env, &writer, 10, &expanded)
+            .expect("run setup commands");
 
         assert!(success);
         assert_eq!(reports.len(), 1);
@@ -318,6 +351,51 @@ mod tests {
     }
 
     #[test]
+    fn prepared_run_context_owns_workspace_artifacts_and_expanded_target_env() {
+        let dir = tempdir().expect("create temp dir");
+        let scenario_path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &scenario_path,
+            r#"
+name: prepared-context-test
+description: Test prepared run context
+template_folder: example_basic
+target:
+  binary: taskmgr
+  env:
+    TARGET_ROOT: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    TARGET_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/export.json"
+task:
+  prompt: "Create a task"
+evaluation:
+  gates: []
+"#,
+        )
+        .expect("write scenario");
+        let scenario: Scenario =
+            yaml_serde::from_str(&std::fs::read_to_string(&scenario_path).expect("read scenario"))
+                .expect("parse scenario");
+        let results_dir = dir.path().join("results");
+
+        let context =
+            PreparedRunContext::new(&scenario, &scenario_path, &results_dir).expect("context");
+
+        assert_eq!(context.workspace.env.root, results_dir.join("fixture"));
+        assert_eq!(
+            context.artifacts.artifacts_dir(),
+            results_dir.join("artifacts")
+        );
+        assert_eq!(
+            context.target_env.as_map().get("TARGET_ROOT"),
+            Some(&context.workspace.env.root.to_string_lossy().to_string())
+        );
+        assert_eq!(
+            context.target_env.as_map().get("TARGET_EXPORT"),
+            Some(&format!("{}/export.json", results_dir.to_string_lossy()))
+        );
+    }
+
+    #[test]
     fn health_check_runs_in_fixture_dir_with_target_env_vars() {
         let dir = tempdir().expect("create temp dir");
         let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
@@ -326,7 +404,8 @@ mod tests {
         let artifacts_dir = dir.path().join("artifacts");
         let results_dir = dir.path().join("results");
         std::fs::create_dir_all(&results_dir).expect("create results dir");
-        let writer = TranscriptWriter::new(artifacts_dir, results_dir).expect("create writer");
+        let writer =
+            TranscriptWriter::new(artifacts_dir, results_dir.clone()).expect("create writer");
 
         let mut target_env = HashMap::new();
         target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
@@ -336,7 +415,7 @@ mod tests {
             &env,
             &writer,
             10,
-            Some(&target_env),
+            &TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir),
         )
         .expect("run health check");
     }
@@ -352,7 +431,8 @@ mod tests {
         std::fs::create_dir_all(&results_dir).expect("create results dir");
         let writer = TranscriptWriter::new(artifacts_dir, results_dir).expect("create writer");
 
-        let result = execute_health_check("exit 7", &env, &writer, 10, None);
+        let result =
+            execute_health_check("exit 7", &env, &writer, 10, &TargetEnvironment::default());
 
         assert!(result.is_err());
         assert!(result

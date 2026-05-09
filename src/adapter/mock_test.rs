@@ -3,6 +3,7 @@ mod tests {
     use crate::adapter::mock::MockAdapter;
     use crate::adapter::ToolAdapter;
     use crate::scenario::Scenario;
+    use crate::target_env::TargetEnvironment;
     use crate::transcript::InteractionInput;
 
     #[test]
@@ -50,7 +51,13 @@ evaluation:
         let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
-        let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
+        let result = adapter.run(
+            &scenario,
+            temp_dir.path(),
+            Some("mock"),
+            30,
+            &TargetEnvironment::default(),
+        );
 
         assert!(result.is_ok());
         let output = result.unwrap();
@@ -84,7 +91,13 @@ evaluation:
         let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
-        let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
+        let result = adapter.run(
+            &scenario,
+            temp_dir.path(),
+            Some("mock"),
+            30,
+            &TargetEnvironment::default(),
+        );
 
         assert!(result.is_ok());
         let output = result.unwrap();
@@ -110,7 +123,13 @@ evaluation:
         let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
-        let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
+        let result = adapter.run(
+            &scenario,
+            temp_dir.path(),
+            Some("mock"),
+            30,
+            &TargetEnvironment::default(),
+        );
 
         assert!(result.is_ok());
         let output = result.unwrap();

@@ -8,6 +8,7 @@ pub mod opencode;
 mod mock_test;
 
 use crate::scenario::Scenario;
+use crate::target_env::TargetEnvironment;
 use crate::transcript::{CommandEvent, InteractionInput};
 use std::path::Path;
 
@@ -86,5 +87,6 @@ pub trait ToolAdapter: Send + Sync {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
+        target_env: &TargetEnvironment,
     ) -> anyhow::Result<ToolRunOutput>;
 }

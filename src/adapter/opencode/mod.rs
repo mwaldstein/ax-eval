@@ -41,6 +41,7 @@ impl ToolAdapter for OpenCodeAdapter {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
+        target_env: &TargetEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
@@ -60,8 +61,7 @@ impl ToolAdapter for OpenCodeAdapter {
             "XDG_CONFIG_HOME".to_string(),
             xdg_config_dir.to_string_lossy().to_string(),
         )];
-        TargetEnvironment::from_config(scenario.target.env.as_ref())
-            .append_to_session_env(&mut env_vars);
+        target_env.append_to_session_env(&mut env_vars);
 
         let (output, exit_code) =
             runner.run_command_with_env("opencode", &args, cwd, timeout_secs, &env_vars)?;

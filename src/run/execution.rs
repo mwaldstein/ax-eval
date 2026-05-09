@@ -4,6 +4,7 @@ use crate::fixture::TestEnv;
 use crate::interaction_profile::AdapterEvidenceCapability;
 use crate::run::artifacts::RunArtifacts;
 use crate::scenario::Scenario;
+use crate::target_env::TargetEnvironment;
 use crate::transcript::TranscriptWriter;
 
 pub struct EvaluationFlowInput<'a> {
@@ -18,6 +19,7 @@ pub struct EvaluationFlowInput<'a> {
     pub judge_tool: Option<&'a str>,
     pub writer: &'a TranscriptWriter,
     pub artifacts: &'a RunArtifacts,
+    pub target_env: &'a TargetEnvironment,
 }
 
 pub struct EvaluationFlowResult {
@@ -40,6 +42,7 @@ struct PostScriptRunInput<'a> {
     model: &'a str,
     artifacts: &'a RunArtifacts,
     writer: &'a TranscriptWriter,
+    target_env: &'a TargetEnvironment,
 }
 
 pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapter>> {
@@ -101,9 +104,12 @@ fn persist_execution_transcript(input: ExecutionTranscriptInput<'_>) -> anyhow::
 fn run_post_scripts(input: PostScriptRunInput<'_>) -> anyhow::Result<()> {
     if let Some(scripts) = &input.scenario.scripts {
         println!("Running {} post-execution script(s)...", scripts.post.len());
-        let runner = input
-            .artifacts
-            .script_runner(input.scenario, input.tool, input.model);
+        let runner = input.artifacts.script_runner(
+            input.scenario,
+            input.tool,
+            input.model,
+            input.target_env,
+        );
 
         for entry in &scripts.post {
             let report = runner.run_report(&entry.command, entry.timeout_secs)?;
@@ -129,6 +135,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         &input.env.root,
         Some(input.model),
         input.effective_timeout,
+        input.target_env,
     )?;
     let duration = start.elapsed();
     let exit_code = run_output.exit_code;
@@ -149,12 +156,14 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         model: input.model,
         artifacts: input.artifacts,
         writer: input.writer,
+        target_env: input.target_env,
     })?;
 
     // Create script runner for evaluation (used by script gates)
-    let script_runner = input
-        .artifacts
-        .script_runner(input.scenario, input.tool, input.model);
+    let script_runner =
+        input
+            .artifacts
+            .script_runner(input.scenario, input.tool, input.model, input.target_env);
 
     println!("Running evaluation...");
     let completed = exit_code == 0;
@@ -171,6 +180,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         ),
         transcript_path: input.artifacts.fixture_transcript_path(),
         completed,
+        target_env: input.target_env,
     })?;
     println!("Evaluation metrics: {:?}", metrics);
 
@@ -336,6 +346,7 @@ mod tests {
             model: "model",
             artifacts: &artifacts,
             writer: &writer,
+            target_env: &TargetEnvironment::default(),
         })
         .expect("run post scripts");
 
