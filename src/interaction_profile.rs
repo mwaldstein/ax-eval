@@ -1,8 +1,10 @@
-use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionInput, TranscriptAnalyzer};
-use anyhow::{Context, Result};
+mod evidence;
+
+use self::evidence::{extract_target_interaction_evidence, InteractionEvidenceInput};
+use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionInput};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,46 +56,6 @@ impl TargetInteractionSpec {
 
     pub fn command_pattern(&self) -> Option<&str> {
         self.command_pattern.as_deref()
-    }
-}
-
-#[derive(Debug, Clone)]
-enum InteractionEvidence {
-    StructuredToolCalls(Vec<CommandEvent>),
-    TranscriptRegexFallback { transcript_path: PathBuf },
-}
-
-impl InteractionEvidence {
-    fn from_interaction_input(
-        interaction_input: &InteractionInput,
-        adapter_capability: AdapterEvidenceCapability,
-        transcript_path: impl Into<PathBuf>,
-    ) -> Result<Self> {
-        match (interaction_input, adapter_capability) {
-            (
-                InteractionInput::StructuredToolCalls(command_events),
-                AdapterEvidenceCapability::StructuredToolCalls,
-            ) => Ok(Self::StructuredToolCalls(command_events.clone())),
-            (
-                InteractionInput::StructuredToolCalls(_),
-                AdapterEvidenceCapability::TranscriptRegexFallback,
-            ) => {
-                anyhow::bail!(
-                    "Adapter does not declare structured tool-call support but returned structured tool calls"
-                )
-            }
-            (
-                InteractionInput::TranscriptRegex,
-                AdapterEvidenceCapability::TranscriptRegexFallback,
-            ) => Ok(Self::TranscriptRegexFallback {
-                transcript_path: transcript_path.into(),
-            }),
-            (InteractionInput::TranscriptRegex, AdapterEvidenceCapability::StructuredToolCalls) => {
-                anyhow::bail!(
-                    "Adapter supports structured tool calls but returned transcript regex evidence"
-                )
-            }
-        }
     }
 }
 
@@ -160,133 +122,18 @@ pub(crate) fn reduce_command_events(events: &[CommandEvent]) -> EfficiencyMetric
     }
 }
 
-pub(crate) fn target_command_events(
-    events: &[CommandEvent],
-    target: &TargetInteractionSpec,
-) -> Vec<CommandEvent> {
-    events
-        .iter()
-        .filter_map(|event| {
-            target_subcommand(&event.command, target.binary()).map(|command| CommandEvent {
-                command,
-                exit_code: event.exit_code,
-            })
-        })
-        .collect()
-}
-
-fn target_subcommand(command: &str, target_binary: &str) -> Option<String> {
-    let tokens = shell_like_tokens(command);
-    let target = std::path::Path::new(target_binary)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(target_binary);
-
-    for (index, token) in tokens.iter().enumerate() {
-        if token.contains(char::is_whitespace) {
-            if let Some(subcommand) = target_subcommand(token, target_binary) {
-                return Some(subcommand);
-            }
-        }
-
-        if token == "$" {
-            continue;
-        }
-
-        let token_binary = Path::new(token)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or(token);
-
-        if token_binary == target {
-            let subcommand = tokens
-                .get(index + 1)
-                .map(String::as_str)
-                .unwrap_or("command");
-            if subcommand == "--help" || tokens[index + 1..].iter().any(|arg| arg == "--help") {
-                return Some("help".to_string());
-            }
-            return Some(subcommand.to_string());
-        }
-    }
-
-    None
-}
-
-fn shell_like_tokens(command: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for ch in command.chars() {
-        if escaped {
-            current.push(ch);
-            escaped = false;
-            continue;
-        }
-
-        if ch == '\\' {
-            escaped = true;
-            continue;
-        }
-
-        if let Some(quote_char) = quote {
-            if ch == quote_char {
-                quote = None;
-            } else {
-                current.push(ch);
-            }
-            continue;
-        }
-
-        if ch == '\'' || ch == '"' {
-            quote = Some(ch);
-            continue;
-        }
-
-        if ch.is_whitespace() {
-            if !current.is_empty() {
-                tokens.push(std::mem::take(&mut current));
-            }
-            continue;
-        }
-
-        current.push(ch);
-    }
-
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-
-    tokens
-}
-
 pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<InteractionProfile> {
-    let evidence = InteractionEvidence::from_interaction_input(
+    let structured_evidence = matches!(
         input.interaction_input,
-        input.adapter_capability,
-        input.transcript_path,
-    )?;
-    let structured_evidence = matches!(evidence, InteractionEvidence::StructuredToolCalls(_));
-    let (mut metrics, evidence_source) = match evidence {
-        InteractionEvidence::StructuredToolCalls(command_events) => {
-            let target_events = target_command_events(&command_events, input.target);
-            let metrics = reduce_command_events(&target_events);
-            (metrics, InteractionEvidenceSource::StructuredToolCalls)
-        }
-        InteractionEvidence::TranscriptRegexFallback { transcript_path } => {
-            let content = std::fs::read_to_string(&transcript_path)
-                .with_context(|| "Failed to read transcript file for regex interaction profile")?;
-            let command_events = TranscriptAnalyzer::extract_command_events_for_target(
-                &content,
-                input.target.binary(),
-                input.target.command_pattern(),
-            );
-            let metrics = reduce_command_events(&command_events);
-            (metrics, InteractionEvidenceSource::TranscriptRegexFallback)
-        }
-    };
+        InteractionInput::StructuredToolCalls(_)
+    );
+    let extracted = extract_target_interaction_evidence(InteractionEvidenceInput {
+        target: input.target,
+        interaction_input: input.interaction_input,
+        adapter_capability: input.adapter_capability,
+        transcript_path: input.transcript_path,
+    })?;
+    let mut metrics = reduce_command_events(&extracted.target_events);
 
     metrics.completed = input.completed;
 
@@ -298,7 +145,7 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
 
     Ok(InteractionProfile {
         metrics,
-        evidence_source,
+        evidence_source: extracted.source,
     })
 }
 

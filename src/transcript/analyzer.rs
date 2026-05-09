@@ -17,7 +17,7 @@ impl TranscriptAnalyzer {
         target_binary: &str,
         command_pattern: Option<&str>,
     ) -> EfficiencyMetrics {
-        let pattern = Self::resolve_command_pattern(target_binary, command_pattern);
+        let pattern = resolve_command_pattern(target_binary, command_pattern);
         Self::analyze_with_pattern(transcript, &pattern)
     }
 
@@ -33,24 +33,14 @@ impl TranscriptAnalyzer {
         target_binary: &str,
         command_pattern: Option<&str>,
     ) -> EfficiencyMetrics {
-        let commands =
-            Self::extract_command_events_for_target(transcript, target_binary, command_pattern);
+        let pattern = resolve_command_pattern(target_binary, command_pattern);
+        let commands = Self::extract_commands_with_pattern(transcript, &pattern);
         crate::interaction_profile::reduce_command_events(&commands)
     }
 
     pub fn analyze_with_pattern(transcript: &str, command_pattern: &str) -> EfficiencyMetrics {
         let commands = Self::extract_commands_with_pattern(transcript, command_pattern);
         crate::interaction_profile::reduce_command_events(&commands)
-    }
-
-    pub fn resolve_command_pattern(target_binary: &str, command_pattern: Option<&str>) -> String {
-        if let Some(pattern) = command_pattern {
-            if !pattern.trim().is_empty() {
-                return pattern.to_string();
-            }
-        }
-
-        format!(r"^\s*({})\s+(--help|\S+)\b", regex::escape(target_binary))
     }
 
     fn is_error_line(line: &str) -> bool {
@@ -137,7 +127,7 @@ impl TranscriptAnalyzer {
         commands
     }
 
-    fn extract_command_lines_with_exit_codes(transcript: &str) -> Vec<CommandEvent> {
+    pub(crate) fn extract_command_lines_with_exit_codes(transcript: &str) -> Vec<CommandEvent> {
         let command_line_regex = Regex::new(r"^\s*(?:\$\s*)?([A-Za-z0-9_./~:-][^\r\n]*)").unwrap();
         let exit_code_regex = Regex::new(r"(?i)exit\s+(?:code|status):?\s*(\d+)").unwrap();
 
@@ -178,20 +168,14 @@ impl TranscriptAnalyzer {
 
         commands
     }
+}
 
-    pub(crate) fn extract_command_events_for_target(
-        transcript: &str,
-        target_binary: &str,
-        command_pattern: Option<&str>,
-    ) -> Vec<CommandEvent> {
-        if command_pattern.is_none_or(|pattern| pattern.trim().is_empty()) {
-            let target =
-                crate::interaction_profile::TargetInteractionSpec::new(target_binary, None);
-            let events = Self::extract_command_lines_with_exit_codes(transcript);
-            return crate::interaction_profile::target_command_events(&events, &target);
+fn resolve_command_pattern(target_binary: &str, command_pattern: Option<&str>) -> String {
+    if let Some(pattern) = command_pattern {
+        if !pattern.trim().is_empty() {
+            return pattern.to_string();
         }
-
-        let pattern = Self::resolve_command_pattern(target_binary, command_pattern);
-        Self::extract_commands_with_pattern(transcript, &pattern)
     }
+
+    format!(r"^\s*({})\s+(--help|\S+)\b", regex::escape(target_binary))
 }
