@@ -306,7 +306,7 @@ llm-tool-test scenarios --tier 0
 
 ### Filtering
 
-- `--tags`: comma-separated list, matches scenarios with any of the given tags
+- `--tags`: repeat the flag for multiple tags; matches scenarios with any of the given tags
 - `--tier`: runs scenarios at or below the given tier (0 = smoke tests only, 1 = smoke + quick, etc.)
 
 ---
@@ -317,10 +317,14 @@ Each run produces a results directory:
 
 ```
 llm-tool-test-results/<timestamp>-<agent>-<model>-<scenario>/
-├── transcript.raw.txt      # Complete output from the LLM agent session
-├── events.jsonl            # Structured event log (spawn, tool_call, output, etc.)
 ├── metrics.json            # Evaluation metrics (gate results, scores, cost)
 ├── evaluation.md           # Human-readable evaluation report
+├── report.md               # Execution details, gate results, efficiency metrics
+├── artifacts/
+│   ├── transcript.raw.txt  # Complete output from the LLM agent session
+│   ├── events.jsonl        # Structured event log
+│   ├── tool-output.raw.txt # Raw adapter output when available
+│   └── command-events.json # Normalized command events when available
 └── fixture/                # The working directory, preserved after the run
     ├── AGENTS.md            # (from template)
     ├── README.md            # (from template)
@@ -333,15 +337,38 @@ llm-tool-test-results/<timestamp>-<agent>-<model>-<scenario>/
 {
   "gates_passed": 4,
   "gates_total": 4,
-  "gate_results": [
-    {"type": "command_succeeds", "passed": true, "detail": "exit code 0"},
-    {"type": "no_transcript_errors", "passed": true, "detail": "0 errors"}
+  "details": [
+    {
+      "gate_type": "command_succeeds",
+      "passed": true,
+      "message": "Command succeeded: my-tool list --format json"
+    },
+    {
+      "gate_type": "no_transcript_errors",
+      "passed": true,
+      "message": "No target-tool command errors detected"
+    }
   ],
-  "judge_score": 0.82,
-  "duration_secs": 45.3,
-  "cost_usd": 0.023,
+  "judge_passed": true,
+  "efficiency": {
+    "total_commands": 6,
+    "unique_commands": 5,
+    "error_count": 0,
+    "retry_count": 1,
+    "help_invocations": 1,
+    "first_try_success_rate": 1.0,
+    "iteration_ratio": 0.83,
+    "completed": true
+  },
   "interaction_evidence_source": "structured_tool_calls",
-  "outcome": "Pass"
+  "composite_score": 0.91,
+  "evaluator_results": [
+    {
+      "name": "task_quality",
+      "score": 0.86,
+      "summary": "Good task coverage"
+    }
+  ]
 }
 ```
 
@@ -380,7 +407,7 @@ Each scenario YAML uses the **same** task prompt and evaluation gates, but point
 ### Running
 
 ```bash
-llm-tool-test run --all --tags guidance-test
+llm-tool-test run --all --tags guidance-test --tier 1
 ```
 
 ### Comparing

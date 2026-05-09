@@ -73,17 +73,14 @@ a configurable command pattern, specified per scenario or globally:
 # In scenario YAML
 target:
   command_pattern: "my-tool\\s+(\\S+)"
-
-# Or globally in config
-[target]
-command_pattern = "my-tool\\s+(\\S+)"
 ```
 
-The pattern identifies target tool invocations in the transcript when regex
-fallback is used. If the pattern includes a capture group, the captured text is
-used to extract the subcommand for per-subcommand analytics (e.g.,
-distinguishing `my-tool create` from `my-tool list`). If no capture group is
-present, only aggregate counts (total commands, error rate, etc.) are available.
+The pattern is configured on each scenario. It identifies target tool
+invocations in the transcript when regex fallback is used. If the pattern
+includes a capture group, the captured text is used to extract the subcommand
+for per-subcommand analytics (e.g., distinguishing `my-tool create` from
+`my-tool list`). If no capture group is present, only aggregate counts (total
+commands, error rate, etc.) are available.
 
 ### Metrics
 
@@ -103,7 +100,7 @@ Interaction profiles record their evidence source in `metrics.json` as
 `interaction_evidence_source`.
 
 - `structured_tool_calls`: metrics came from adapter-provided command events.
-- `transcript_regex_fallback`: metrics came from `transcript.raw.txt` using
+- `transcript_regex_fallback`: metrics came from `artifacts/transcript.raw.txt` using
   `target.command_pattern`.
 
 Exit code detection for regex fallback is only as reliable as the transcript

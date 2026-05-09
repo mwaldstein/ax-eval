@@ -3,6 +3,9 @@
 # Copy this file to `llm-tool-test-config.toml` in your working directory
 # to customize tool configurations and test profiles.
 
+fixtures_path = "fixtures"
+results_path = "llm-tool-test-results"
+
 # Tool configurations define known LLM tools and their supported models.
 # The `command` field is currently metadata for built-in adapters; adapter
 # launch binaries are selected by tool name in the runner.
@@ -34,9 +37,13 @@ models = ["gpt-4o"]
 [profiles.standard]
 name = "standard"
 tools = ["opencode", "claude-code"]
-models = ["gpt-4o", "claude-sonnet"]
+models = ["claude-sonnet"]
 
 [profiles.full]
 name = "full"
-tools = ["opencode", "claude-code"]
-models = ["gpt-4o", "claude-sonnet", "claude-haiku"]
+tools = ["opencode"]
+models = ["gpt-4o", "claude-sonnet"]
+
+# Profiles build a Cartesian product of tools × models, and every selected
+# model must be supported by every selected tool. Use scenario `tool_matrix`
+# for heterogeneous matrices such as opencode/gpt-4o plus codex/gpt-5-codex.

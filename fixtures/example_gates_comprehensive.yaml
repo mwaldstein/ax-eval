@@ -36,80 +36,67 @@ evaluation:
     # Basic command gate
     - type: command_succeeds
       command: "./demo_tool status"
-      description: Status command should succeed
 
     # Output substring gate
     - type: command_output_contains
       command: "./demo_tool status"
       substring: "ok"
-      description: Status should contain ok
 
     # Output regex gate
     - type: command_output_matches
       command: "./demo_tool status"
       pattern: "status:\\s*ok"
-      description: Status should match expected pattern
 
     # JSON path gate (exists)
     - type: command_json_path
       command: "./demo_tool show --json"
       path: "$.records"
       assertion: "exists"
-      description: JSON output should have records array
 
     # JSON path gate (len >=)
     - type: command_json_path
       command: "./demo_tool show --json"
       path: "$.records"
       assertion: "len >= 1"
-      description: Should have at least 1 record
 
     # JSON path gate (len ==)
     - type: command_json_path
       command: "./demo_tool show --json"
       path: "$.records"
       assertion: "len == 1"
-      description: Should have exactly 1 record
 
     # JSON path gate (len >)
     - type: command_json_path
       command: "./demo_tool show --json"
       path: "$.records"
       assertion: "len > 0"
-      description: Should have more than 0 records
 
     # JSON path gate (equals)
     - type: command_json_path
       command: "./demo_tool show --json"
       path: "$.records[0].name"
       assertion: 'equals "test item"'
-      description: First record name should equal test item
 
     # JSON path gate (contains)
     - type: command_json_path
       command: "./demo_tool show --json"
       path: "$.records[0].name"
       assertion: "contains test"
-      description: First record name should contain test
 
     # File gates
     - type: file_exists
       path: data.txt
-      description: data.txt should exist
 
     - type: file_contains
       path: data.txt
       substring: "test item"
-      description: data.txt should contain the created item
 
     - type: file_matches
       path: data.txt
       pattern: "item-[0-9]+: test item"
-      description: data.txt should match expected item format
 
     # Transcript gate
     - type: no_transcript_errors
-      description: No demo_tool commands should have failed
 
     # Script gate (exit code only)
     - type: script

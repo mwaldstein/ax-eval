@@ -45,17 +45,13 @@ evaluation:
   gates:
     - type: file_exists
       path: output.txt
-      description: output.txt should exist
 
     - type: file_contains
       path: output.txt
       substring: "Hello from full config"
-      description: output.txt should contain the greeting
 
     - type: command_output_contains
       command: "cat output.txt"
       substring: "Hello from full config"
-      description: File contents should match via command gate
 
     - type: no_transcript_errors
-      description: No config_tool errors in transcript

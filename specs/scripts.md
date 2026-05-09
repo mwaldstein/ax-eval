@@ -86,15 +86,11 @@ evaluation:
 ```json
 {
   "passed": true,
-  "message": "Found 5 tasks (minimum 3)",
-  "detail": {
-    "count": 5,
-    "minimum": 3
-  }
+  "message": "Found 5 tasks (minimum 3)"
 }
 ```
 
-If stdout is valid JSON with a `passed` field, the framework uses it. If stdout is not JSON or has no `passed` field, the framework falls back to exit code only. The `message` field, when present, is included in the gate result. The `detail` field is optional and stored in metrics for inspection.
+If stdout is valid JSON with a `passed` field, the framework uses it. If stdout is not JSON or has no `passed` field, the framework falls back to exit code only. The `message` field, when present, is included in the gate result. Additional JSON fields are currently ignored.
 
 This means a script gate can be as simple as:
 
@@ -168,8 +164,8 @@ All scripts receive these environment variables:
 | `LLM_TOOL_TEST_SCENARIO` | Scenario name |
 | `LLM_TOOL_TEST_AGENT` | LLM agent tool used (e.g., "opencode") |
 | `LLM_TOOL_TEST_MODEL` | Model used (e.g., "gpt-4o") |
-| `LLM_TOOL_TEST_TRANSCRIPT` | Path to transcript.raw.txt (post-execution and evaluation scripts only) |
-| `LLM_TOOL_TEST_EVENTS` | Path to events.jsonl (post-execution and evaluation scripts only) |
+| `LLM_TOOL_TEST_TRANSCRIPT` | Path to `artifacts/transcript.raw.txt` (post-execution and evaluation scripts only) |
+| `LLM_TOOL_TEST_EVENTS` | Path to `artifacts/events.jsonl` (post-execution and evaluation scripts only) |
 
 Scripts also inherit any `target.env` variables defined in the scenario.
 
@@ -268,8 +264,8 @@ The full lifecycle with scripts:
 7. **Evaluate**:
    a. Interaction metrics — derived from events/transcript
    b. Gates — built-in gates and script gates, all run regardless of earlier failures
-   c. Custom evaluators — run `scripts.evaluators`; results stored in metrics
-   d. LLM-as-judge — if enabled and gates pass
+   c. LLM-as-judge — if enabled and gates pass
+   d. Custom evaluators — run `scripts.evaluators`; results stored in metrics
 8. **Generate artifacts** — write metrics, evaluation summary
 
 ---
@@ -278,7 +274,7 @@ The full lifecycle with scripts:
 
 - **Post scripts** have a default timeout of 30 seconds each. If a post script times out or fails, it is logged and evaluation proceeds.
 - **Script gates** have a default timeout of 30 seconds each. If a script gate times out, the gate fails.
-- **Evaluators** have a default timeout of 60 seconds each. If an evaluator times out or fails, its results are omitted from metrics and the failure is logged.
+- **Evaluators** have a default timeout of 60 seconds each. If an evaluator times out or fails, `metrics.json` includes an evaluator result with `error` and no `metrics` or `score`.
 - All script timeouts can be overridden per-script:
 
 ```yaml

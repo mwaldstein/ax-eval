@@ -77,29 +77,43 @@ Every run measures two dimensions:
 2. **Efficiency**: How much friction (retries, errors, tokens) did it encounter?
 
 ### Artifacts
-Each run generates a directory under `llm-tool-test-results/` containing:
+Each run appends a record to `llm-tool-test-results/results.jsonl` and generates a run directory containing:
 
 - `evaluation.md`: A human-readable evaluation profile and summary.
-- `metrics.json`: Machine-readable scalar metrics (commands, errors, tokens, cost).
-- `transcript.raw.txt`: The full agent transcript for debugging.
-- `events.jsonl`: Structured event log of the entire interaction.
+- `report.md`: Execution details, gate results, and efficiency metrics.
+- `metrics.json`: Machine-readable evaluation metrics (gates, interaction evidence, efficiency, composite score, and evaluator results).
+- `artifacts/transcript.raw.txt`: The full agent transcript for debugging.
+- `artifacts/events.jsonl`: Structured event log of the entire interaction.
+- `artifacts/tool-output.raw.txt`: Raw adapter output when available.
+- `artifacts/command-events.json`: Normalized command events when available.
 
 ### Metrics Example
 ```json
 {
-  "scenario": "example_basic",
-  "tool": "claude-code",
   "gates_passed": 3,
   "gates_total": 3,
-  "command_count": 6,
-  "error_rate": 0.0,
-  "first_try_success_rate": 1.0,
-  "token_usage": { "input": 14230, "output": 1840 },
-  "judge_score": 0.92
+  "details": [
+    {
+      "gate_type": "file_exists",
+      "passed": true,
+      "message": "File exists: summary.md"
+    }
+  ],
+  "efficiency": {
+    "total_commands": 6,
+    "unique_commands": 5,
+    "error_count": 0,
+    "retry_count": 1,
+    "help_invocations": 1,
+    "first_try_success_rate": 1.0,
+    "iteration_ratio": 0.83,
+    "completed": true
+  },
+  "interaction_evidence_source": "structured_tool_calls"
 }
 ```
 
-`judge_score` is included only when a scenario configures a Judge rubric — see the [evaluation spec](specs/evaluation.md).
+Judge, composite, and custom evaluator fields are included only when configured — see the [evaluation spec](specs/evaluation.md).
 
 ## Scenario Format
 
@@ -108,14 +122,22 @@ Scenarios are YAML files defining the agent task, the environment, and post-run 
 ```yaml
 name: example_basic
 description: Create a summary with the notes CLI
-prompt: |
-  Use the notes CLI to create a project note and export a summary.
-gates:
-  - type: file_exists
-    path: summary.md
-  - type: file_contains
-    path: summary.md
-    contains: "Project"
+template_folder: example_basic
+
+target:
+  binary: notes
+
+task:
+  prompt: |
+    Use the notes CLI to create a project note and export a summary.
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: summary.md
+    - type: file_contains
+      path: summary.md
+      substring: "Project"
 ```
 
 See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, and the full field reference.

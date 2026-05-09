@@ -4,7 +4,7 @@
 name: example_judge
 description: |
   Demonstrates LLM-as-judge evaluation with a rubric.
-  The judge assesses transcript quality independently of gates.
+  The judge assesses transcript quality after deterministic gates pass.
 
 tags:
   - examples
@@ -30,15 +30,12 @@ evaluation:
   gates:
     - type: file_exists
       path: notes.txt
-      description: notes.txt should exist
 
     - type: file_contains
       path: notes.txt
       substring: "Hello World"
-      description: Should contain the note title
 
     - type: no_transcript_errors
-      description: No simple_tool errors in transcript
 
   judge:
     enabled: true

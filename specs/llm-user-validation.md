@@ -188,8 +188,8 @@ while shared normalization helpers remain in `src/adapter/normalize.rs`. See
 | Adapter | Agent Invocation | Status |
 |---------|-----------------|--------|
 | opencode | `opencode run --format json <prompt>` | Primary |
-| claude-code | `claude run` with `prompt.txt` in the scenario workspace | Primary |
-| codex | `codex exec --json --full-auto <prompt>` | Primary |
+| claude-code | `claude -p --output-format stream-json --verbose --include-partial-messages <prompt>` | Primary |
+| codex | `codex exec --json --full-auto --skip-git-repo-check <prompt>` | Primary |
 | mock | internal mock adapter | Adapter tests only; no target-tool behavior |
 
 ---
@@ -227,10 +227,14 @@ Each run produces:
 
 ```
 llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/
-├── transcript.raw.txt      # Complete PTY output
-├── events.jsonl            # Structured event log
-├── metrics.json            # Run metadata and measurements
+├── metrics.json            # Evaluation metrics
 ├── evaluation.md           # Human-readable summary
+├── report.md               # Execution and efficiency report
+├── artifacts/
+│   ├── transcript.raw.txt  # Complete or synthesized transcript
+│   ├── events.jsonl        # Structured event log
+│   ├── tool-output.raw.txt # Raw adapter output when available
+│   └── command-events.json # Normalized command events when available
 └── fixture/                # Working directory, preserved after run
 ```
 
@@ -315,6 +319,7 @@ The current implementation records actual cost when an adapter exposes it, and w
 Cache key components:
 - Scenario YAML hash
 - Prompt content hash
+- Fixture/template content hash
 - Agent tool + model identifier
 
 If cache hit, reuse transcript and evaluation results. Disable with `--no-cache`.
@@ -365,7 +370,8 @@ llm-tool-test-results/
 # Run scenarios
 llm-tool-test run --scenario example_basic  # Run specific scenario
 llm-tool-test run --all                     # Run all scenarios
-llm-tool-test run --all --tags capture      # Run by tags
+llm-tool-test run --all --tags capture      # Run by tag
+llm-tool-test run --all --tags smoke --tags capture  # Match any listed tag
 llm-tool-test run --all --tier 1            # Run by tier
 llm-tool-test run --scenario example_basic --tool opencode  # Run with specific agent
 llm-tool-test run --dry-run                 # Validate selection without LLM calls

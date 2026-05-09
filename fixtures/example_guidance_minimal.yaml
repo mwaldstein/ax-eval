@@ -46,26 +46,21 @@ evaluation:
   gates:
     - type: file_exists
       path: notes.db
-      description: Notes database should exist
 
     - type: command_succeeds
       command: "./notes export --format json"
-      description: Export should succeed
 
     - type: command_json_path
       command: "./notes export --format json"
       path: "$.notes"
       assertion: "len >= 4"
-      description: Should have at least 4 notes
 
     - type: command_output_contains
       command: "./notes list --tag project"
       substring: "project"
-      description: At least 2 notes tagged with project
 
     - type: file_exists
       path: links.txt
-      description: Links file should exist (notes were linked)
 
     # Note: no_transcript_errors is intentionally omitted for guidance
     # scenarios. Discovery errors are expected and measured via interaction

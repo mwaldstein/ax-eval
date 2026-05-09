@@ -38,6 +38,7 @@ Filter by tags or tier:
 
 ```bash
 llm-tool-test scenarios --tags examples
+llm-tool-test scenarios --tags smoke --tags guidance-test
 llm-tool-test scenarios --tier 0
 ```
 
@@ -57,6 +58,7 @@ Filter runs by tag or tier:
 
 ```bash
 llm-tool-test run --all --tags smoke --tool claude-code
+llm-tool-test run --all --tags smoke --tags guidance-test --tier 1 --tool claude-code
 llm-tool-test run --all --tier 1 --tool claude-code
 ```
 
@@ -72,7 +74,7 @@ Show run details:
 llm-tool-test show <run-id>
 ```
 
-Clean artifacts:
+Clean cache and legacy transcript artifacts:
 
 ```bash
 # Clean cache and legacy transcript artifacts older than 7 days
@@ -98,7 +100,7 @@ llm-tool-test run --scenario example_basic --tool claude-code
 cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
 
 # 5. Review the transcript for debugging
-cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/transcript.raw.txt
+cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/artifacts/transcript.raw.txt
 ```
 
 ## Scenario Authoring
@@ -110,16 +112,22 @@ name: example_basic
 description: Create a summary with the notes CLI
 tags: [examples, smoke]
 tier: 0
+template_folder: example_basic
 
-prompt: |
-  Use the notes CLI to create a project note and export a summary.
+target:
+  binary: notes
 
-gates:
-  - type: file_exists
-    path: summary.md
-  - type: file_contains
-    path: summary.md
-    contains: "Project"
+task:
+  prompt: |
+    Use the notes CLI to create a project note and export a summary.
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: summary.md
+    - type: file_contains
+      path: summary.md
+      substring: "Project"
 ```
 
 Good scenarios evaluate outcomes, not the exact process an agent used. Because LLMs are nondeterministic, prefer checks like "was the summary created?" over "did the agent run these exact commands in this exact order?"
@@ -177,9 +185,12 @@ Scenarios can also define a `tool_matrix` to run multiple tool/model combination
 
 ## Configuration
 
-An optional `llm-tool-test-config.toml` can define tool/model validation, model costs, and matrix profiles.
+An optional `llm-tool-test-config.toml` can define fixture/result paths, tool/model validation, and matrix profiles.
 
 ```toml
+fixtures_path = "fixtures"
+results_path = "llm-tool-test-results"
+
 [tools.claude-code]
 name = "claude-code"
 command = "claude-code"
@@ -194,28 +205,26 @@ models = ["gpt-4o", "claude-sonnet"]
 name = "quick"
 tools = ["claude-code"]
 models = ["claude-sonnet"]
-
-[models.claude-sonnet]
-input_cost_per_1k_tokens = 3.0
-output_cost_per_1k_tokens = 15.0
 ```
 
 Copy `llm-tool-test-config.example.toml` as a starting point.
 
 ## Interpreting Results
 
-Each run generates an `evaluation.md` with a full evaluation profile.
+Each run generates `evaluation.md`, `report.md`, and `metrics.json`.
 
-The profile includes:
+`evaluation.md` includes:
 
 - Summary: scenario name, tool, model, and outcome
-- Quantitative metrics: gates passed, duration, cost, token usage, command count, error rate, and first-try success rate
+- Top-level metrics: gates passed, duration, cost, and composite score when present
 - Qualitative scoring: judge score and judge issues/highlights when a rubric is configured
-- Composite score: optional scenario-configured score from `0.0` to `1.0`
+- Custom evaluator summaries and errors
 - Human review section: space for manual scoring
-- Artifact links: transcript, metrics, and events
 
+`report.md` includes execution details, gate results, and efficiency metrics.
 Use `metrics.json` when comparing repeated runs programmatically.
+Use `results.jsonl` in the results directory for run-level metadata such as
+tool, model, token usage, and cost when adapters report those fields.
 
 The `interaction_evidence_source` field shows how command metrics were built:
 `structured_tool_calls` means the adapter provided canonical command events;
@@ -231,18 +240,24 @@ Common comparisons:
 
 ## Results Location
 
-All run artifacts are stored in:
+Run directories are stored in:
 
 ```text
 llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/
 ```
 
+The results directory also contains `results.jsonl`, an append-only run record
+database used by `llm-tool-test show`.
+
 Typical artifacts include:
 
 - `evaluation.md`
+- `report.md`
 - `metrics.json`
-- `transcript.raw.txt`
-- `events.jsonl`
+- `artifacts/transcript.raw.txt`
+- `artifacts/events.jsonl`
+- `artifacts/tool-output.raw.txt`
+- `artifacts/command-events.json`
 
 ## CI And Regression Gates
 
@@ -256,11 +271,11 @@ Use CI gates for catastrophic regressions. Use the evaluation profile to underst
 
 **Scenario not found**: check that the scenario exists in `fixtures/`, then run `llm-tool-test scenarios`.
 
-**Gate failures**: inspect `evaluation.md`, `metrics.json`, and `transcript.raw.txt`.
+**Gate failures**: inspect `evaluation.md`, `metrics.json`, and `artifacts/transcript.raw.txt`.
 
 **Interaction evidence failures**: a structured-capable adapter returned
 fallback evidence or no usable target-tool events. Inspect `metrics.json`,
-`tool-output.raw.txt`, and `transcript.raw.txt`; this usually means the
+`artifacts/tool-output.raw.txt`, and `artifacts/transcript.raw.txt`; this usually means the
 adapter's raw-output parser no longer matches the CLI output schema.
 
 **Timeout errors**: increase timeout with `--timeout-secs 600`.
@@ -282,7 +297,7 @@ llm-tool-test scenarios --tags examples
 Run all examples with Claude Code:
 
 ```bash
-llm-tool-test run --all --tags examples --tool claude-code
+llm-tool-test run --all --tags examples --tier 1 --tool claude-code
 ```
 
 The guidance examples compare minimal and rich AGENTS.md instructions:

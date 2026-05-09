@@ -32,15 +32,12 @@ evaluation:
   gates:
     - type: file_exists
       path: output.txt
-      description: output.txt should exist
 
     - type: file_contains
       path: output.txt
       substring: "hello"
-      description: output.txt should contain hello
 
     - type: no_transcript_errors
-      description: No hello tool errors in transcript
 
 run:
   timeout_secs: 60

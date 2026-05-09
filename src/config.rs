@@ -228,6 +228,17 @@ mod tests {
     }
 
     #[test]
+    fn example_config_profiles_are_valid() {
+        let config = Config::load(Path::new("llm-tool-test-config.example.toml")).unwrap();
+
+        for profile_name in config.profiles.keys() {
+            config
+                .build_profile_matrix(profile_name)
+                .unwrap_or_else(|err| panic!("profile '{profile_name}' should be valid: {err}"));
+        }
+    }
+
+    #[test]
     fn test_validate_tool_model() {
         let mut config = Config::default();
 

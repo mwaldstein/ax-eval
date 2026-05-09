@@ -17,17 +17,19 @@ Both use the same `notes` mock tool, task prompt, and evaluation gates.
 ## Running The Comparison
 
 ```bash
-llm-tool-test run --all --tags guidance-test
+llm-tool-test run --all --tags guidance-test --tier 1
 ```
 
-Compare `metrics.json` across result directories.
+Compare `metrics.json` across result directories. Use `results.jsonl` in the
+results directory for run-level token and cost fields when adapters report
+them.
 
 Primary signals:
 
 - Lower error rates and help-seeking.
 - Higher first-try success rate.
-- Fewer total commands and lower token usage.
-- Lower cost per task completion.
+- Fewer total commands.
+- Lower token usage and cost per task completion when adapters report those fields.
 
 Gate pass rate is a sanity check, not the main signal. The purpose of this
 comparison is to measure interaction quality.
@@ -39,5 +41,5 @@ All built-in example scenarios share the `examples` tag.
 ```bash
 llm-tool-test scenarios --tags examples
 llm-tool-test run --all --tags examples --tool opencode
-llm-tool-test run --all --tags examples --tool opencode --model opencode/kimi-k2.6
+llm-tool-test run --all --tags examples --tier 1 --tool opencode --model opencode/kimi-k2.6
 ```
