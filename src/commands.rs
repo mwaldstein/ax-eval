@@ -48,6 +48,8 @@ pub fn handle_run_command(
         return Ok(());
     };
 
+    let mut run_errors = 0;
+
     for record in scenarios_to_run {
         let s = record.scenario;
         println!("Loaded scenario: {}", s.name);
@@ -89,7 +91,18 @@ pub fn handle_run_command(
 
         if matrix.len() > 1 {
             output::print_matrix_summary(&results);
+        } else if let Some((config, Err(error))) = results.first() {
+            eprintln!(
+                "Run failed for {} / {}: {:#}",
+                config.tool, config.model, error
+            );
         }
+
+        run_errors += results.iter().filter(|(_, result)| result.is_err()).count();
+    }
+
+    if run_errors > 0 {
+        anyhow::bail!("{run_errors} scenario run(s) failed");
     }
 
     Ok(())
@@ -287,6 +300,9 @@ target:
   env:
     MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
     MYTOOL_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/mytool-export.json"
+
+interaction:
+  target_commands: required
 
 task:
   prompt: |

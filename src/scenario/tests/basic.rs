@@ -126,6 +126,30 @@ evaluation:
 }
 
 #[test]
+fn test_interaction_target_commands_policy() {
+    let yaml = r#"
+name: validation
+description: "A validation scenario with no required target command"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Reply hello"
+interaction:
+  target_commands: optional
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
+    assert_eq!(
+        scenario.interaction.target_commands,
+        TargetCommandPolicy::Optional
+    );
+}
+
+#[test]
 fn test_tags_field() {
     let yaml = r#"
 name: test

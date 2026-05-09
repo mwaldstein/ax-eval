@@ -132,6 +132,9 @@ task:
   prompt: |
     Use the notes CLI to create a project note and export a summary.
 
+interaction:
+  target_commands: required
+
 evaluation:
   gates:
     - type: file_exists
@@ -158,6 +161,11 @@ target:
   env:
     MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
 ```
+
+`interaction.target_commands` defaults to `required`, which is appropriate for
+normal CLI workflows. Set it to `optional` for validation scenarios where the
+agent may legitimately finish without calling the target tool, or `forbidden`
+when calling the target tool should fail the scenario.
 
 ## Templates
 

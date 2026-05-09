@@ -233,6 +233,7 @@ mod tests {
             tags: vec![],
             run: None,
             scripts,
+            interaction: Default::default(),
         }
     }
 

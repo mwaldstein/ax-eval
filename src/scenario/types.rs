@@ -44,6 +44,9 @@ pub struct Scenario {
     /// Optional scripts configuration for hooks and evaluators
     #[serde(default)]
     pub scripts: Option<ScriptsConfig>,
+    /// Interaction evidence expectations for target-tool commands
+    #[serde(default)]
+    pub interaction: InteractionConfig,
 }
 
 /// Target tool configuration for a scenario.
@@ -79,6 +82,32 @@ pub struct Setup {
 
 fn default_tier() -> usize {
     0
+}
+
+/// Interaction evidence expectations for a scenario.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InteractionConfig {
+    /// Whether completed runs are expected to include target-tool commands
+    #[serde(default)]
+    pub target_commands: TargetCommandPolicy,
+}
+
+impl Default for InteractionConfig {
+    fn default() -> Self {
+        Self {
+            target_commands: TargetCommandPolicy::Required,
+        }
+    }
+}
+
+/// Policy for target-tool command evidence in completed runs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TargetCommandPolicy {
+    #[default]
+    Required,
+    Optional,
+    Forbidden,
 }
 
 /// Configuration for a specific tool and its supported models.

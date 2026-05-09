@@ -57,7 +57,17 @@ These metrics are derived from interaction evidence and are always available, re
 Structured tool calls are the canonical evidence source for interaction
 profiles. If an adapter supports structured tool calls, it must return
 structured command events for normal completed runs. Returning transcript regex
-evidence, or returning no usable target-tool events, is an evaluation failure.
+evidence is an evaluation failure. Returning no usable target-tool events is an
+evaluation failure unless the scenario declares `interaction.target_commands:
+optional`.
+
+Scenarios can set `interaction.target_commands` to:
+
+- `required` (default): completed runs must include at least one target-tool
+  event.
+- `optional`: completed runs may include zero target-tool events.
+- `forbidden`: completed runs fail interaction profiling if target-tool events
+  are present.
 
 Transcript regex analysis is fallback evidence only for adapters that cannot
 provide structured tool calls. See ADR-0002.

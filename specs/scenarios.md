@@ -87,6 +87,34 @@ health_check: "mytool status --json | jq -e '.healthy'"
 
 ---
 
+## Interaction Configuration
+
+Scenarios can declare whether a completed run is expected to include target-tool
+commands:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `interaction.target_commands` | `required`, `optional`, or `forbidden` | `required` | Controls how zero or nonzero target-tool command evidence is interpreted. |
+
+```yaml
+interaction:
+  target_commands: required
+```
+
+Use `required` for normal CLI evaluation scenarios. A completed structured run
+that returns zero usable target-tool events is treated as an evaluation error,
+which catches adapter normalization failures and agents that skipped the target
+tool entirely.
+
+Use `optional` for validation scenarios where the target tool may legitimately
+not be invoked, such as prompts that only ask the agent to respond with a marker
+string.
+
+Use `forbidden` when target-tool invocation would be a scenario failure, such as
+a validation scenario that explicitly requires no target interaction.
+
+---
+
 ## Scenario Format
 
 Scenarios are YAML files. Each file defines one scenario.
@@ -108,6 +136,9 @@ template_folder: string          # Path to fixture directory (required)
 
 task:
   prompt: string                 # Prompt given to the LLM agent (required)
+
+interaction:                     # optional
+  target_commands: required      # required, optional, or forbidden
 
 setup:                           # optional
   commands:                      # Shell commands to run before the task

@@ -194,6 +194,7 @@ mod tests {
             tags: vec![],
             run: None,
             scripts: None,
+            interaction: Default::default(),
         }
     }
 

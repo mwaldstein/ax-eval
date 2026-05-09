@@ -163,6 +163,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
             adapter_capability: input.adapter_capability,
             transcript_path: input.transcript_path,
             completed: input.completed,
+            target_command_policy: scenario.interaction.target_commands,
         })?;
 
     let ctx = GateEvaluationContext {
@@ -229,6 +230,7 @@ mod tests {
             tags: vec![],
             run: None,
             scripts: None,
+            interaction: Default::default(),
         }
     }
 

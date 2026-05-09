@@ -1,6 +1,7 @@
 mod evidence;
 
 use self::evidence::{extract_target_interaction_evidence, InteractionEvidenceInput};
+use crate::scenario::TargetCommandPolicy;
 use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionInput};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -65,6 +66,7 @@ pub struct InteractionProfileInput<'a> {
     pub adapter_capability: AdapterEvidenceCapability,
     pub transcript_path: PathBuf,
     pub completed: bool,
+    pub target_command_policy: TargetCommandPolicy,
 }
 
 pub(crate) fn reduce_command_events(events: &[CommandEvent]) -> EfficiencyMetrics {
@@ -137,10 +139,21 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
 
     metrics.completed = input.completed;
 
-    if input.completed && structured_evidence && metrics.total_commands == 0 {
+    if input.completed
+        && structured_evidence
+        && metrics.total_commands == 0
+        && input.target_command_policy == TargetCommandPolicy::Required
+    {
         anyhow::bail!(
             "Adapter supports structured tool calls but returned no usable structured target-tool events"
         );
+    }
+
+    if input.completed
+        && metrics.total_commands > 0
+        && input.target_command_policy == TargetCommandPolicy::Forbidden
+    {
+        anyhow::bail!("target-tool events are forbidden for this scenario");
     }
 
     Ok(InteractionProfile {
@@ -152,6 +165,7 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scenario::types::TargetCommandPolicy;
     use crate::transcript::CommandEvent;
 
     fn target() -> TargetInteractionSpec {
@@ -176,6 +190,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
             transcript_path: unused_transcript_path(),
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .expect("profile");
 
@@ -219,6 +234,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
             transcript_path: unused_transcript_path(),
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .expect("profile");
 
@@ -242,6 +258,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
             transcript_path: temp.path().join("transcript.raw.txt"),
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .unwrap_err();
 
@@ -262,10 +279,56 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
             transcript_path: unused_transcript_path(),
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .unwrap_err();
 
         assert!(error.to_string().contains("no usable structured"));
+    }
+
+    #[test]
+    fn optional_target_commands_allow_completed_structured_run_without_target_tool_events() {
+        let events = vec![CommandEvent {
+            command: "ls -la".to_string(),
+            exit_code: Some(0),
+        }];
+        let target = target();
+
+        let profile = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Optional,
+        })
+        .expect("profile");
+
+        assert_eq!(profile.metrics.total_commands, 0);
+        assert!(profile.metrics.completed);
+    }
+
+    #[test]
+    fn forbidden_target_commands_fail_when_completed_run_uses_target_tool() {
+        let events = vec![CommandEvent {
+            command: "notes add hello".to_string(),
+            exit_code: Some(0),
+        }];
+        let target = target();
+
+        let error = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Forbidden,
+        })
+        .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("target-tool events are forbidden"));
     }
 
     #[test]
@@ -284,6 +347,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::TranscriptRegexFallback,
             transcript_path: temp.path().join("transcript.raw.txt"),
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .expect("profile");
 
@@ -318,6 +382,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
             transcript_path: unused_transcript_path(),
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .expect("structured profile");
 
@@ -337,6 +402,7 @@ mod tests {
             adapter_capability: AdapterEvidenceCapability::TranscriptRegexFallback,
             transcript_path,
             completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
         })
         .expect("fallback profile");
 

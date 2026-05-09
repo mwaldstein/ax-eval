@@ -138,6 +138,9 @@ task:
   prompt: |
     Use the notes CLI to create a project note and export a summary.
 
+interaction:
+  target_commands: required
+
 evaluation:
   gates:
     - type: file_exists

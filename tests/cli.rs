@@ -6,6 +6,12 @@ use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
 
+fn create_qipu_template(root: &std::path::Path) {
+    let templates_dir = root.join("fixtures/templates/qipu");
+    fs::create_dir_all(&templates_dir).unwrap();
+    fs::write(templates_dir.join("README.md"), "fixture").unwrap();
+}
+
 #[test]
 fn test_cli_help() {
     llm_tool_test()
@@ -102,6 +108,7 @@ fn test_run_command_requires_env_var() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: test_basic
@@ -320,6 +327,7 @@ fn test_run_command_dry_run() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: dry_run_test
@@ -356,6 +364,7 @@ fn test_run_command_with_tags() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario1_content = r#"
 name: tagged_scenario
@@ -394,7 +403,7 @@ evaluation:
 
     llm_tool_test()
         .current_dir(dir.path())
-        .args(["run", "--all", "--tags", "smoke"])
+        .args(["run", "--all", "--tags", "smoke", "--tool", "mock"])
         .env("LLM_TOOL_TEST_ENABLED", "1")
         .assert()
         .success();
@@ -407,6 +416,7 @@ fn test_run_command_with_tags_matches_any_tag() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let smoke_scenario = r#"
 name: smoke_run_scenario
@@ -495,6 +505,7 @@ fn test_run_command_with_tool_option() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: tool_test
@@ -526,12 +537,54 @@ evaluation:
 }
 
 #[test]
+fn test_run_command_single_combination_reports_run_errors() {
+    let dir = tempdir().unwrap();
+
+    let fixtures_dir = dir.path().join("fixtures");
+    let qipu_dir = fixtures_dir.join("qipu");
+    fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
+
+    let scenario_content = r#"
+name: single_error_test
+description: "Single run errors should fail the command"
+template_folder: qipu
+target:
+  binary: qipu
+  health_check: "false"
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    fs::write(qipu_dir.join("single_error_test.yaml"), scenario_content).unwrap();
+
+    llm_tool_test()
+        .current_dir(dir.path())
+        .args([
+            "run",
+            "--scenario",
+            "fixtures/qipu/single_error_test.yaml",
+            "--tool",
+            "mock",
+        ])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Run failed for mock / default"))
+        .stderr(predicate::str::contains("target health check failed"));
+}
+
+#[test]
 fn test_run_command_with_model_option() {
     let dir = tempdir().unwrap();
 
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: model_test
@@ -571,6 +624,7 @@ fn test_run_command_with_tier_filter() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario1_content = r#"
 name: tier0_scenario
@@ -606,7 +660,7 @@ evaluation:
 
     llm_tool_test()
         .current_dir(dir.path())
-        .args(["run", "--all", "--tier", "0"])
+        .args(["run", "--all", "--tier", "0", "--tool", "mock"])
         .env("LLM_TOOL_TEST_ENABLED", "1")
         .assert()
         .success();
@@ -619,6 +673,7 @@ fn test_run_command_with_timeout() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: timeout_test
@@ -641,6 +696,8 @@ evaluation:
             "run",
             "--scenario",
             "fixtures/qipu/timeout_test.yaml",
+            "--tool",
+            "mock",
             "--timeout-secs",
             "60",
         ])
@@ -656,6 +713,7 @@ fn test_run_command_with_no_cache() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: no_cache_test
@@ -678,6 +736,8 @@ evaluation:
             "run",
             "--scenario",
             "fixtures/qipu/no_cache_test.yaml",
+            "--tool",
+            "mock",
             "--no-cache",
         ])
         .env("LLM_TOOL_TEST_ENABLED", "1")
@@ -692,6 +752,7 @@ fn test_run_command_matrix_multiple_tools() {
     let fixtures_dir = dir.path().join("fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
 
     let scenario_content = r#"
 name: matrix_test
@@ -720,6 +781,49 @@ evaluation:
         .assert()
         .success()
         .stdout(predicate::str::contains("Matrix run"));
+}
+
+#[test]
+fn test_run_command_matrix_reports_errors_and_fails() {
+    let dir = tempdir().unwrap();
+
+    let fixtures_dir = dir.path().join("fixtures");
+    let qipu_dir = fixtures_dir.join("qipu");
+    fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
+
+    let scenario_content = r#"
+name: matrix_error_test
+description: "Matrix run errors should fail the command"
+tool_matrix:
+  - tool: mock
+    models:
+      - model1
+      - model2
+template_folder: qipu
+target:
+  binary: qipu
+  health_check: "false"
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    fs::write(qipu_dir.join("matrix_error_test.yaml"), scenario_content).unwrap();
+
+    llm_tool_test()
+        .current_dir(dir.path())
+        .args(["run", "--scenario", "fixtures/qipu/matrix_error_test.yaml"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Matrix Summary"))
+        .stdout(predicate::str::contains(
+            "Error: target health check failed",
+        ))
+        .stderr(predicate::str::contains("2 scenario run(s) failed"));
 }
 
 #[test]
