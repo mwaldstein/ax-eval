@@ -7,7 +7,7 @@ pub mod transcript;
 pub mod utils;
 
 use crate::output;
-use crate::results::{Cache, ResultRecord, ResultsDB};
+use crate::results::{Cache, CacheKey, ResultRecord, ResultsDB};
 use crate::scenario::Scenario;
 use std::path::{Path, PathBuf};
 
@@ -51,10 +51,21 @@ impl ScenarioRunRequest<'_> {
             results_dir: self.results_dir(),
         }
     }
+
+    pub fn cached_record(&self, cache_key: &CacheKey) -> anyhow::Result<Option<ResultRecord>> {
+        if self.no_cache {
+            return Ok(None);
+        }
+
+        crate::run::cache::check_cache(self.cache, cache_key)
+    }
+
+    pub fn should_dry_run(&self) -> bool {
+        self.dry_run
+    }
 }
 
 pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<ResultRecord> {
-    use crate::run::cache::check_cache;
     use crate::run::execution::{
         create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
     };
@@ -73,15 +84,13 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
     let workspace = setup_scenario_env(s, request.scenario_path, &results_dir)?;
     let cache_key = workspace.cache_key(tool, model)?;
 
-    if !request.no_cache {
-        if let Some(cached) = check_cache(request.cache, &cache_key)? {
-            println!("Cache HIT! Using cached result: {}", cached.id);
-            output::print_result_summary(&cached);
-            return Ok(cached);
-        }
+    if let Some(cached) = request.cached_record(&cache_key)? {
+        println!("Cache HIT! Using cached result: {}", cached.id);
+        output::print_result_summary(&cached);
+        return Ok(cached);
     }
 
-    if request.dry_run {
+    if request.should_dry_run() {
         return handle_dry_run(s, tool, model, &cache_key);
     }
 

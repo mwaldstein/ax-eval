@@ -1,4 +1,5 @@
 use super::*;
+use crate::results::test_helpers::create_test_record;
 use crate::scenario::Scenario;
 use std::path::PathBuf;
 
@@ -156,6 +157,111 @@ run:
 
     assert_eq!(plan.effective_timeout, 90);
     assert_eq!(plan.results_dir, request.results_dir());
+}
+
+#[test]
+fn scenario_run_request_respects_cache_policy() {
+    let scenario_yaml = r#"
+name: request_cache_policy_test
+description: "Test scenario cache policy"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Create a note"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario_path = PathBuf::from("fixtures/request_cache_policy_test.yaml");
+    let base_dir = tempfile::tempdir().expect("base dir");
+    let results_db = ResultsDB::new(base_dir.path());
+    let cache = Cache::new(base_dir.path());
+    let cache_key = crate::results::CacheKey::compute("scenario", "prompt", "mock", "mock");
+    let cached = create_test_record("cached-run");
+    cache.put(&cache_key, &cached).expect("cache record");
+
+    let request = ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock",
+        dry_run: false,
+        no_cache: false,
+        timeout_secs: 300,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    };
+
+    assert_eq!(
+        request
+            .cached_record(&cache_key)
+            .expect("cache lookup")
+            .unwrap()
+            .id,
+        "cached-run"
+    );
+
+    let request = ScenarioRunRequest {
+        no_cache: true,
+        ..request
+    };
+
+    assert!(request
+        .cached_record(&cache_key)
+        .expect("cache lookup")
+        .is_none());
+}
+
+#[test]
+fn scenario_run_request_identifies_dry_run_policy() {
+    let scenario_yaml = r#"
+name: request_dry_run_policy_test
+description: "Test scenario dry-run policy"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Create a note"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario_path = PathBuf::from("fixtures/request_dry_run_policy_test.yaml");
+    let base_dir = tempfile::tempdir().expect("base dir");
+    let results_db = ResultsDB::new(base_dir.path());
+    let cache = Cache::new(base_dir.path());
+
+    let request = ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock",
+        dry_run: true,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    };
+
+    assert!(request.should_dry_run());
+
+    let request = ScenarioRunRequest {
+        dry_run: false,
+        ..request
+    };
+
+    assert!(!request.should_dry_run());
 }
 
 #[test]
