@@ -233,8 +233,6 @@ evaluation:
     - type: script
       command: "./scripts/check-completion.sh"
       description: "Charter task is marked done"
-
-    - type: no_transcript_errors
 ```
 
 ### Fixture with Scripts

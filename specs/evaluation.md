@@ -175,7 +175,7 @@ The current implementation provides generic gate primitives that any CLI tool au
 | `file_exists` | `path: String` | Assert file exists relative to work directory. |
 | `file_contains` | `path: String`, `substring: String` | Read file. Assert content contains substring. |
 | `file_matches` | `path: String`, `pattern: String` | Read file. Assert content matches regex pattern. |
-| `no_transcript_errors` | *(none)* | Assert no target-tool commands had non-zero exit codes. |
+| `no_transcript_errors` | *(none)* | Quality guardrail: fail when target-tool interaction evidence includes non-zero exit codes. Prefer outcome gates for task correctness. |
 | `script` | `command: String`, `description: String` | Run script. Pass if exit code 0. Optionally returns structured JSON. See [specs/scripts.md](scripts.md). |
 
 #### `command_json_path` Assertions
@@ -208,8 +208,6 @@ evaluation:
 
     - type: command_succeeds
       command: "my-tool doctor"
-
-    - type: no_transcript_errors
 ```
 
 The scenario author brings domain knowledge; the framework provides the assertion primitives.
@@ -243,20 +241,31 @@ More importantly: gates are **fail-fast**, not **evaluation**. The framework's p
 | Good Gate (outcome) | Bad Gate (process) |
 |---------------------|-------------------|
 | `file_exists: report.pdf` | Command used exact flag order |
-| `command_json_path: len >= 4` | No errors in transcript |
+| `command_json_path: len >= 4` | Zero command errors as proof of correctness |
 | `file_contains: "migration"` | Search returned specific substring |
 
 LLMs are non-deterministic. Two runs with identical prompts may use different note titles, file names, or command sequences. Gates that require exact outputs or zero errors will flake and do not measure effectiveness.
 
 #### When to Use `no_transcript_errors`
 
-The `no_transcript_errors` gate asserts that every target-tool command in the transcript succeeded. This is appropriate for:
-- **Scaffolded scenarios** where the correct workflow is obvious (e.g., "run `./hello run`")
-- **Regression tests** verifying a tool the LLM already knows
+The `no_transcript_errors` gate is an interaction-quality guardrail. It fails
+when target-tool interaction evidence includes a command with a non-zero exit
+code. Do not use it as a unit-test-style assertion for task correctness; use
+outcome gates for that.
+
+This gate is only appropriate when zero target-tool command errors is itself a
+deliberate quality requirement, such as:
+
+- **Scaffolded scenarios** where the correct workflow is explicitly provided
+  and no exploration is expected (e.g., "run `./hello run`")
+- **Narrow regression checks** where command errors would indicate a known
+  adapter, guidance, or CLI regression rather than ordinary discovery
 
 It is **inappropriate** for:
 - **Discovery/guidance scenarios** where the LLM must learn the tool via trial and error
 - **Complex multi-step tasks** where exploration is expected
+- **Unit-test-style validation** where the real requirement is final state or
+  output correctness
 
 In discovery scenarios, errors are diagnostic data (Layer 1 interaction metrics), not failures.
 
@@ -482,7 +491,12 @@ The secondary audience for llm-tool-test is guidance/skills authors who are test
 
 For guidance authors, Layer 1 metrics are the most important signal. Gates tell you whether the task was completed (fail-fast); interaction metrics tell you *how efficiently the LLM got there* and *how much friction it experienced*. This is the quantitative backbone of guidance evaluation.
 
-**Do not** use `no_transcript_errors` as a gate in guidance scenarios. Errors during discovery are expected and informative. The gate should only verify the final outcome (e.g., the expected files exist, the exported data has the right shape).
+**Do not** use `no_transcript_errors` as a gate in guidance scenarios, or as a
+unit-test-style substitute for outcome assertions. Errors during discovery are
+expected and informative. Gates should verify the final outcome (e.g., the
+expected files exist, the exported data has the right shape); interaction
+metrics should report how much friction the agent experienced while getting
+there.
 
 ### Comparing Guidance Versions — The Core Workflow
 

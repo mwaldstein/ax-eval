@@ -237,10 +237,15 @@ Gates are binary assertions evaluated after the agent completes the task. They c
 - `file_exists`: file exists in the fixture directory
 - `file_contains`: file content contains an expected substring
 - `file_matches`: file content matches a regex pattern
-- `no_transcript_errors`: no command errors detected in the transcript
+- `no_transcript_errors`: quality guardrail that fails when interaction evidence
+  shows target-tool command errors
 - `script`: custom script gate using exit code or JSON output
 
-For discovery-heavy scenarios, be cautious with `no_transcript_errors`. Errors during learning may be informative rather than a failed outcome.
+Avoid using `no_transcript_errors` as a unit-test-style assertion that the
+agent made no mistakes. Prefer outcome gates such as `file_exists`,
+`command_json_path`, or `script` to prove the task result. Treat command errors
+as interaction-quality metrics unless the scenario is intentionally checking a
+scaffolded, no-exploration workflow.
 
 ## Tool, Model, And Matrix Runs
 

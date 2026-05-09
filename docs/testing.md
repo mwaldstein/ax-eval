@@ -65,12 +65,15 @@ Good gate:
   path: report.pdf
 ```
 
-Risky gate in discovery scenarios:
+Avoid as a default correctness gate:
 
 ```yaml
 - type: no_transcript_errors
 ```
 
-Errors during learning may be informative. Use interaction metrics to compare
-error rate, retry rate, first-try success, token usage, and cost. See
+`no_transcript_errors` is an interaction-quality guardrail. It is useful only
+when zero target-tool command errors is the scenario's explicit quality
+requirement. Do not use it as a unit-test-style substitute for checking final
+state. Errors during learning may be informative; use interaction metrics to
+compare error rate, retry rate, first-try success, token usage, and cost. See
 `specs/evaluation.md`.

@@ -35,8 +35,6 @@ evaluation:
       path: notes.txt
       substring: "Hello World"
 
-    - type: no_transcript_errors
-
   judge:
     enabled: true
     rubric: rubrics/judge_demo.yaml

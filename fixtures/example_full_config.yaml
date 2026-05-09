@@ -53,5 +53,3 @@ evaluation:
     - type: command_output_contains
       command: "cat output.txt"
       substring: "Hello from full config"
-
-    - type: no_transcript_errors

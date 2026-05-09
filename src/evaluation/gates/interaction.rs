@@ -7,6 +7,9 @@ pub(super) fn eval_no_transcript_errors(interaction_profile: &InteractionProfile
     GateResult {
         gate_type: "NoTranscriptErrors".to_string(),
         passed: no_errors,
-        message: format!("Transcript has no command errors: {}", no_errors),
+        message: format!(
+            "Interaction-quality guardrail found zero target-tool command errors: {}",
+            no_errors
+        ),
     }
 }

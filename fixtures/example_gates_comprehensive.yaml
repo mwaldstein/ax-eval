@@ -95,7 +95,8 @@ evaluation:
       path: data.txt
       pattern: "item-[0-9]+: test item"
 
-    # Transcript gate
+    # Interaction-quality guardrail included for gate coverage. Prefer outcome
+    # gates for task correctness in normal scenarios.
     - type: no_transcript_errors
 
     # Script gate (exit code only)

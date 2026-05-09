@@ -260,7 +260,6 @@ evaluation:
     - type: script
       command: "./scripts/check-completion.sh"
       description: "Charter task is marked done"
-    - type: no_transcript_errors
   judge:
     enabled: true
     tool: opencode
@@ -425,9 +424,9 @@ llm-tool-test-results/<timestamp>-<agent>-<model>-<scenario>/
       "message": "Command succeeded: my-tool list --format json"
     },
     {
-      "gate_type": "no_transcript_errors",
+      "gate_type": "script",
       "passed": true,
-      "message": "No target-tool command errors detected"
+      "message": "Quality script passed"
     }
   ],
   "judge_passed": true,

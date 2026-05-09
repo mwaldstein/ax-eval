@@ -25,7 +25,7 @@ mod tests {
     /// 2. Copy the template into a temp directory.
     /// 3. Run setup commands.
     /// 4. Run the provided agent commands.
-    /// 5. Synthesise a transcript.raw.txt so that `no_transcript_errors` gates pass.
+    /// 5. Synthesise a transcript.raw.txt for transcript-fallback interaction evidence.
     /// 6. Run post-evaluation scripts (if any).
     /// 7. Evaluate gates and assert they all pass.
     fn run_fixture(scenario_path: &str, agent_commands: &[&str]) -> evaluation::EvaluationMetrics {

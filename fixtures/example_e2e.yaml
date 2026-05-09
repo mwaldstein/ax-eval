@@ -37,6 +37,8 @@ evaluation:
       path: output.txt
       substring: "hello"
 
+    # Interaction-quality guardrail for this scaffolded task. Do not use this
+    # as a default correctness gate in exploratory scenarios.
     - type: no_transcript_errors
 
 run:

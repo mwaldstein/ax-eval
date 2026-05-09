@@ -44,8 +44,6 @@ evaluation:
       command: "./scripts/check_task_quality.sh"
       description: Script gate validates task quality
 
-    - type: no_transcript_errors
-
   composite:
     judge_weight: 0.4
     gate_weight: 0.4
