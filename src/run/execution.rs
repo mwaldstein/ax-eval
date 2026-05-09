@@ -27,6 +27,13 @@ pub struct EvaluationFlowResult {
     pub metrics: EvaluationMetrics,
 }
 
+struct ExecutionTranscriptInput<'a> {
+    writer: &'a TranscriptWriter,
+    artifacts: &'a RunArtifacts,
+    tool: &'a str,
+    run_output: &'a ToolRunOutput,
+}
+
 pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapter>> {
     use crate::adapter::{
         claude_code::ClaudeCodeAdapter, codex::CodexAdapter, mock::MockAdapter,
@@ -44,6 +51,43 @@ pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapte
     adapter.check_availability()?;
 
     Ok(adapter)
+}
+
+fn persist_execution_transcript(input: ExecutionTranscriptInput<'_>) -> anyhow::Result<()> {
+    let output = &input.run_output.transcript;
+
+    // Write transcript immediately after execution so evaluation can read it.
+    input.writer.write_raw(output)?;
+    if let Some(raw_output) = &input.run_output.raw_output {
+        input.writer.write_tool_output(raw_output)?;
+    }
+    if let Some(command_events) = input.run_output.command_events() {
+        if !command_events.is_empty() {
+            input.writer.write_command_events(command_events)?;
+        }
+    }
+    // Also copy transcript to fixture directory for gate evaluators that read from env_root.
+    input.artifacts.write_fixture_transcript(output);
+
+    let event = if let Some(c) = input.run_output.cost_usd {
+        serde_json::json!({
+            "type": "execution",
+            "tool": input.tool,
+            "output": output,
+            "exit_code": input.run_output.exit_code,
+            "cost_usd": c
+        })
+    } else {
+        serde_json::json!({
+            "type": "execution",
+            "tool": input.tool,
+            "output": output,
+            "exit_code": input.run_output.exit_code
+        })
+    };
+    input.writer.append_event(&event)?;
+
+    Ok(())
 }
 
 fn run_post_scripts(
@@ -83,40 +127,16 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         input.effective_timeout,
     )?;
     let duration = start.elapsed();
-    let output = &run_output.transcript;
     let exit_code = run_output.exit_code;
     let cost = run_output.cost_usd;
     let token_usage = run_output.token_usage.clone();
 
-    // Write transcript immediately after execution so evaluation can read it
-    input.writer.write_raw(output)?;
-    if let Some(raw_output) = &run_output.raw_output {
-        input.writer.write_tool_output(raw_output)?;
-    }
-    if let Some(command_events) = run_output.command_events() {
-        if !command_events.is_empty() {
-            input.writer.write_command_events(command_events)?;
-        }
-    }
-    // Also copy transcript to fixture directory for gate evaluators that read from env_root
-    input.artifacts.write_fixture_transcript(output);
-    let event = if let Some(c) = cost {
-        serde_json::json!({
-            "type": "execution",
-            "tool": input.tool,
-            "output": &output,
-            "exit_code": exit_code,
-            "cost_usd": c
-        })
-    } else {
-        serde_json::json!({
-            "type": "execution",
-            "tool": input.tool,
-            "output": &output,
-            "exit_code": exit_code
-        })
-    };
-    input.writer.append_event(&event)?;
+    persist_execution_transcript(ExecutionTranscriptInput {
+        writer: input.writer,
+        artifacts: input.artifacts,
+        tool: input.tool,
+        run_output: &run_output,
+    })?;
 
     // Run post-execution scripts after transcript writing, before evaluation
     run_post_scripts(
@@ -175,5 +195,61 @@ pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
         }
     } else {
         "Pass".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transcript::{CommandEvent, InteractionInput};
+
+    #[test]
+    fn execution_transcript_input_persists_tool_output_artifacts() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        let artifacts = RunArtifacts::new(&dir.path().join("results"), &env);
+        let writer = artifacts.writer().expect("writer");
+        let run_output = ToolRunOutput {
+            transcript: "agent transcript".to_string(),
+            raw_output: Some("raw tool output".to_string()),
+            exit_code: 0,
+            cost_usd: Some(0.25),
+            token_usage: None,
+            interaction_input: InteractionInput::StructuredToolCalls(vec![CommandEvent {
+                command: "target --version".to_string(),
+                exit_code: Some(0),
+            }]),
+        };
+
+        persist_execution_transcript(ExecutionTranscriptInput {
+            writer: &writer,
+            artifacts: &artifacts,
+            tool: "mock",
+            run_output: &run_output,
+        })
+        .expect("persist execution transcript");
+
+        assert_eq!(
+            std::fs::read_to_string(artifacts.transcript_path()).expect("artifact transcript"),
+            "agent transcript"
+        );
+        assert_eq!(
+            std::fs::read_to_string(artifacts.fixture_transcript_path())
+                .expect("fixture transcript"),
+            "agent transcript"
+        );
+        assert_eq!(
+            std::fs::read_to_string(artifacts.artifacts_dir().join("tool-output.raw.txt"))
+                .expect("raw output"),
+            "raw tool output"
+        );
+
+        let events = writer.read_events().expect("events");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["type"], "execution");
+        assert_eq!(events[0]["tool"], "mock");
+        assert_eq!(events[0]["exit_code"], 0);
+        assert_eq!(events[0]["cost_usd"], 0.25);
     }
 }
