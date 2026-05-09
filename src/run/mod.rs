@@ -155,17 +155,5 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
     )
 }
 
-impl setup::ScenarioWorkspace {
-    fn cache_key(&self, tool: &str, model: &str) -> anyhow::Result<crate::results::CacheKey> {
-        crate::run::cache::compute_cache_key_with_fixture(
-            &self.scenario_yaml,
-            &self.prompt,
-            &self.env.root,
-            tool,
-            model,
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests;

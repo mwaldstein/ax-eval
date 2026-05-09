@@ -11,6 +11,18 @@ pub struct ScenarioWorkspace {
     pub prompt: String,
 }
 
+impl ScenarioWorkspace {
+    pub fn cache_key(&self, tool: &str, model: &str) -> anyhow::Result<crate::results::CacheKey> {
+        crate::run::cache::compute_cache_key_with_fixture(
+            &self.scenario_yaml,
+            &self.prompt,
+            &self.env.root,
+            tool,
+            model,
+        )
+    }
+}
+
 pub struct PreparedScenarioRun {
     pub artifacts: RunArtifacts,
     pub writer: TranscriptWriter,
@@ -214,6 +226,34 @@ mod tests {
         assert!(setup_success);
         assert_eq!(commands.len(), 1);
         assert!(commands[0].1);
+    }
+
+    #[test]
+    fn scenario_workspace_cache_key_includes_workspace_inputs() {
+        let dir = tempdir().expect("create temp dir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
+        std::fs::create_dir_all(&env.root).expect("create fixture root");
+        std::fs::write(env.root.join("AGENTS.md"), "first").expect("write fixture file");
+
+        let workspace = ScenarioWorkspace {
+            env,
+            scenario_yaml: "name: cache-key-test".to_string(),
+            prompt: "Create a note".to_string(),
+        };
+
+        let first = workspace.cache_key("mock", "model-a").expect("cache key");
+        let same = workspace.cache_key("mock", "model-a").expect("cache key");
+        let different_tool = workspace.cache_key("other", "model-a").expect("cache key");
+        let different_model = workspace.cache_key("mock", "model-b").expect("cache key");
+
+        std::fs::write(workspace.env.root.join("AGENTS.md"), "second")
+            .expect("update fixture file");
+        let different_fixture = workspace.cache_key("mock", "model-a").expect("cache key");
+
+        assert_eq!(first, same);
+        assert_ne!(first, different_tool);
+        assert_ne!(first, different_model);
+        assert_ne!(first, different_fixture);
     }
 
     #[test]
