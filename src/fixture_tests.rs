@@ -14,6 +14,7 @@ mod tests {
     use crate::run::setup::setup_scenario_env;
     use crate::scenario::load;
     use crate::script_runner::{ScriptRunner, ScriptRunnerConfig};
+    use crate::target_env::TargetEnvironment;
     use std::collections::HashMap;
     use std::path::Path;
     use std::process::Command as StdCommand;
@@ -38,12 +39,16 @@ mod tests {
             .expect("setup scenario env");
         let env = workspace.env;
 
-        let target_env: HashMap<String, String> = scenario.target.env.clone().unwrap_or_default();
+        let target_env = TargetEnvironment::expanded_from_config(
+            scenario.target.env.as_ref(),
+            &env.root,
+            &results_dir,
+        );
 
         // Run setup commands
         if let Some(setup) = &scenario.setup {
             for cmd in &setup.commands {
-                let output = run_shell_command(cmd, &env.root, &target_env);
+                let output = run_shell_command(cmd, &env.root, target_env.as_map());
                 assert!(
                     output.status.success(),
                     "Setup command failed: {}\nstderr: {}",
@@ -55,7 +60,7 @@ mod tests {
 
         // Run agent commands
         for cmd in agent_commands {
-            let output = run_shell_command(cmd, &env.root, &target_env);
+            let output = run_shell_command(cmd, &env.root, target_env.as_map());
             assert!(
                 output.status.success(),
                 "Agent command failed: {}\nstderr: {}",
@@ -77,7 +82,7 @@ mod tests {
                 model: "default".to_string(),
                 transcript_path: None,
                 events_path: None,
-                target_env: target_env.clone(),
+                target_env: target_env.as_map().clone(),
             });
             for entry in &scripts.post {
                 let result = runner
@@ -102,7 +107,7 @@ mod tests {
             model: "default".to_string(),
             transcript_path: None,
             events_path: None,
-            target_env,
+            target_env: target_env.as_map().clone(),
         });
 
         let interaction_input = crate::transcript::InteractionInput::TranscriptRegex;

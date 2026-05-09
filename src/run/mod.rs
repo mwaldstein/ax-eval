@@ -70,8 +70,9 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
         create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
     };
     use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
-    use crate::run::setup::{expand_target_env, prepare_writer_and_setup, setup_scenario_env};
+    use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
     use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
+    use crate::target_env::TargetEnvironment;
 
     let s = request.scenario;
     let tool = request.tool;
@@ -85,8 +86,12 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
     let cache_key = workspace.cache_key(tool, model)?;
 
     let mut scenario = s.clone();
-    scenario.target.env =
-        expand_target_env(s.target.env.as_ref(), &workspace.env.root, &results_dir);
+    scenario.target.env = TargetEnvironment::expanded_from_config(
+        s.target.env.as_ref(),
+        &workspace.env.root,
+        &results_dir,
+    )
+    .into_config_env();
     let s = &scenario;
 
     if let Some(cached) = request.cached_record(&cache_key)? {

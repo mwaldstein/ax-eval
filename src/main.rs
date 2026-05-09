@@ -22,6 +22,7 @@ mod run;
 mod scenario;
 mod script_runner;
 mod session;
+mod target_env;
 mod transcript;
 mod utils;
 

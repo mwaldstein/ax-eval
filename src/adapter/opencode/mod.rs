@@ -3,6 +3,7 @@ pub(crate) mod normalize;
 use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
 use crate::session::SessionRunner;
+use crate::target_env::TargetEnvironment;
 use std::path::Path;
 
 pub struct OpenCodeAdapter;
@@ -59,9 +60,8 @@ impl ToolAdapter for OpenCodeAdapter {
             "XDG_CONFIG_HOME".to_string(),
             xdg_config_dir.to_string_lossy().to_string(),
         )];
-        if let Some(target_env) = &scenario.target.env {
-            env_vars.extend(target_env.iter().map(|(k, v)| (k.clone(), v.clone())));
-        }
+        TargetEnvironment::from_config(scenario.target.env.as_ref())
+            .append_to_session_env(&mut env_vars);
 
         let (output, exit_code) =
             runner.run_command_with_env("opencode", &args, cwd, timeout_secs, &env_vars)?;

@@ -11,6 +11,7 @@ use crate::interaction_profile::{
 use crate::judge::JudgeResponse;
 use crate::scenario::Scenario;
 use crate::script_runner::ScriptRunner;
+use crate::target_env::TargetEnvironment;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -156,6 +157,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         scenario.target.binary.clone(),
         scenario.target.command_pattern.clone(),
     );
+    let target_env = TargetEnvironment::from_config(scenario.target.env.as_ref());
     let interaction_profile =
         crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
             target: &target,
@@ -168,6 +170,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
 
     let ctx = GateEvaluationContext {
         env_root: input.env_root,
+        target_env: &target_env,
         script_runner: input.script_runner,
         interaction_profile: &interaction_profile,
     };

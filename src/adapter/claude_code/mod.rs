@@ -3,6 +3,7 @@ pub(crate) mod normalize;
 use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
 use crate::session::SessionRunner;
+use crate::target_env::TargetEnvironment;
 use std::path::Path;
 
 pub struct ClaudeCodeAdapter;
@@ -56,16 +57,8 @@ impl ToolAdapter for ClaudeCodeAdapter {
         }
         args.push(&scenario.task.prompt);
 
-        let target_env = scenario
-            .target
-            .env
-            .as_ref()
-            .map(|vars| {
-                vars.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect::<Vec<(String, String)>>()
-            })
-            .unwrap_or_default();
+        let target_env =
+            TargetEnvironment::from_config(scenario.target.env.as_ref()).to_session_env();
 
         let (output, exit_code) =
             runner.run_command_with_env("claude", &args, cwd, timeout_secs, &target_env)?;

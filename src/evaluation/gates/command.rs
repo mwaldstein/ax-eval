@@ -1,7 +1,7 @@
 use crate::command_execution::CommandResult;
+use crate::target_env::TargetEnvironment;
 use regex::Regex;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::path::Path;
 
 use super::assertions::{evaluate_json_path_assertion, JsonAssertionError};
@@ -9,7 +9,11 @@ use super::GateResult;
 
 const COMMAND_GATE_TIMEOUT_SECS: u64 = 30;
 
-pub(super) fn eval_command_succeeds(command: &str, env_root: &Path) -> GateResult {
+pub(super) fn eval_command_succeeds(
+    command: &str,
+    env_root: &Path,
+    target_env: &TargetEnvironment,
+) -> GateResult {
     if command.trim().is_empty() {
         return GateResult {
             gate_type: "CommandSucceeds".to_string(),
@@ -18,7 +22,7 @@ pub(super) fn eval_command_succeeds(command: &str, env_root: &Path) -> GateResul
         };
     }
 
-    let output = run_shell_command(command, env_root);
+    let output = run_shell_command(command, env_root, target_env);
 
     match output {
         Ok(output) => {
@@ -41,8 +45,9 @@ pub(super) fn eval_command_output_contains(
     command: &str,
     substring: &str,
     env_root: &Path,
+    target_env: &TargetEnvironment,
 ) -> GateResult {
-    let output = run_shell_command(command, env_root);
+    let output = run_shell_command(command, env_root, target_env);
 
     match output {
         Ok(output) => {
@@ -68,6 +73,7 @@ pub(super) fn eval_command_output_matches(
     command: &str,
     pattern: &str,
     env_root: &Path,
+    target_env: &TargetEnvironment,
 ) -> GateResult {
     let regex = match Regex::new(pattern) {
         Ok(regex) => regex,
@@ -80,7 +86,7 @@ pub(super) fn eval_command_output_matches(
         }
     };
 
-    let output = run_shell_command(command, env_root);
+    let output = run_shell_command(command, env_root, target_env);
 
     match output {
         Ok(output) => {
@@ -107,8 +113,9 @@ pub(super) fn eval_command_json_path(
     path: &str,
     assertion: &str,
     env_root: &Path,
+    target_env: &TargetEnvironment,
 ) -> GateResult {
-    match run_shell_command(command, env_root) {
+    match run_shell_command(command, env_root, target_env) {
         Ok(output) => {
             if !output.succeeded() {
                 let stderr = output.stderr.trim().to_string();
@@ -168,12 +175,16 @@ pub(super) fn eval_command_json_path(
     }
 }
 
-fn run_shell_command(command: &str, env_root: &Path) -> anyhow::Result<CommandResult> {
+fn run_shell_command(
+    command: &str,
+    env_root: &Path,
+    target_env: &TargetEnvironment,
+) -> anyhow::Result<CommandResult> {
     crate::command_execution::run_piped_command(
         "sh",
         &["-c", command],
         env_root,
         COMMAND_GATE_TIMEOUT_SECS,
-        &HashMap::new(),
+        target_env.as_map(),
     )
 }
