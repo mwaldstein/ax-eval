@@ -3,6 +3,7 @@ mod tests {
     use crate::adapter::mock::MockAdapter;
     use crate::adapter::ToolAdapter;
     use crate::scenario::Scenario;
+    use crate::transcript::InteractionInput;
 
     #[test]
     fn test_mock_adapter_is_available() {
@@ -55,6 +56,12 @@ evaluation:
         let output = result.unwrap();
         assert_eq!(output.exit_code, 0, "Exit code should be 0");
         assert!(!output.transcript.is_empty(), "Output should not be empty");
+        let InteractionInput::StructuredToolCalls(events) = output.interaction_input else {
+            panic!("mock adapter should provide structured tool calls");
+        };
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].command, "mock mock");
+        assert_eq!(events[0].exit_code, Some(0));
     }
 
     #[test]
