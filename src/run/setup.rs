@@ -102,20 +102,19 @@ pub fn execute_setup_commands(
     target_env: &TargetEnvironment,
 ) -> anyhow::Result<(bool, Vec<SetupCommandReport>)> {
     println!("Running {} setup command(s)...", setup.commands.len());
-    let runner = crate::session::SessionRunner::new();
     let mut setup_success = true;
     let mut setup_commands: Vec<SetupCommandReport> = Vec::new();
-    let env_vars = target_env.to_session_env();
 
     for (i, cmd) in setup.commands.iter().enumerate() {
         println!("  Command {}/{}: {}", i + 1, setup.commands.len(), cmd);
-        let (output, exit_code) = runner.run_command_with_env(
-            "sh",
-            &["-c", cmd],
+        let result = crate::command_execution::run_shell_with_session(
+            cmd,
             &env.root,
             effective_timeout,
-            &env_vars,
+            target_env.as_map(),
         )?;
+        let output = result.output();
+        let exit_code = result.exit_code;
 
         let success = exit_code == 0;
         setup_commands.push(SetupCommandReport {
@@ -155,16 +154,14 @@ pub fn execute_health_check(
     }
 
     println!("Running target health check: {}", command);
-    let runner = crate::session::SessionRunner::new();
-    let env_vars = target_env.to_session_env();
-
-    let (output, exit_code) = runner.run_command_with_env(
-        "sh",
-        &["-c", command],
+    let result = crate::command_execution::run_shell_with_session(
+        command,
         &env.root,
         effective_timeout,
-        &env_vars,
+        target_env.as_map(),
     )?;
+    let output = result.output();
+    let exit_code = result.exit_code;
     let success = exit_code == 0;
 
     writer.append_event(&serde_json::json!({

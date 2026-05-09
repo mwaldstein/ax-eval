@@ -180,9 +180,8 @@ fn run_shell_command(
     env_root: &Path,
     target_env: &TargetEnvironment,
 ) -> anyhow::Result<CommandResult> {
-    crate::command_execution::run_piped_command(
-        "sh",
-        &["-c", command],
+    crate::command_execution::run_shell_piped(
+        command,
         env_root,
         COMMAND_GATE_TIMEOUT_SECS,
         target_env.as_map(),

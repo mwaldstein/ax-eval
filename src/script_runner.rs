@@ -4,7 +4,7 @@
 //! directory with the appropriate environment variables set. It supports timeout
 //! enforcement using the `wait-timeout` crate.
 
-use crate::command_execution::{run_piped_command, CommandResult};
+use crate::command_execution::{run_shell_piped, CommandResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -127,13 +127,7 @@ impl ScriptRunner {
     /// LLM_TOOL_TEST_* environment variables set. The timeout is enforced
     /// using the wait-timeout crate.
     pub fn run(&self, command: &str, timeout_secs: u64) -> anyhow::Result<ScriptResult> {
-        run_piped_command(
-            "sh",
-            &["-c", command],
-            &self.fixture_dir,
-            timeout_secs,
-            &self.build_env(),
-        )
+        run_shell_piped(command, &self.fixture_dir, timeout_secs, &self.build_env())
     }
 
     pub fn run_report(&self, command: &str, timeout_secs: u64) -> anyhow::Result<ScriptRunReport> {
