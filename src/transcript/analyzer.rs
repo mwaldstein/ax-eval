@@ -1,4 +1,4 @@
-use crate::transcript::types::{CommandEvent, EfficiencyMetrics};
+use crate::transcript::types::CommandEvent;
 use regex::Regex;
 
 pub struct TranscriptAnalyzer;
@@ -6,43 +6,6 @@ pub struct TranscriptAnalyzer;
 const DEFAULT_COMMAND_PATTERN: &str = r"^\s*([a-z][a-z0-9_.-]*)\s+(--help|[a-z][a-z0-9_-]*)\b";
 
 impl TranscriptAnalyzer {
-    #[allow(dead_code)]
-    pub fn analyze(transcript: &str) -> EfficiencyMetrics {
-        Self::analyze_with_pattern(transcript, DEFAULT_COMMAND_PATTERN)
-    }
-
-    #[allow(dead_code)]
-    pub fn analyze_for_target(
-        transcript: &str,
-        target_binary: &str,
-        command_pattern: Option<&str>,
-    ) -> EfficiencyMetrics {
-        let pattern = resolve_command_pattern(target_binary, command_pattern);
-        Self::analyze_with_pattern(transcript, &pattern)
-    }
-
-    #[allow(dead_code)]
-    pub fn analyze_with_exit_codes(transcript: &str) -> EfficiencyMetrics {
-        let commands = Self::extract_commands_with_pattern(transcript, DEFAULT_COMMAND_PATTERN);
-        crate::interaction_profile::reduce_command_events(&commands)
-    }
-
-    #[allow(dead_code)]
-    pub fn analyze_with_exit_codes_for_target(
-        transcript: &str,
-        target_binary: &str,
-        command_pattern: Option<&str>,
-    ) -> EfficiencyMetrics {
-        let pattern = resolve_command_pattern(target_binary, command_pattern);
-        let commands = Self::extract_commands_with_pattern(transcript, &pattern);
-        crate::interaction_profile::reduce_command_events(&commands)
-    }
-
-    pub fn analyze_with_pattern(transcript: &str, command_pattern: &str) -> EfficiencyMetrics {
-        let commands = Self::extract_commands_with_pattern(transcript, command_pattern);
-        crate::interaction_profile::reduce_command_events(&commands)
-    }
-
     fn is_error_line(line: &str) -> bool {
         let line_lower = line.to_lowercase();
         line_lower.contains("error")
@@ -168,14 +131,4 @@ impl TranscriptAnalyzer {
 
         commands
     }
-}
-
-fn resolve_command_pattern(target_binary: &str, command_pattern: Option<&str>) -> String {
-    if let Some(pattern) = command_pattern {
-        if !pattern.trim().is_empty() {
-            return pattern.to_string();
-        }
-    }
-
-    format!(r"^\s*({})\s+(--help|\S+)\b", regex::escape(target_binary))
 }

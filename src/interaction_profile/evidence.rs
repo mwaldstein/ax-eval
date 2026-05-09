@@ -1,9 +1,9 @@
 use crate::interaction_profile::{
     AdapterEvidenceCapability, InteractionEvidenceSource, TargetInteractionSpec,
 };
-use crate::transcript::{CommandEvent, InteractionInput, TranscriptAnalyzer};
+use crate::transcript::{CommandEvent, InteractionInput};
 use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ExtractedInteractionEvidence {
@@ -69,7 +69,10 @@ pub(crate) fn extract_target_interaction_evidence(
     match evidence {
         RawInteractionEvidence::StructuredToolCalls(command_events) => {
             Ok(ExtractedInteractionEvidence {
-                target_events: target_command_events(&command_events, input.target),
+                target_events: super::target::structured_target_events(
+                    &command_events,
+                    input.target,
+                ),
                 source: InteractionEvidenceSource::StructuredToolCalls,
             })
         }
@@ -77,139 +80,11 @@ pub(crate) fn extract_target_interaction_evidence(
             let content = std::fs::read_to_string(&transcript_path)
                 .with_context(|| "Failed to read transcript file for regex interaction profile")?;
             Ok(ExtractedInteractionEvidence {
-                target_events: extract_transcript_target_events(&content, input.target),
+                target_events: super::target::transcript_target_events(&content, input.target),
                 source: InteractionEvidenceSource::TranscriptRegexFallback,
             })
         }
     }
-}
-
-fn extract_transcript_target_events(
-    transcript: &str,
-    target: &TargetInteractionSpec,
-) -> Vec<CommandEvent> {
-    if target
-        .command_pattern()
-        .is_none_or(|pattern| pattern.trim().is_empty())
-    {
-        let events = TranscriptAnalyzer::extract_command_lines_with_exit_codes(transcript);
-        return target_command_events(&events, target);
-    }
-
-    let pattern = resolve_command_pattern(target.binary(), target.command_pattern());
-    TranscriptAnalyzer::extract_commands_with_pattern(transcript, &pattern)
-}
-
-fn resolve_command_pattern(target_binary: &str, command_pattern: Option<&str>) -> String {
-    if let Some(pattern) = command_pattern {
-        if !pattern.trim().is_empty() {
-            return pattern.to_string();
-        }
-    }
-
-    format!(r"^\s*({})\s+(--help|\S+)\b", regex::escape(target_binary))
-}
-
-fn target_command_events(
-    events: &[CommandEvent],
-    target: &TargetInteractionSpec,
-) -> Vec<CommandEvent> {
-    events
-        .iter()
-        .filter_map(|event| {
-            target_subcommand(&event.command, target.binary()).map(|command| CommandEvent {
-                command,
-                exit_code: event.exit_code,
-            })
-        })
-        .collect()
-}
-
-fn target_subcommand(command: &str, target_binary: &str) -> Option<String> {
-    let tokens = shell_like_tokens(command);
-    let target = Path::new(target_binary)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(target_binary);
-
-    for (index, token) in tokens.iter().enumerate() {
-        if token.contains(char::is_whitespace) {
-            if let Some(subcommand) = target_subcommand(token, target_binary) {
-                return Some(subcommand);
-            }
-        }
-
-        if token == "$" {
-            continue;
-        }
-
-        let token_binary = Path::new(token)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or(token);
-
-        if token_binary == target {
-            let subcommand = tokens
-                .get(index + 1)
-                .map(String::as_str)
-                .unwrap_or("command");
-            if subcommand == "--help" || tokens[index + 1..].iter().any(|arg| arg == "--help") {
-                return Some("help".to_string());
-            }
-            return Some(subcommand.to_string());
-        }
-    }
-
-    None
-}
-
-fn shell_like_tokens(command: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for ch in command.chars() {
-        if escaped {
-            current.push(ch);
-            escaped = false;
-            continue;
-        }
-
-        if ch == '\\' {
-            escaped = true;
-            continue;
-        }
-
-        if let Some(quote_char) = quote {
-            if ch == quote_char {
-                quote = None;
-            } else {
-                current.push(ch);
-            }
-            continue;
-        }
-
-        if ch == '\'' || ch == '"' {
-            quote = Some(ch);
-            continue;
-        }
-
-        if ch.is_whitespace() {
-            if !current.is_empty() {
-                tokens.push(std::mem::take(&mut current));
-            }
-            continue;
-        }
-
-        current.push(ch);
-    }
-
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-
-    tokens
 }
 
 #[cfg(test)]
@@ -260,36 +135,5 @@ mod tests {
             commands,
             vec![("init", Some(0)), ("add", Some(1)), ("help", Some(0))]
         );
-    }
-
-    #[test]
-    fn regex_fallback_extracts_default_target_commands() {
-        let target = target();
-        let transcript = "$ ./notes init\nexit code: 0\n\
-                          $ bash -lc './notes add \"Hello\"'\nexit code: 1\n\
-                          $ /tmp/work/notes list --help\nexit code: 0\n";
-
-        let events = extract_transcript_target_events(transcript, &target);
-
-        let commands = events
-            .iter()
-            .map(|event| (event.command.as_str(), event.exit_code))
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            commands,
-            vec![("init", Some(0)), ("add", Some(1)), ("help", Some(0))]
-        );
-    }
-
-    #[test]
-    fn regex_fallback_honors_custom_command_pattern() {
-        let target = TargetInteractionSpec::new("notes", Some("tool:notes action=(\\S+)".into()));
-        let transcript = "tool:notes action=sync\nexit code: 0\ntool:other action=skip\n";
-
-        let events = extract_transcript_target_events(transcript, &target);
-
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].command, "sync");
     }
 }

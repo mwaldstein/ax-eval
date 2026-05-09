@@ -1,4 +1,5 @@
 mod evidence;
+mod target;
 
 use self::evidence::{extract_target_interaction_evidence, InteractionEvidenceInput};
 use crate::scenario::TargetCommandPolicy;
