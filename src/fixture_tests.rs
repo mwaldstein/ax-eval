@@ -105,18 +105,19 @@ mod tests {
             target_env,
         });
 
-        let metrics = evaluation::evaluate(
-            &scenario,
-            &env.root,
-            true,
-            Some(&script_runner),
-            None,
-            None,
-            &crate::transcript::InteractionInput::TranscriptRegex,
-            AdapterEvidenceCapability::TranscriptRegexFallback,
-            env.root.join("transcript.raw.txt"),
-            true,
-        )
+        let interaction_input = crate::transcript::InteractionInput::TranscriptRegex;
+        let metrics = evaluation::evaluate(evaluation::EvaluationInput {
+            scenario: &scenario,
+            env_root: &env.root,
+            no_judge: true,
+            script_runner: Some(&script_runner),
+            judge_model: None,
+            judge_tool: None,
+            interaction_input: &interaction_input,
+            adapter_capability: AdapterEvidenceCapability::TranscriptRegexFallback,
+            transcript_path: env.root.join("transcript.raw.txt"),
+            completed: true,
+        })
         .expect("evaluate");
 
         assert_eq!(

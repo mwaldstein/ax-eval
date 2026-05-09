@@ -131,19 +131,21 @@ fn build_metrics(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn evaluate(
-    scenario: &Scenario,
-    env_root: &Path,
-    no_judge: bool,
-    script_runner: Option<&ScriptRunner>,
-    judge_model: Option<&str>,
-    judge_tool: Option<&str>,
-    interaction_input: &crate::transcript::InteractionInput,
-    adapter_capability: AdapterEvidenceCapability,
-    transcript_path: PathBuf,
-    completed: bool,
-) -> Result<EvaluationMetrics> {
+pub struct EvaluationInput<'a> {
+    pub scenario: &'a Scenario,
+    pub env_root: &'a Path,
+    pub no_judge: bool,
+    pub script_runner: Option<&'a ScriptRunner>,
+    pub judge_model: Option<&'a str>,
+    pub judge_tool: Option<&'a str>,
+    pub interaction_input: &'a crate::transcript::InteractionInput,
+    pub adapter_capability: AdapterEvidenceCapability,
+    pub transcript_path: PathBuf,
+    pub completed: bool,
+}
+
+pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
+    let scenario = input.scenario;
     println!("Evaluating results for scenario: {}", scenario.name);
 
     let target = TargetInteractionSpec::new(
@@ -153,15 +155,15 @@ pub fn evaluate(
     let interaction_profile =
         crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
             target: &target,
-            interaction_input,
-            adapter_capability,
-            transcript_path,
-            completed,
+            interaction_input: input.interaction_input,
+            adapter_capability: input.adapter_capability,
+            transcript_path: input.transcript_path,
+            completed: input.completed,
         })?;
 
     let ctx = GateEvaluationContext {
-        env_root,
-        script_runner,
+        env_root: input.env_root,
+        script_runner: input.script_runner,
         interaction_profile: &interaction_profile,
     };
 
@@ -169,12 +171,12 @@ pub fn evaluate(
     let gates_total = scenario.evaluation.gates.len();
     let judge_result = maybe_run_judge(
         scenario,
-        env_root,
-        no_judge,
+        input.env_root,
+        input.no_judge,
         gates_passed,
         gates_total,
-        judge_model,
-        judge_tool,
+        input.judge_model,
+        input.judge_tool,
     )?;
     let mut metrics = build_metrics(
         scenario,
@@ -187,7 +189,71 @@ pub fn evaluate(
     );
 
     // Run custom evaluators after gates and judge evaluation
-    metrics.evaluator_results = run_evaluators(scenario, script_runner);
+    metrics.evaluator_results = run_evaluators(scenario, input.script_runner);
 
     Ok(metrics)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scenario::{Evaluation, Scenario, TargetConfig, Task};
+    use crate::transcript::{CommandEvent, InteractionInput};
+
+    fn scenario() -> Scenario {
+        Scenario {
+            name: "evaluation-input-test".to_string(),
+            description: "Test evaluation input".to_string(),
+            template_folder: "fixture".to_string(),
+            target: TargetConfig {
+                binary: "target".to_string(),
+                command_pattern: None,
+                health_check: None,
+                env: None,
+            },
+            task: Task {
+                prompt: "Do the task".to_string(),
+            },
+            evaluation: Evaluation {
+                gates: vec![],
+                judge: None,
+                composite: None,
+            },
+            tier: 0,
+            tool_matrix: None,
+            setup: None,
+            tags: vec![],
+            run: None,
+            scripts: None,
+        }
+    }
+
+    #[test]
+    fn evaluation_input_runs_evaluation_with_structured_interactions() {
+        let scenario = scenario();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let interaction_input = InteractionInput::StructuredToolCalls(vec![CommandEvent {
+            command: "target status".to_string(),
+            exit_code: Some(0),
+        }]);
+
+        let metrics = evaluate(EvaluationInput {
+            scenario: &scenario,
+            env_root: dir.path(),
+            no_judge: true,
+            script_runner: None,
+            judge_model: None,
+            judge_tool: None,
+            interaction_input: &interaction_input,
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: dir.path().join("unused-transcript.raw.txt"),
+            completed: true,
+        })
+        .expect("evaluate");
+
+        assert_eq!(metrics.gates_passed, 0);
+        assert_eq!(metrics.gates_total, 0);
+        assert_eq!(metrics.efficiency.total_commands, 1);
+        assert!(metrics.efficiency.completed);
+    }
 }
