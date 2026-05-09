@@ -4,10 +4,12 @@ use crate::script_runner::ScriptRunner;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::path::Path;
-use std::process::{Command, Output};
 
 use super::GateResult;
+
+const COMMAND_GATE_TIMEOUT_SECS: u64 = 30;
 
 /// Context passed to gate evaluators, containing environment and optional script runner.
 pub struct GateEvaluationContext<'a> {
@@ -82,7 +84,7 @@ fn eval_command_succeeds(command: &str, env_root: &Path) -> GateResult {
 
     match output {
         Ok(output) => {
-            let succeeds = output.status.success();
+            let succeeds = output.succeeded();
             GateResult {
                 gate_type: "CommandSucceeds".to_string(),
                 passed: succeeds,
@@ -102,8 +104,7 @@ fn eval_command_output_contains(command: &str, substring: &str, env_root: &Path)
 
     match output {
         Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let passed = output.status.success() && stdout.contains(substring);
+            let passed = output.succeeded() && output.stdout.contains(substring);
             GateResult {
                 gate_type: "CommandOutputContains".to_string(),
                 passed,
@@ -137,8 +138,7 @@ fn eval_command_output_matches(command: &str, pattern: &str, env_root: &Path) ->
 
     match output {
         Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let passed = output.status.success() && regex.is_match(&stdout);
+            let passed = output.succeeded() && regex.is_match(&output.stdout);
             GateResult {
                 gate_type: "CommandOutputMatches".to_string(),
                 passed,
@@ -164,22 +164,19 @@ fn eval_command_json_path(
 ) -> GateResult {
     match run_shell_command(command, env_root) {
         Ok(output) => {
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if !output.succeeded() {
+                let stderr = output.stderr.trim().to_string();
                 return GateResult {
                     gate_type: "CommandJsonPath".to_string(),
                     passed: false,
                     message: format!(
-                        "Command '{}' failed with exit code {:?}: {}",
-                        command,
-                        output.status.code(),
-                        stderr
+                        "Command '{}' failed with exit code {}: {}",
+                        command, output.exit_code, stderr
                     ),
                 };
             }
 
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let json: Value = match serde_json::from_str(&stdout) {
+            let json: Value = match serde_json::from_str(&output.stdout) {
                 Ok(value) => value,
                 Err(e) => {
                     return GateResult {
@@ -298,12 +295,17 @@ fn eval_file_matches(path: &str, pattern: &str, env_root: &Path) -> GateResult {
     }
 }
 
-fn run_shell_command(command: &str, env_root: &Path) -> std::io::Result<Output> {
-    Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(env_root)
-        .output()
+fn run_shell_command(
+    command: &str,
+    env_root: &Path,
+) -> anyhow::Result<crate::command_execution::CommandResult> {
+    crate::command_execution::run_piped_command(
+        "sh",
+        &["-c", command],
+        env_root,
+        COMMAND_GATE_TIMEOUT_SECS,
+        &HashMap::new(),
+    )
 }
 
 #[derive(Debug)]

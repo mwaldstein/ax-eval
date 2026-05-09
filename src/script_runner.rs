@@ -4,30 +4,12 @@
 //! directory with the appropriate environment variables set. It supports timeout
 //! enforcement using the `wait-timeout` crate.
 
+use crate::command_execution::{run_piped_command, CommandResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use wait_timeout::ChildExt;
 
 /// Result of executing a script.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScriptResult {
-    /// Exit code of the script (0 for success)
-    pub exit_code: i32,
-    /// Standard output captured from the script
-    pub stdout: String,
-    /// Standard error captured from the script
-    pub stderr: String,
-    /// Whether the script timed out
-    pub timed_out: bool,
-}
-
-impl ScriptResult {
-    /// Returns true if the script succeeded (exit code 0 and not timed out).
-    pub fn succeeded(&self) -> bool {
-        self.exit_code == 0 && !self.timed_out
-    }
-}
+pub type ScriptResult = CommandResult;
 
 /// A runner for executing scripts in the fixture directory.
 #[derive(Debug, Clone)]
@@ -77,47 +59,13 @@ impl ScriptRunner {
     /// LLM_TOOL_TEST_* environment variables set. The timeout is enforced
     /// using the wait-timeout crate.
     pub fn run(&self, command: &str, timeout_secs: u64) -> anyhow::Result<ScriptResult> {
-        let mut child = Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .current_dir(&self.fixture_dir)
-            .envs(self.build_env())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| anyhow::anyhow!("Failed to spawn script: {}", e))?;
-
-        let timeout = std::time::Duration::from_secs(timeout_secs);
-        let result = match child.wait_timeout(timeout) {
-            Ok(Some(status)) => {
-                let exit_code = status.code().unwrap_or(-1);
-                let stdout = self.read_child_stdout(&mut child)?;
-                let stderr = self.read_child_stderr(&mut child)?;
-                ScriptResult {
-                    exit_code,
-                    stdout,
-                    stderr,
-                    timed_out: false,
-                }
-            }
-            Ok(None) => {
-                let _ = child.kill();
-                let stdout = self.read_child_stdout(&mut child)?;
-                let stderr = self.read_child_stderr(&mut child)?;
-                ScriptResult {
-                    exit_code: -1,
-                    stdout,
-                    stderr,
-                    timed_out: true,
-                }
-            }
-            Err(e) => {
-                let _ = child.kill();
-                return Err(anyhow::anyhow!("Error waiting for script: {}", e));
-            }
-        };
-
-        Ok(result)
+        run_piped_command(
+            "sh",
+            &["-c", command],
+            &self.fixture_dir,
+            timeout_secs,
+            &self.build_env(),
+        )
     }
 
     /// Build the environment variables for script execution.
@@ -160,26 +108,6 @@ impl ScriptRunner {
         }
 
         env
-    }
-
-    fn read_child_stdout(&self, child: &mut std::process::Child) -> anyhow::Result<String> {
-        let mut stdout = String::new();
-        if let Some(ref mut pipe) = child.stdout {
-            use std::io::Read;
-            pipe.read_to_string(&mut stdout)
-                .map_err(|e| anyhow::anyhow!("Failed to read stdout: {}", e))?;
-        }
-        Ok(stdout)
-    }
-
-    fn read_child_stderr(&self, child: &mut std::process::Child) -> anyhow::Result<String> {
-        let mut stderr = String::new();
-        if let Some(ref mut pipe) = child.stderr {
-            use std::io::Read;
-            pipe.read_to_string(&mut stderr)
-                .map_err(|e| anyhow::anyhow!("Failed to read stderr: {}", e))?;
-        }
-        Ok(stderr)
     }
 }
 

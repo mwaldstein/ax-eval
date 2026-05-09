@@ -4,6 +4,7 @@
 
 mod adapter;
 mod cli;
+mod command_execution;
 mod commands;
 mod config;
 mod eval_helpers;

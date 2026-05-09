@@ -1,4 +1,6 @@
+use crate::command_execution::{CommandExecutionMode, CommandResult};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path;
 use std::sync::{mpsc::channel, Arc, Mutex};
@@ -10,6 +12,14 @@ use std::fs;
 
 pub struct SessionRunner {
     pub pty_system: NativePtySystem,
+}
+
+#[derive(Debug, thiserror::Error)]
+enum SessionCommandError {
+    #[error("Command timed out after {0} seconds")]
+    TimedOut(u64),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 impl SessionRunner {
@@ -37,12 +47,27 @@ impl SessionRunner {
         timeout_secs: u64,
         env_vars: &[(String, String)],
     ) -> anyhow::Result<(String, i32)> {
-        // Try PTY first, fall back to piped stdout/stderr if PTY unavailable
+        let result = self.run_command_result_with_env(cmd, args, cwd, timeout_secs, env_vars)?;
+        Ok((result.output(), result.exit_code))
+    }
+
+    pub fn run_command_result_with_env(
+        &self,
+        cmd: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout_secs: u64,
+        env_vars: &[(String, String)],
+    ) -> anyhow::Result<CommandResult> {
         match self.run_command_pty_with_env(cmd, args, cwd, timeout_secs, env_vars) {
             Ok(result) => Ok(result),
-            Err(e) => {
+            Err(SessionCommandError::TimedOut(secs)) => {
+                Err(anyhow::anyhow!("Command timed out after {} seconds", secs))
+            }
+            Err(SessionCommandError::Other(e)) => {
                 tracing::debug!("PTY unavailable, falling back to pipes: {}", e);
-                self.run_command_piped_with_env(cmd, args, cwd, timeout_secs, env_vars)
+                let env = env_vars.iter().cloned().collect::<HashMap<_, _>>();
+                crate::command_execution::run_piped_command(cmd, args, cwd, timeout_secs, &env)
             }
         }
     }
@@ -54,13 +79,16 @@ impl SessionRunner {
         cwd: &Path,
         timeout_secs: u64,
         env_vars: &[(String, String)],
-    ) -> anyhow::Result<(String, i32)> {
-        let pair = self.pty_system.openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })?;
+    ) -> Result<CommandResult, SessionCommandError> {
+        let pair = self
+            .pty_system
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(SessionCommandError::Other)?;
 
         let mut cmd_builder = CommandBuilder::new(cmd);
         cmd_builder.args(args);
@@ -69,8 +97,14 @@ impl SessionRunner {
             cmd_builder.env(key, value);
         }
 
-        let child = pair.slave.spawn_command(cmd_builder)?;
-        let mut reader = pair.master.try_clone_reader()?;
+        let child = pair
+            .slave
+            .spawn_command(cmd_builder)
+            .map_err(SessionCommandError::Other)?;
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(SessionCommandError::Other)?;
 
         // Drop slave to close the handle in the parent process.
         // The child has its own copy.
@@ -120,17 +154,16 @@ impl SessionRunner {
         let exit_status = match wait_result {
             Ok(Ok(status)) => status,
             Ok(Err(_)) => {
-                return Err(anyhow::anyhow!("Failed to wait for child process"));
+                return Err(SessionCommandError::Other(anyhow::anyhow!(
+                    "Failed to wait for child process"
+                )));
             }
             Err(_) => {
                 let mut child_guard = child.lock().unwrap_or_else(|e| e.into_inner());
                 let _ = child_guard.kill();
                 drop(child_guard);
                 let _ = status_rx.recv_timeout(Duration::from_secs(5));
-                return Err(anyhow::anyhow!(
-                    "Command timed out after {} seconds",
-                    timeout_secs
-                ));
+                return Err(SessionCommandError::TimedOut(timeout_secs));
             }
         };
 
@@ -141,124 +174,13 @@ impl SessionRunner {
         let _ = wait_thread.join();
 
         let exit_code = exit_status.exit_code() as i32;
-        Ok((String::from_utf8_lossy(&output).to_string(), exit_code))
-    }
-
-    fn run_command_piped_with_env(
-        &self,
-        cmd: &str,
-        args: &[&str],
-        cwd: &Path,
-        timeout_secs: u64,
-        env_vars: &[(String, String)],
-    ) -> anyhow::Result<(String, i32)> {
-        use std::process::{Command, Stdio};
-
-        let mut command = Command::new(cmd);
-        for (key, value) in env_vars {
-            command.env(key, value);
-        }
-        let mut child = command
-            .args(args)
-            .current_dir(cwd)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| anyhow::anyhow!("Failed to capture stdout"))?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| anyhow::anyhow!("Failed to capture stderr"))?;
-
-        let (status_tx, status_rx) = channel();
-
-        let stdout_thread = thread::spawn(move || {
-            use std::io::Read;
-            let mut buf = [0u8; 1024];
-            let mut output = Vec::new();
-            let mut reader = stdout;
-            while let Ok(n) = reader.read(&mut buf) {
-                if n == 0 {
-                    break;
-                }
-                output.extend_from_slice(&buf[..n]);
-            }
-            output
-        });
-
-        let stderr_thread = thread::spawn(move || {
-            use std::io::Read;
-            let mut buf = [0u8; 1024];
-            let mut output = Vec::new();
-            let mut reader = stderr;
-            while let Ok(n) = reader.read(&mut buf) {
-                if n == 0 {
-                    break;
-                }
-                output.extend_from_slice(&buf[..n]);
-            }
-            output
-        });
-
-        let child = Arc::new(Mutex::new(child));
-        let child_clone = Arc::clone(&child);
-        let wait_thread = thread::spawn(move || loop {
-            let mut child_guard = child_clone.lock().unwrap_or_else(|e| e.into_inner());
-            match child_guard.try_wait() {
-                Ok(Some(status)) => {
-                    let _ = status_tx.send(Ok(status));
-                    return;
-                }
-                Ok(None) => {
-                    drop(child_guard);
-                    thread::sleep(Duration::from_millis(50));
-                }
-                Err(e) => {
-                    let _ = status_tx.send(Err(e));
-                    return;
-                }
-            }
-        });
-
-        let timeout_duration = Duration::from_secs(timeout_secs);
-        let wait_result = status_rx.recv_timeout(timeout_duration);
-
-        let exit_status = match wait_result {
-            Ok(Ok(status)) => status,
-            Ok(Err(_)) => {
-                return Err(anyhow::anyhow!("Failed to wait for child process"));
-            }
-            Err(_) => {
-                let mut child_guard = child.lock().unwrap_or_else(|e| e.into_inner());
-                let _ = child_guard.kill();
-                drop(child_guard);
-                let _ = status_rx.recv_timeout(Duration::from_secs(5));
-                return Err(anyhow::anyhow!(
-                    "Command timed out after {} seconds",
-                    timeout_secs
-                ));
-            }
-        };
-
-        let mut combined_output = Vec::new();
-        if let Ok(stdout_data) = stdout_thread.join() {
-            combined_output.extend_from_slice(&stdout_data);
-        }
-        if let Ok(stderr_data) = stderr_thread.join() {
-            combined_output.extend_from_slice(&stderr_data);
-        }
-
-        let _ = wait_thread.join();
-
-        let exit_code = exit_status.code().unwrap_or(-1);
-        Ok((
-            String::from_utf8_lossy(&combined_output).to_string(),
+        Ok(CommandResult {
             exit_code,
-        ))
+            stdout: String::from_utf8_lossy(&output).to_string(),
+            stderr: String::new(),
+            timed_out: false,
+            mode: CommandExecutionMode::Pty,
+        })
     }
 }
 
@@ -287,6 +209,20 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("timed out"));
+    }
+
+    #[test]
+    fn test_timed_out_pty_command_does_not_fallback_and_rerun() {
+        let runner = SessionRunner::new();
+        let dir = tempdir().unwrap();
+        let marker = dir.path().join("marker.txt");
+        let command = format!("printf x >> {}; sleep 10", marker.display());
+
+        let result = runner.run_command("sh", &["-c", &command], dir.path(), 1);
+
+        assert!(result.is_err());
+        let marker_content = fs::read_to_string(marker).expect("marker file");
+        assert_eq!(marker_content, "x");
     }
 
     #[test]
