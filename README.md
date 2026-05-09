@@ -60,12 +60,17 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
    llm-tool-test scenarios
    ```
 
-3. **Run evaluation**:
+3. **Print a scenario template**: Start from a schema-valid YAML example.
+   ```bash
+   llm-tool-test template scenario > fixtures/my_scenario.yaml
+   ```
+
+4. **Run evaluation**:
    ```bash
    llm-tool-test run --scenario example_basic --tool claude-code
    ```
 
-4. **Review results**:
+5. **Review results**:
    ```bash
    cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
    ```
@@ -138,6 +143,15 @@ evaluation:
     - type: file_contains
       path: summary.md
       substring: "Project"
+```
+
+For richer copyable examples, use:
+
+```bash
+llm-tool-test template scenario
+llm-tool-test template config
+llm-tool-test template script-gate
+llm-tool-test template evaluator
 ```
 
 See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, and the full field reference.

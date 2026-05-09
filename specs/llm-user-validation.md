@@ -379,10 +379,16 @@ llm-tool-test run --dry-run                 # Validate selection without LLM cal
 # Matrix runs
 llm-tool-test run --all --profile quick
 
+# Print copyable schema templates
+llm-tool-test template scenario
+llm-tool-test template config
+llm-tool-test template script-gate
+llm-tool-test template evaluator
+
 # List and inspect scenarios
 llm-tool-test scenarios                     # List all scenarios
 llm-tool-test scenarios --tags capture      # Filter by tags
-llm-tool-test show <scenario-id>            # Show scenario details
+llm-tool-test show <run-id>                 # Show saved run details
 
 # Maintenance
 llm-tool-test clean --older-than 7d         # Clean cache and legacy transcript artifacts

@@ -16,6 +16,19 @@ fn test_cli_help() {
 }
 
 #[test]
+fn test_cli_without_args_prints_guidance() {
+    llm_tool_test()
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Use it to improve CLI help, docs, and AGENTS.md guidance",
+        ))
+        .stdout(predicate::str::contains("llm-tool-test template scenario"))
+        .stdout(predicate::str::contains("LLM_TOOL_TEST_ENABLED=1"));
+}
+
+#[test]
 fn test_run_help_includes_judge_tool_option() {
     llm_tool_test()
         .args(["run", "--help"])
@@ -23,6 +36,54 @@ fn test_run_help_includes_judge_tool_option() {
         .assert()
         .success()
         .stdout(predicate::str::contains("--judge-tool"));
+}
+
+#[test]
+fn test_cli_help_points_to_template_command() {
+    llm_tool_test()
+        .arg("--help")
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("template"));
+}
+
+#[test]
+fn test_template_scenario_outputs_copyable_schema() {
+    llm_tool_test()
+        .args(["template", "scenario"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("template_folder:"))
+        .stdout(predicate::str::contains("target:"))
+        .stdout(predicate::str::contains("task:"))
+        .stdout(predicate::str::contains("evaluation:"))
+        .stdout(predicate::str::contains("substring:"));
+}
+
+#[test]
+fn test_template_config_outputs_supported_config_shape() {
+    llm_tool_test()
+        .args(["template", "config"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fixtures_path"))
+        .stdout(predicate::str::contains("[tools.opencode]"))
+        .stdout(predicate::str::contains("[profiles.quick]"))
+        .stdout(predicate::str::contains("[models.").not());
+}
+
+#[test]
+fn test_template_script_gate_outputs_json_contract() {
+    llm_tool_test()
+        .args(["template", "script-gate"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"passed\""))
+        .stdout(predicate::str::contains("\"message\""));
 }
 
 #[test]

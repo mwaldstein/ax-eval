@@ -1,3 +1,4 @@
+use crate::cli::TemplateKind;
 use crate::config::Config;
 use crate::evaluation::ScoreTier;
 use crate::output;
@@ -243,6 +244,16 @@ pub fn handle_clean_command(
     Ok(())
 }
 
+pub fn handle_template_command(kind: TemplateKind) {
+    let template = match kind {
+        TemplateKind::Scenario => SCENARIO_TEMPLATE,
+        TemplateKind::Config => CONFIG_TEMPLATE,
+        TemplateKind::ScriptGate => SCRIPT_GATE_TEMPLATE,
+        TemplateKind::Evaluator => EVALUATOR_TEMPLATE,
+    };
+    print!("{}", template);
+}
+
 fn parse_duration(s: &str) -> anyhow::Result<Duration> {
     let re = regex::Regex::new(r"^(\d+)([dhm])$")?;
     let caps = re.captures(s).ok_or_else(|| {
@@ -261,3 +272,136 @@ fn parse_duration(s: &str) -> anyhow::Result<Duration> {
 
     Ok(duration)
 }
+
+const SCENARIO_TEMPLATE: &str = r#"name: example_cli_workflow
+description: Verify an agent can use mytool to complete a realistic workflow
+tags:
+  - smoke
+tier: 0
+template_folder: example_cli_workflow
+
+target:
+  binary: mytool
+  command_pattern: "mytool\\s+(\\S+)"
+  health_check: "mytool --version"
+  env:
+    MYTOOL_STATE: ".mytool/state.json"
+
+task:
+  prompt: |
+    Use `mytool` to create a project named "Example" and export a summary.
+    Read AGENTS.md first, then inspect `mytool --help` only if needed.
+
+setup:
+  commands:
+    - "chmod +x mytool scripts/*.sh"
+
+scripts:
+  post:
+    - command: "./scripts/export_state.sh"
+      timeout_secs: 30
+  evaluators:
+    - command: "./scripts/score_quality.sh"
+      name: quality
+      timeout_secs: 60
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: summary.md
+    - type: file_contains
+      path: summary.md
+      substring: "Example"
+    - type: command_succeeds
+      command: "mytool status"
+    - type: command_json_path
+      command: "cat .mytool/export.json"
+      path: "$.items"
+      assertion: "len >= 1"
+    - type: script
+      command: "./scripts/check_summary.sh"
+      description: Summary includes required project fields
+      timeout_secs: 30
+  judge:
+    enabled: false
+    rubric: rubrics/workflow.yaml
+    pass_threshold: 0.70
+
+tool_matrix:
+  - tool: opencode
+    models:
+      - default
+
+run:
+  timeout_secs: 300
+"#;
+
+const CONFIG_TEMPLATE: &str = r#"fixtures_path = "fixtures"
+results_path = "llm-tool-test-results"
+
+[tools.opencode]
+name = "opencode"
+command = "opencode"
+models = ["default", "gpt-4o"]
+
+[tools.claude-code]
+name = "claude-code"
+command = "claude"
+models = ["default", "claude-sonnet"]
+
+[tools.codex]
+name = "codex"
+command = "codex"
+models = ["default", "gpt-5-codex"]
+
+[profiles.quick]
+name = "quick"
+tools = ["opencode"]
+models = ["default"]
+
+# Profiles are tool x model Cartesian products. Every model must be valid for
+# every selected tool. Use scenario `tool_matrix` for heterogeneous matrices.
+[profiles.compare_opencode_models]
+name = "compare_opencode_models"
+tools = ["opencode"]
+models = ["default", "gpt-4o"]
+"#;
+
+const SCRIPT_GATE_TEMPLATE: &str = r#"#!/usr/bin/env bash
+set -euo pipefail
+
+# Script gates run in the fixture directory.
+# Exit code 0 passes; non-zero fails. Optional JSON stdout may include
+# `passed` and `message`.
+
+if test -f summary.md && grep -q "Example" summary.md; then
+  printf '{"passed":true,"message":"summary.md contains Example"}\n'
+  exit 0
+fi
+
+printf '{"passed":false,"message":"summary.md is missing Example"}\n'
+exit 1
+"#;
+
+const EVALUATOR_TEMPLATE: &str = r#"#!/usr/bin/env bash
+set -euo pipefail
+
+# Evaluators run in the fixture directory after gates and judge evaluation.
+# Exit code 0 means the evaluator ran successfully; it does not pass/fail the
+# scenario. Print JSON with optional metrics, score, and summary fields.
+
+note_count=0
+if test -f .mytool/export.json; then
+  note_count=$(jq '.items | length' .mytool/export.json)
+fi
+
+cat <<JSON
+{
+  "metrics": {
+    "item_count": ${note_count}
+  },
+  "score": 0.80,
+  "summary": "Export contains ${note_count} item(s)"
+}
+JSON
+"#;

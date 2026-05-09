@@ -1,7 +1,14 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    arg_required_else_help = true,
+    about = "Evaluate how coding agents use CLI tools",
+    long_about = "llm-tool-test runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>\n\nUse `llm-tool-test template <kind>` for copyable schema examples.",
+    after_help = "Common commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test template config > llm-tool-test-config.toml\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -85,16 +92,34 @@ pub enum Commands {
         #[arg(long, default_value = "0")]
         tier: usize,
     },
-    /// Show details of a scenario
+    /// Show details for a saved run ID
     Show {
         /// Name of the scenario
         #[arg(required = true)]
         name: String,
     },
-    /// Clean up artifacts
+    /// Clean cache and legacy transcript artifacts
     Clean {
         /// Clean artifacts older than duration (e.g., "30d", "7d", "1h")
         #[arg(long)]
         older_than: Option<String>,
     },
+    /// Print copyable scenario, config, and script templates
+    Template {
+        /// Template to print
+        #[arg(value_enum)]
+        kind: TemplateKind,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum TemplateKind {
+    /// Scenario YAML with target, task, setup, scripts, gates, judge, and matrix fields
+    Scenario,
+    /// llm-tool-test-config.toml with supported config fields and valid profiles
+    Config,
+    /// Shell script gate that reports pass/fail JSON
+    ScriptGate,
+    /// Custom evaluator script that reports metrics, score, and summary JSON
+    Evaluator,
 }

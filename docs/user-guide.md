@@ -68,6 +68,15 @@ Dry run without LLM calls:
 llm-tool-test run --scenario example_basic --dry-run
 ```
 
+Print copyable templates:
+
+```bash
+llm-tool-test template scenario
+llm-tool-test template config
+llm-tool-test template script-gate
+llm-tool-test template evaluator
+```
+
 Show run details:
 
 ```bash
@@ -135,6 +144,22 @@ Good scenarios evaluate outcomes, not the exact process an agent used. Because L
 Use gates as fail-fast sanity checks. The richer evaluation signal comes from the metrics, transcript, and optional judge rubric.
 
 For the complete scenario schema, see the [scenario spec](../specs/scenarios.md).
+
+## Templates
+
+The `template` command prints schema-valid starting points to stdout. Use it
+when creating scenarios or scripts from an agent session:
+
+```bash
+llm-tool-test template scenario > fixtures/my_scenario.yaml
+llm-tool-test template config > llm-tool-test-config.toml
+llm-tool-test template script-gate > fixtures/templates/my_scenario/scripts/check_output.sh
+llm-tool-test template evaluator > fixtures/templates/my_scenario/scripts/score_quality.sh
+```
+
+Templates are examples, not generated project scaffolds. After printing one,
+rename placeholders such as `mytool`, `example_cli_workflow`, and paths to match
+your fixture.
 
 ## Gate Types
 

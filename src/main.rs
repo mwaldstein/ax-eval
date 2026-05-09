@@ -25,7 +25,7 @@ mod session;
 mod transcript;
 mod utils;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use cli::Cli;
 use cli::Commands;
 use results::{Cache, ResultsDB};
@@ -105,6 +105,12 @@ pub fn build_tool_matrix(
 }
 
 fn main() -> anyhow::Result<()> {
+    if std::env::args_os().len() == 1 {
+        Cli::command().print_long_help()?;
+        println!();
+        return Ok(());
+    }
+
     let cli = Cli::parse();
 
     // Use the configured results path for cache and database
@@ -192,6 +198,9 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Clean { older_than } => {
             commands::handle_clean_command(&cache, older_than, &base_dir)?;
+        }
+        Commands::Template { kind } => {
+            commands::handle_template_command(*kind);
         }
     }
     Ok(())
