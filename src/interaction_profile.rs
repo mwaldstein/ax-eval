@@ -2,7 +2,7 @@ use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionInput, Trans
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -17,13 +17,89 @@ pub struct InteractionProfile {
     pub evidence_source: InteractionEvidenceSource,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdapterEvidenceCapability {
+    StructuredToolCalls,
+    TranscriptRegexFallback,
+}
+
+impl AdapterEvidenceCapability {
+    pub fn from_supports_structured_tool_calls(supports_structured_tool_calls: bool) -> Self {
+        if supports_structured_tool_calls {
+            Self::StructuredToolCalls
+        } else {
+            Self::TranscriptRegexFallback
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TargetInteractionSpec {
+    binary: String,
+    command_pattern: Option<String>,
+}
+
+impl TargetInteractionSpec {
+    pub fn new(binary: impl Into<String>, command_pattern: Option<String>) -> Self {
+        Self {
+            binary: binary.into(),
+            command_pattern,
+        }
+    }
+
+    pub fn binary(&self) -> &str {
+        &self.binary
+    }
+
+    pub fn command_pattern(&self) -> Option<&str> {
+        self.command_pattern.as_deref()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum InteractionEvidence {
+    StructuredToolCalls(Vec<CommandEvent>),
+    TranscriptRegexFallback { transcript_path: PathBuf },
+}
+
+impl InteractionEvidence {
+    pub fn from_interaction_input(
+        interaction_input: &InteractionInput,
+        adapter_capability: AdapterEvidenceCapability,
+        transcript_path: impl Into<PathBuf>,
+    ) -> Result<Self> {
+        match (interaction_input, adapter_capability) {
+            (
+                InteractionInput::StructuredToolCalls(command_events),
+                AdapterEvidenceCapability::StructuredToolCalls,
+            ) => Ok(Self::StructuredToolCalls(command_events.clone())),
+            (
+                InteractionInput::StructuredToolCalls(_),
+                AdapterEvidenceCapability::TranscriptRegexFallback,
+            ) => {
+                anyhow::bail!(
+                    "Adapter does not declare structured tool-call support but returned structured tool calls"
+                )
+            }
+            (
+                InteractionInput::TranscriptRegex,
+                AdapterEvidenceCapability::TranscriptRegexFallback,
+            ) => Ok(Self::TranscriptRegexFallback {
+                transcript_path: transcript_path.into(),
+            }),
+            (InteractionInput::TranscriptRegex, AdapterEvidenceCapability::StructuredToolCalls) => {
+                anyhow::bail!(
+                    "Adapter supports structured tool calls but returned transcript regex evidence"
+                )
+            }
+        }
+    }
+}
+
 pub struct InteractionProfileInput<'a> {
-    pub env_root: &'a Path,
-    pub target_binary: &'a str,
-    pub command_pattern: Option<&'a str>,
-    pub interaction_input: &'a InteractionInput,
+    pub target: &'a TargetInteractionSpec,
+    pub evidence: InteractionEvidence,
     pub completed: bool,
-    pub supports_structured_tool_calls: bool,
 }
 
 pub(crate) fn reduce_command_events(events: &[CommandEvent]) -> EfficiencyMetrics {
@@ -177,26 +253,20 @@ fn shell_like_tokens(command: &str) -> Vec<String> {
 }
 
 pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<InteractionProfile> {
-    let (mut metrics, evidence_source) = match input.interaction_input {
-        InteractionInput::StructuredToolCalls(command_events) => {
-            let target_events = target_command_events(command_events, input.target_binary);
+    let structured_evidence = matches!(input.evidence, InteractionEvidence::StructuredToolCalls(_));
+    let (mut metrics, evidence_source) = match input.evidence {
+        InteractionEvidence::StructuredToolCalls(command_events) => {
+            let target_events = target_command_events(&command_events, input.target.binary());
             let metrics = reduce_command_events(&target_events);
             (metrics, InteractionEvidenceSource::StructuredToolCalls)
         }
-        InteractionInput::TranscriptRegex => {
-            if input.supports_structured_tool_calls {
-                anyhow::bail!(
-                    "Adapter supports structured tool calls but returned transcript regex evidence"
-                );
-            }
-
-            let transcript_path = input.env_root.join("transcript.raw.txt");
+        InteractionEvidence::TranscriptRegexFallback { transcript_path } => {
             let content = std::fs::read_to_string(&transcript_path)
                 .with_context(|| "Failed to read transcript file for regex interaction profile")?;
             let command_events = TranscriptAnalyzer::extract_command_events_for_target(
                 &content,
-                input.target_binary,
-                input.command_pattern,
+                input.target.binary(),
+                input.target.command_pattern(),
             );
             let metrics = reduce_command_events(&command_events);
             (metrics, InteractionEvidenceSource::TranscriptRegexFallback)
@@ -205,14 +275,7 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
 
     metrics.completed = input.completed;
 
-    if input.supports_structured_tool_calls
-        && input.completed
-        && matches!(
-            input.interaction_input,
-            InteractionInput::StructuredToolCalls(_)
-        )
-        && metrics.total_commands == 0
-    {
+    if input.completed && structured_evidence && metrics.total_commands == 0 {
         anyhow::bail!(
             "Adapter supports structured tool calls but returned no usable structured target-tool events"
         );
@@ -229,21 +292,22 @@ mod tests {
     use super::*;
     use crate::transcript::CommandEvent;
 
+    fn target() -> TargetInteractionSpec {
+        TargetInteractionSpec::new("notes", None)
+    }
+
     #[test]
     fn structured_evidence_builds_profile() {
-        let temp = tempfile::tempdir().expect("tempdir");
         let events = vec![CommandEvent {
             command: "notes add hello".to_string(),
             exit_code: Some(0),
         }];
+        let target = target();
 
         let profile = build_interaction_profile(InteractionProfileInput {
-            env_root: temp.path(),
-            target_binary: "notes",
-            command_pattern: None,
-            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            target: &target,
+            evidence: InteractionEvidence::StructuredToolCalls(events),
             completed: true,
-            supports_structured_tool_calls: true,
         })
         .expect("profile");
 
@@ -279,14 +343,12 @@ mod tests {
                 exit_code: Some(0),
             },
         ];
+        let target = target();
 
         let profile = build_interaction_profile(InteractionProfileInput {
-            env_root: Path::new("/unused"),
-            target_binary: "notes",
-            command_pattern: None,
-            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            target: &target,
+            evidence: InteractionEvidence::StructuredToolCalls(events),
             completed: true,
-            supports_structured_tool_calls: true,
         })
         .expect("profile");
 
@@ -303,14 +365,11 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("transcript.raw.txt"), "notes add\n").expect("write");
 
-        let error = build_interaction_profile(InteractionProfileInput {
-            env_root: temp.path(),
-            target_binary: "notes",
-            command_pattern: None,
-            interaction_input: &InteractionInput::TranscriptRegex,
-            completed: true,
-            supports_structured_tool_calls: true,
-        })
+        let error = InteractionEvidence::from_interaction_input(
+            &InteractionInput::TranscriptRegex,
+            AdapterEvidenceCapability::StructuredToolCalls,
+            temp.path().join("transcript.raw.txt"),
+        )
         .unwrap_err();
 
         assert!(error.to_string().contains("returned transcript regex"));
@@ -318,19 +377,16 @@ mod tests {
 
     #[test]
     fn completed_structured_run_requires_target_tool_events() {
-        let temp = tempfile::tempdir().expect("tempdir");
         let events = vec![CommandEvent {
             command: "ls -la".to_string(),
             exit_code: Some(0),
         }];
+        let target = target();
 
         let error = build_interaction_profile(InteractionProfileInput {
-            env_root: temp.path(),
-            target_binary: "notes",
-            command_pattern: None,
-            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            target: &target,
+            evidence: InteractionEvidence::StructuredToolCalls(events),
             completed: true,
-            supports_structured_tool_calls: true,
         })
         .unwrap_err();
 
@@ -345,14 +401,17 @@ mod tests {
             "notes add hello\nexit code: 0\n",
         )
         .expect("write");
+        let target = target();
 
         let profile = build_interaction_profile(InteractionProfileInput {
-            env_root: temp.path(),
-            target_binary: "notes",
-            command_pattern: None,
-            interaction_input: &InteractionInput::TranscriptRegex,
+            target: &target,
+            evidence: InteractionEvidence::from_interaction_input(
+                &InteractionInput::TranscriptRegex,
+                AdapterEvidenceCapability::TranscriptRegexFallback,
+                temp.path().join("transcript.raw.txt"),
+            )
+            .expect("fallback evidence"),
             completed: true,
-            supports_structured_tool_calls: false,
         })
         .expect("profile");
 

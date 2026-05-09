@@ -10,10 +10,10 @@
 #[cfg(test)]
 mod tests {
     use crate::evaluation;
+    use crate::interaction_profile::InteractionEvidence;
     use crate::run::setup::setup_scenario_env;
     use crate::scenario::load;
     use crate::script_runner::ScriptRunner;
-    use crate::transcript::InteractionInput;
     use std::collections::HashMap;
     use std::path::Path;
     use std::process::Command as StdCommand;
@@ -112,9 +112,10 @@ mod tests {
             Some(&script_runner),
             None,
             None,
-            &InteractionInput::TranscriptRegex,
+            InteractionEvidence::TranscriptRegexFallback {
+                transcript_path: env.root.join("transcript.raw.txt"),
+            },
             true,
-            false,
         )
         .expect("evaluate");
 

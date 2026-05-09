@@ -1,6 +1,7 @@
 use crate::adapter::{TokenUsage, ToolAdapter, ToolRunOutput};
 use crate::evaluation::EvaluationMetrics;
 use crate::fixture::TestEnv;
+use crate::interaction_profile::{AdapterEvidenceCapability, InteractionEvidence};
 use crate::run::artifacts::RunArtifacts;
 use crate::scenario::Scenario;
 use crate::transcript::TranscriptWriter;
@@ -141,6 +142,13 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
 
     println!("Running evaluation...");
     let completed = exit_code == 0;
+    let evidence = InteractionEvidence::from_interaction_input(
+        &run_output.interaction_input,
+        AdapterEvidenceCapability::from_supports_structured_tool_calls(
+            input.adapter.supports_structured_tool_calls(),
+        ),
+        input.artifacts.fixture_transcript_path(),
+    )?;
     let metrics = crate::evaluation::evaluate(
         input.scenario,
         &input.env.root,
@@ -148,9 +156,8 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         Some(&script_runner),
         input.judge_model,
         input.judge_tool,
-        &run_output.interaction_input,
+        evidence,
         completed,
-        input.adapter.supports_structured_tool_calls(),
     )?;
     println!("Evaluation metrics: {:?}", metrics);
 

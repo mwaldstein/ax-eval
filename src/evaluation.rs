@@ -5,11 +5,12 @@ mod judge;
 use self::evaluators::run_evaluators;
 use self::gates::{evaluate_gates, GateEvaluationContext};
 use self::judge::maybe_run_judge;
-use crate::interaction_profile::InteractionProfile;
+use crate::interaction_profile::{
+    InteractionEvidence, InteractionProfile, InteractionProfileInput, TargetInteractionSpec,
+};
 use crate::judge::JudgeResponse;
 use crate::scenario::Scenario;
 use crate::script_runner::ScriptRunner;
-use crate::transcript::InteractionInput;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -93,26 +94,6 @@ pub struct EvaluatorResult {
     pub error: Option<String>,
 }
 
-fn build_interaction_profile(
-    env_root: &Path,
-    target_binary: &str,
-    command_pattern: Option<&str>,
-    interaction_input: &InteractionInput,
-    completed: bool,
-    supports_structured_tool_calls: bool,
-) -> Result<crate::interaction_profile::InteractionProfile> {
-    crate::interaction_profile::build_interaction_profile(
-        crate::interaction_profile::InteractionProfileInput {
-            env_root,
-            target_binary,
-            command_pattern,
-            interaction_input,
-            completed,
-            supports_structured_tool_calls,
-        },
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 fn build_metrics(
     scenario: &Scenario,
@@ -157,20 +138,21 @@ pub fn evaluate(
     script_runner: Option<&ScriptRunner>,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
-    interaction_input: &InteractionInput,
+    interaction_evidence: InteractionEvidence,
     completed: bool,
-    supports_structured_tool_calls: bool,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
 
-    let interaction_profile = build_interaction_profile(
-        env_root,
-        &scenario.target.binary,
-        scenario.target.command_pattern.as_deref(),
-        interaction_input,
-        completed,
-        supports_structured_tool_calls,
-    )?;
+    let target = TargetInteractionSpec::new(
+        scenario.target.binary.clone(),
+        scenario.target.command_pattern.clone(),
+    );
+    let interaction_profile =
+        crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            evidence: interaction_evidence,
+            completed,
+        })?;
 
     let ctx = GateEvaluationContext {
         env_root,
