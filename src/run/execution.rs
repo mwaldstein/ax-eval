@@ -58,18 +58,10 @@ fn run_post_scripts(
         let runner = artifacts.script_runner(scenario, tool, model);
 
         for entry in &scripts.post {
-            let result = runner.run(&entry.command, entry.timeout_secs)?;
-            let event = serde_json::json!({
-                "type": "post_script",
-                "command": entry.command,
-                "exit_code": result.exit_code,
-                "timed_out": result.timed_out,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-            });
-            writer.append_event(&event)?;
+            let report = runner.run_report(&entry.command, entry.timeout_secs)?;
+            writer.append_event(&report.event("post_script"))?;
 
-            if result.exit_code != 0 {
+            if !report.succeeded() {
                 eprintln!("Warning: post script failed: {}", entry.command);
             }
         }

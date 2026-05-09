@@ -1,4 +1,4 @@
-use crate::script_runner::ScriptRunner;
+use crate::script_runner::{ScriptRunStatus, ScriptRunner};
 use serde::Deserialize;
 
 use super::GateResult;
@@ -20,7 +20,7 @@ pub(super) fn eval_script(
         }
     };
 
-    let result = match runner.run(command, timeout_secs) {
+    let report = match runner.run_report(command, timeout_secs) {
         Ok(r) => r,
         Err(e) => {
             return GateResult {
@@ -31,7 +31,7 @@ pub(super) fn eval_script(
         }
     };
 
-    if result.timed_out {
+    if let ScriptRunStatus::TimedOut { timeout_secs } = report.status {
         return GateResult {
             gate_type: "Script".to_string(),
             passed: false,
@@ -48,7 +48,7 @@ pub(super) fn eval_script(
         message: Option<String>,
     }
 
-    let stdout = result.stdout.trim();
+    let stdout = report.result.stdout.trim();
     if let Ok(parsed) = serde_json::from_str::<ScriptGateOutput>(stdout) {
         return GateResult {
             gate_type: "Script".to_string(),
@@ -57,7 +57,7 @@ pub(super) fn eval_script(
         };
     }
 
-    let passed = result.succeeded();
+    let passed = report.succeeded();
     GateResult {
         gate_type: "Script".to_string(),
         passed,
@@ -65,7 +65,7 @@ pub(super) fn eval_script(
             "Script '{}' {} (exit code: {}, description: {})",
             command,
             if passed { "passed" } else { "failed" },
-            result.exit_code,
+            report.result.exit_code,
             description
         ),
     }

@@ -15,32 +15,18 @@ pub fn run_evaluators(
             println!("Running evaluator '{}'...", entry.name);
 
             let result = if let Some(runner) = script_runner {
-                match runner.run(&entry.command, entry.timeout_secs) {
-                    Ok(script_result) => {
-                        if script_result.timed_out {
+                match runner.run_report(&entry.command, entry.timeout_secs) {
+                    Ok(report) => {
+                        if let Some(error) = report.failure_summary() {
                             EvaluatorResult {
                                 name: entry.name.clone(),
                                 metrics: None,
                                 score: None,
                                 summary: None,
-                                error: Some(format!(
-                                    "Timed out after {} seconds",
-                                    entry.timeout_secs
-                                )),
-                            }
-                        } else if script_result.exit_code != 0 {
-                            EvaluatorResult {
-                                name: entry.name.clone(),
-                                metrics: None,
-                                score: None,
-                                summary: None,
-                                error: Some(format!(
-                                    "Exit code {}: {}",
-                                    script_result.exit_code, script_result.stderr
-                                )),
+                                error: Some(error),
                             }
                         } else {
-                            parse_evaluator_stdout(&entry.name, &script_result.stdout)
+                            parse_evaluator_stdout(&entry.name, &report.result.stdout)
                         }
                     }
                     Err(e) => EvaluatorResult {

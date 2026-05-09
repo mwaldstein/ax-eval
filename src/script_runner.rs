@@ -11,6 +11,69 @@ use std::path::PathBuf;
 /// Result of executing a script.
 pub type ScriptResult = CommandResult;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScriptRunStatus {
+    Succeeded,
+    TimedOut { timeout_secs: u64 },
+    Failed { exit_code: i32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptRunReport {
+    pub command: String,
+    pub timeout_secs: u64,
+    pub result: ScriptResult,
+    pub status: ScriptRunStatus,
+}
+
+impl ScriptRunReport {
+    fn new(command: &str, timeout_secs: u64, result: ScriptResult) -> Self {
+        let status = if result.timed_out {
+            ScriptRunStatus::TimedOut { timeout_secs }
+        } else if result.exit_code == 0 {
+            ScriptRunStatus::Succeeded
+        } else {
+            ScriptRunStatus::Failed {
+                exit_code: result.exit_code,
+            }
+        };
+
+        Self {
+            command: command.to_string(),
+            timeout_secs,
+            result,
+            status,
+        }
+    }
+
+    pub fn succeeded(&self) -> bool {
+        self.status == ScriptRunStatus::Succeeded
+    }
+
+    pub fn failure_summary(&self) -> Option<String> {
+        match self.status {
+            ScriptRunStatus::Succeeded => None,
+            ScriptRunStatus::TimedOut { timeout_secs } => {
+                Some(format!("Timed out after {} seconds", timeout_secs))
+            }
+            ScriptRunStatus::Failed { exit_code } => {
+                Some(format!("Exit code {}: {}", exit_code, self.result.stderr))
+            }
+        }
+    }
+
+    pub fn event(&self, event_type: &str) -> serde_json::Value {
+        serde_json::json!({
+            "type": event_type,
+            "command": self.command,
+            "exit_code": self.result.exit_code,
+            "timed_out": self.result.timed_out,
+            "stdout": self.result.stdout,
+            "stderr": self.result.stderr,
+        })
+    }
+}
+
 /// A runner for executing scripts in the fixture directory.
 #[derive(Debug, Clone)]
 pub struct ScriptRunner {
@@ -66,6 +129,11 @@ impl ScriptRunner {
             timeout_secs,
             &self.build_env(),
         )
+    }
+
+    pub fn run_report(&self, command: &str, timeout_secs: u64) -> anyhow::Result<ScriptRunReport> {
+        let result = self.run(command, timeout_secs)?;
+        Ok(ScriptRunReport::new(command, timeout_secs, result))
     }
 
     /// Build the environment variables for script execution.
@@ -174,6 +242,46 @@ mod tests {
 
         assert!(!result.succeeded());
         assert!(result.timed_out);
+    }
+
+    #[test]
+    fn test_script_report_classifies_success() {
+        let temp = TempDir::new().unwrap();
+        let runner = create_test_runner(temp.path().to_path_buf());
+
+        let report = runner.run_report("true", 10).unwrap();
+
+        assert_eq!(report.status, ScriptRunStatus::Succeeded);
+        assert!(report.succeeded());
+        assert_eq!(report.failure_summary(), None);
+    }
+
+    #[test]
+    fn test_script_report_classifies_failure() {
+        let temp = TempDir::new().unwrap();
+        let runner = create_test_runner(temp.path().to_path_buf());
+
+        let report = runner.run_report("echo nope >&2; exit 7", 10).unwrap();
+
+        assert_eq!(report.status, ScriptRunStatus::Failed { exit_code: 7 });
+        assert_eq!(
+            report.failure_summary(),
+            Some("Exit code 7: nope\n".to_string())
+        );
+    }
+
+    #[test]
+    fn test_script_report_classifies_timeout() {
+        let temp = TempDir::new().unwrap();
+        let runner = create_test_runner(temp.path().to_path_buf());
+
+        let report = runner.run_report("sleep 2", 1).unwrap();
+
+        assert_eq!(report.status, ScriptRunStatus::TimedOut { timeout_secs: 1 });
+        assert_eq!(
+            report.failure_summary(),
+            Some("Timed out after 1 seconds".to_string())
+        );
     }
 
     #[test]
