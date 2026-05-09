@@ -20,6 +20,21 @@ impl JudgeEvaluationResult {
     }
 }
 
+#[derive(Debug, Clone)]
+struct JudgeExecutionResult {
+    score: Option<f64>,
+    response: Option<JudgeResponse>,
+}
+
+impl JudgeExecutionResult {
+    fn from_response(response: JudgeResponse) -> Self {
+        Self {
+            score: Some(response.weighted_score),
+            response: Some(response),
+        }
+    }
+}
+
 pub fn maybe_run_judge(
     scenario: &Scenario,
     env_root: &Path,
@@ -39,10 +54,10 @@ pub fn maybe_run_judge(
                 );
                 return Ok(JudgeEvaluationResult::skipped());
             }
-            let (score, response) =
+            let execution =
                 run_judge_evaluation(judge_config, judge_model, judge_tool, scenario, env_root)?;
-            let passed = score.map(|s| s >= judge_config.pass_threshold);
-            if let Some(s) = score {
+            let passed = execution.score.map(|s| s >= judge_config.pass_threshold);
+            if let Some(s) = execution.score {
                 if s >= judge_config.pass_threshold {
                     println!(
                         "Judge passed: score {:.2} >= threshold {:.2}",
@@ -56,8 +71,8 @@ pub fn maybe_run_judge(
                 }
             }
             return Ok(JudgeEvaluationResult {
-                score,
-                response,
+                score: execution.score,
+                response: execution.response,
                 passed,
             });
         }
@@ -71,7 +86,7 @@ fn run_judge_evaluation(
     judge_tool: Option<&str>,
     scenario: &Scenario,
     env_root: &Path,
-) -> Result<(Option<f64>, Option<JudgeResponse>)> {
+) -> Result<JudgeExecutionResult> {
     println!("Running LLM-as-judge evaluation...");
     let tool = resolve_judge_tool(judge_config, judge_tool);
     let rubric_path = crate::utils::resolve_fixtures_path(&judge_config.rubric);
@@ -112,7 +127,7 @@ fn run_judge_evaluation(
         println!("Highlights: {}", response.highlights.join(", "));
     }
 
-    Ok((Some(response.weighted_score), Some(response)))
+    Ok(JudgeExecutionResult::from_response(response))
 }
 
 fn resolve_judge_tool<'a>(judge_config: &'a JudgeConfig, judge_tool: Option<&'a str>) -> &'a str {
@@ -193,6 +208,29 @@ mod tests {
         assert_eq!(result.score, None);
         assert!(result.response.is_none());
         assert_eq!(result.passed, None);
+    }
+
+    #[test]
+    fn judge_execution_result_carries_response_score() {
+        let response = JudgeResponse {
+            weighted_score: 0.82,
+            confidence: 0.9,
+            rationale: "solid".to_string(),
+            issues: vec![],
+            highlights: vec!["clear".to_string()],
+            scores: std::collections::HashMap::new(),
+        };
+
+        let result = JudgeExecutionResult::from_response(response);
+
+        assert_eq!(result.score, Some(0.82));
+        assert_eq!(
+            result
+                .response
+                .as_ref()
+                .map(|response| response.rationale.as_str()),
+            Some("solid")
+        );
     }
 
     #[test]
