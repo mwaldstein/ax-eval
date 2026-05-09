@@ -113,8 +113,7 @@ fn run_judge_evaluation(
         anyhow::bail!("Judge exited with code {}: {}", exit_code, output);
     }
 
-    let response: JudgeResponse = serde_json::from_str(&output)
-        .with_context(|| format!("Failed to parse judge response: {}", output))?;
+    let response = parse_judge_response(&output)?;
 
     println!(
         "Judge score: {:.2} (confidence: {:.2})",
@@ -128,6 +127,36 @@ fn run_judge_evaluation(
     }
 
     Ok(JudgeExecutionResult::from_response(response))
+}
+
+fn parse_judge_response(output: &str) -> Result<JudgeResponse> {
+    if let Ok(response) = serde_json::from_str::<JudgeResponse>(output) {
+        return Ok(response);
+    }
+
+    if let Some(enveloped) = extract_judge_result_envelope(output) {
+        if let Ok(response) = serde_json::from_str::<JudgeResponse>(enveloped.trim()) {
+            return Ok(response);
+        }
+    }
+
+    for (index, _) in output.match_indices('{') {
+        let mut stream =
+            serde_json::Deserializer::from_str(&output[index..]).into_iter::<JudgeResponse>();
+        if let Some(Ok(response)) = stream.next() {
+            return Ok(response);
+        }
+    }
+
+    anyhow::bail!("Failed to parse judge response: {}", output)
+}
+
+fn extract_judge_result_envelope(output: &str) -> Option<&str> {
+    let start_tag = "<judge_result>";
+    let end_tag = "</judge_result>";
+    let start = output.find(start_tag)? + start_tag.len();
+    let end = output[start..].find(end_tag)? + start;
+    Some(&output[start..end])
 }
 
 fn resolve_judge_tool<'a>(judge_config: &'a JudgeConfig, judge_tool: Option<&'a str>) -> &'a str {
@@ -231,6 +260,87 @@ mod tests {
                 .map(|response| response.rationale.as_str()),
             Some("solid")
         );
+    }
+
+    #[test]
+    fn judge_response_parser_accepts_fenced_json_with_terminal_text() {
+        let output = r#"opencode output
+
+```json
+{
+  "scores": {
+    "completion": 1.0,
+    "quality": 0.93
+  },
+  "weighted_score": 0.965,
+  "confidence": 0.9,
+  "issues": [],
+  "highlights": ["Completed the requested workflow"],
+  "rationale": "The agent completed the task and verified the result."
+}
+```
+
+done
+"#;
+
+        let response = parse_judge_response(output).expect("parse fenced judge response");
+
+        assert_eq!(response.weighted_score, 0.965);
+        assert_eq!(response.confidence, 0.9);
+        assert_eq!(
+            response.highlights,
+            vec!["Completed the requested workflow".to_string()]
+        );
+    }
+
+    #[test]
+    fn judge_response_parser_prefers_judge_result_envelope() {
+        let output = r#"terminal text before
+<judge_result>
+{
+  "scores": {
+    "completion": 1.0
+  },
+  "weighted_score": 1.0,
+  "confidence": 0.95,
+  "issues": [],
+  "highlights": ["Used the target tool effectively"],
+  "rationale": "The workflow was completed cleanly."
+}
+</judge_result>
+terminal text after
+"#;
+
+        let response = parse_judge_response(output).expect("parse enveloped judge response");
+
+        assert_eq!(response.weighted_score, 1.0);
+        assert_eq!(
+            response.highlights,
+            vec!["Used the target tool effectively".to_string()]
+        );
+    }
+
+    #[test]
+    fn judge_response_parser_does_not_parse_prose_inside_judge_result() {
+        let output = r#"<judge_result>
+This is not JSON.
+</judge_result>
+{
+  "scores": {
+    "fallback": 0.7
+  },
+  "weighted_score": 0.7,
+  "confidence": 0.8,
+  "issues": ["Envelope was malformed"],
+  "highlights": [],
+  "rationale": "Fallback still found valid JSON."
+}
+"#;
+
+        let response = parse_judge_response(output).expect("parse fallback judge response");
+
+        assert_eq!(response.weighted_score, 0.7);
+        assert_eq!(response.issues, vec!["Envelope was malformed".to_string()]);
     }
 
     #[test]

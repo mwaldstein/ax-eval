@@ -9,7 +9,7 @@ use crate::judge::types::Rubric;
 /// Build the judge prompt for CLI-based evaluation.
 ///
 /// Constructs a prompt containing the tool name, task description, transcript
-/// file reference, rubric criteria, and required JSON response format.
+/// file reference, rubric criteria, and required judge result format.
 /// This prompt is passed to a supported judge CLI tool.
 pub fn build_judge_prompt(
     tool_name: &str,
@@ -43,7 +43,7 @@ Read the transcript at @{transcript_path}, then score the interaction against th
 - `highlights`: specific good practices observed (e.g., "Used `{tool_name} search` to verify data before proceeding").
 - `rationale`: 2–4 sentence explanation of the overall assessment — why the scores are what they are, what the agent did well, and where it struggled.
 
-Return JSON with this exact structure:
+Return one valid JSON object with this exact structure:
 {{
   "scores": {{
     "criterion_id": <score_0_to_1>,
@@ -56,7 +56,12 @@ Return JSON with this exact structure:
   "rationale": "<2-4 sentence explanation of the overall assessment>"
 }}
 
-Provide JSON only, no additional text."#,
+Wrap only that JSON object in a single <judge_result> tag:
+<judge_result>
+{{ ...the JSON object above... }}
+</judge_result>
+
+Do not put prose, markdown, or code fences inside <judge_result>. If you need to say anything else, put it outside the tag."#,
         tool_name = tool_name,
         task_description = task_description,
         transcript_path = transcript_path,

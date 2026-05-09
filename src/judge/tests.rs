@@ -84,6 +84,16 @@ fn test_build_judge_prompt_requests_rationale() {
 }
 
 #[test]
+fn test_build_judge_prompt_requests_judge_result_envelope() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("notes", "task", "/t.txt", &rubric);
+
+    assert!(prompt.contains("<judge_result>"));
+    assert!(prompt.contains("</judge_result>"));
+    assert!(prompt.contains("Do not put prose, markdown, or code fences inside <judge_result>"));
+}
+
+#[test]
 fn test_build_judge_prompt_uses_tool_name_in_examples() {
     let rubric = single_criterion_rubric();
     let prompt = build_judge_prompt("qipu", "task", "/t.txt", &rubric);
