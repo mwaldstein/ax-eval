@@ -6,7 +6,7 @@ use self::evaluators::run_evaluators;
 use self::gates::{evaluate_gates, GateEvaluationContext};
 use self::judge::maybe_run_judge;
 use crate::interaction_profile::{
-    InteractionEvidence, InteractionProfile, InteractionProfileInput, TargetInteractionSpec,
+    AdapterEvidenceCapability, InteractionProfile, InteractionProfileInput, TargetInteractionSpec,
 };
 use crate::judge::JudgeResponse;
 use crate::scenario::Scenario;
@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScoreTier {
@@ -138,7 +139,9 @@ pub fn evaluate(
     script_runner: Option<&ScriptRunner>,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
-    interaction_evidence: InteractionEvidence,
+    interaction_input: &crate::transcript::InteractionInput,
+    adapter_capability: AdapterEvidenceCapability,
+    transcript_path: PathBuf,
     completed: bool,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
@@ -150,7 +153,9 @@ pub fn evaluate(
     let interaction_profile =
         crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
             target: &target,
-            evidence: interaction_evidence,
+            interaction_input,
+            adapter_capability,
+            transcript_path,
             completed,
         })?;
 

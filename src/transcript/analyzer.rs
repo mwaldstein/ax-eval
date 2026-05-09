@@ -137,11 +137,60 @@ impl TranscriptAnalyzer {
         commands
     }
 
+    fn extract_command_lines_with_exit_codes(transcript: &str) -> Vec<CommandEvent> {
+        let command_line_regex = Regex::new(r"^\s*(?:\$\s*)?([A-Za-z0-9_./~:-][^\r\n]*)").unwrap();
+        let exit_code_regex = Regex::new(r"(?i)exit\s+(?:code|status):?\s*(\d+)").unwrap();
+
+        let lines: Vec<&str> = transcript.lines().collect();
+        let mut commands = Vec::new();
+
+        for (i, line) in lines.iter().enumerate() {
+            let Some(caps) = command_line_regex.captures(line) else {
+                continue;
+            };
+            let Some(command_match) = caps.get(1) else {
+                continue;
+            };
+            let command = command_match.as_str().trim();
+            let command_lower = command.to_lowercase();
+            if command_lower.starts_with("exit ")
+                || command_lower.starts_with("error")
+                || command_lower.starts_with("failed")
+            {
+                continue;
+            }
+
+            let next_lines: Vec<&str> = lines[i + 1..].iter().take(20).cloned().collect();
+            let joined = next_lines.join("\n");
+            let exit_code = if let Some(exit_caps) = exit_code_regex.captures(&joined) {
+                exit_caps[1].parse().unwrap_or(-1)
+            } else if Self::is_error_line(&joined) {
+                1
+            } else {
+                0
+            };
+
+            commands.push(CommandEvent {
+                command: command.to_string(),
+                exit_code: Some(exit_code),
+            });
+        }
+
+        commands
+    }
+
     pub(crate) fn extract_command_events_for_target(
         transcript: &str,
         target_binary: &str,
         command_pattern: Option<&str>,
     ) -> Vec<CommandEvent> {
+        if command_pattern.is_none_or(|pattern| pattern.trim().is_empty()) {
+            let target =
+                crate::interaction_profile::TargetInteractionSpec::new(target_binary, None);
+            let events = Self::extract_command_lines_with_exit_codes(transcript);
+            return crate::interaction_profile::target_command_events(&events, &target);
+        }
+
         let pattern = Self::resolve_command_pattern(target_binary, command_pattern);
         Self::extract_commands_with_pattern(transcript, &pattern)
     }

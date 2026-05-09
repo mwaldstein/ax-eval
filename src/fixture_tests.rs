@@ -10,7 +10,7 @@
 #[cfg(test)]
 mod tests {
     use crate::evaluation;
-    use crate::interaction_profile::InteractionEvidence;
+    use crate::interaction_profile::AdapterEvidenceCapability;
     use crate::run::setup::setup_scenario_env;
     use crate::scenario::load;
     use crate::script_runner::ScriptRunner;
@@ -112,9 +112,9 @@ mod tests {
             Some(&script_runner),
             None,
             None,
-            InteractionEvidence::TranscriptRegexFallback {
-                transcript_path: env.root.join("transcript.raw.txt"),
-            },
+            &crate::transcript::InteractionInput::TranscriptRegex,
+            AdapterEvidenceCapability::TranscriptRegexFallback,
+            env.root.join("transcript.raw.txt"),
             true,
         )
         .expect("evaluate");

@@ -2,6 +2,7 @@ use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionInput, Trans
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,13 +58,13 @@ impl TargetInteractionSpec {
 }
 
 #[derive(Debug, Clone)]
-pub enum InteractionEvidence {
+enum InteractionEvidence {
     StructuredToolCalls(Vec<CommandEvent>),
     TranscriptRegexFallback { transcript_path: PathBuf },
 }
 
 impl InteractionEvidence {
-    pub fn from_interaction_input(
+    fn from_interaction_input(
         interaction_input: &InteractionInput,
         adapter_capability: AdapterEvidenceCapability,
         transcript_path: impl Into<PathBuf>,
@@ -98,7 +99,9 @@ impl InteractionEvidence {
 
 pub struct InteractionProfileInput<'a> {
     pub target: &'a TargetInteractionSpec,
-    pub evidence: InteractionEvidence,
+    pub interaction_input: &'a InteractionInput,
+    pub adapter_capability: AdapterEvidenceCapability,
+    pub transcript_path: PathBuf,
     pub completed: bool,
 }
 
@@ -157,11 +160,14 @@ pub(crate) fn reduce_command_events(events: &[CommandEvent]) -> EfficiencyMetric
     }
 }
 
-fn target_command_events(events: &[CommandEvent], target_binary: &str) -> Vec<CommandEvent> {
+pub(crate) fn target_command_events(
+    events: &[CommandEvent],
+    target: &TargetInteractionSpec,
+) -> Vec<CommandEvent> {
     events
         .iter()
         .filter_map(|event| {
-            target_subcommand(&event.command, target_binary).map(|command| CommandEvent {
+            target_subcommand(&event.command, target.binary()).map(|command| CommandEvent {
                 command,
                 exit_code: event.exit_code,
             })
@@ -183,7 +189,11 @@ fn target_subcommand(command: &str, target_binary: &str) -> Option<String> {
             }
         }
 
-        let token_binary = std::path::Path::new(token)
+        if token == "$" {
+            continue;
+        }
+
+        let token_binary = Path::new(token)
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or(token);
@@ -253,10 +263,15 @@ fn shell_like_tokens(command: &str) -> Vec<String> {
 }
 
 pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<InteractionProfile> {
-    let structured_evidence = matches!(input.evidence, InteractionEvidence::StructuredToolCalls(_));
-    let (mut metrics, evidence_source) = match input.evidence {
+    let evidence = InteractionEvidence::from_interaction_input(
+        input.interaction_input,
+        input.adapter_capability,
+        input.transcript_path,
+    )?;
+    let structured_evidence = matches!(evidence, InteractionEvidence::StructuredToolCalls(_));
+    let (mut metrics, evidence_source) = match evidence {
         InteractionEvidence::StructuredToolCalls(command_events) => {
-            let target_events = target_command_events(&command_events, input.target.binary());
+            let target_events = target_command_events(&command_events, input.target);
             let metrics = reduce_command_events(&target_events);
             (metrics, InteractionEvidenceSource::StructuredToolCalls)
         }
@@ -296,6 +311,10 @@ mod tests {
         TargetInteractionSpec::new("notes", None)
     }
 
+    fn unused_transcript_path() -> PathBuf {
+        PathBuf::from("unused-transcript.raw.txt")
+    }
+
     #[test]
     fn structured_evidence_builds_profile() {
         let events = vec![CommandEvent {
@@ -306,7 +325,9 @@ mod tests {
 
         let profile = build_interaction_profile(InteractionProfileInput {
             target: &target,
-            evidence: InteractionEvidence::StructuredToolCalls(events),
+            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
             completed: true,
         })
         .expect("profile");
@@ -347,7 +368,9 @@ mod tests {
 
         let profile = build_interaction_profile(InteractionProfileInput {
             target: &target,
-            evidence: InteractionEvidence::StructuredToolCalls(events),
+            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
             completed: true,
         })
         .expect("profile");
@@ -365,11 +388,14 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("transcript.raw.txt"), "notes add\n").expect("write");
 
-        let error = InteractionEvidence::from_interaction_input(
-            &InteractionInput::TranscriptRegex,
-            AdapterEvidenceCapability::StructuredToolCalls,
-            temp.path().join("transcript.raw.txt"),
-        )
+        let target = target();
+        let error = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::TranscriptRegex,
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: temp.path().join("transcript.raw.txt"),
+            completed: true,
+        })
         .unwrap_err();
 
         assert!(error.to_string().contains("returned transcript regex"));
@@ -385,7 +411,9 @@ mod tests {
 
         let error = build_interaction_profile(InteractionProfileInput {
             target: &target,
-            evidence: InteractionEvidence::StructuredToolCalls(events),
+            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
             completed: true,
         })
         .unwrap_err();
@@ -405,12 +433,9 @@ mod tests {
 
         let profile = build_interaction_profile(InteractionProfileInput {
             target: &target,
-            evidence: InteractionEvidence::from_interaction_input(
-                &InteractionInput::TranscriptRegex,
-                AdapterEvidenceCapability::TranscriptRegexFallback,
-                temp.path().join("transcript.raw.txt"),
-            )
-            .expect("fallback evidence"),
+            interaction_input: &InteractionInput::TranscriptRegex,
+            adapter_capability: AdapterEvidenceCapability::TranscriptRegexFallback,
+            transcript_path: temp.path().join("transcript.raw.txt"),
             completed: true,
         })
         .expect("profile");
@@ -420,5 +445,66 @@ mod tests {
             InteractionEvidenceSource::TranscriptRegexFallback
         );
         assert_eq!(profile.metrics.total_commands, 1);
+    }
+
+    #[test]
+    fn structured_and_regex_fallback_use_same_target_command_extraction() {
+        let target = target();
+        let structured_events = vec![
+            CommandEvent {
+                command: "./notes init".to_string(),
+                exit_code: Some(0),
+            },
+            CommandEvent {
+                command: "bash -lc './notes add \"Hello\"'".to_string(),
+                exit_code: Some(1),
+            },
+            CommandEvent {
+                command: "/tmp/work/notes list --help".to_string(),
+                exit_code: Some(0),
+            },
+        ];
+
+        let structured = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredToolCalls(structured_events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+        })
+        .expect("structured profile");
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let transcript_path = temp.path().join("transcript.raw.txt");
+        std::fs::write(
+            &transcript_path,
+            "$ ./notes init\nexit code: 0\n\
+             $ bash -lc './notes add \"Hello\"'\nexit code: 1\n\
+             $ /tmp/work/notes list --help\nexit code: 0\n",
+        )
+        .expect("write transcript");
+
+        let fallback = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::TranscriptRegex,
+            adapter_capability: AdapterEvidenceCapability::TranscriptRegexFallback,
+            transcript_path,
+            completed: true,
+        })
+        .expect("fallback profile");
+
+        assert_eq!(
+            structured.metrics.total_commands,
+            fallback.metrics.total_commands
+        );
+        assert_eq!(
+            structured.metrics.unique_commands,
+            fallback.metrics.unique_commands
+        );
+        assert_eq!(structured.metrics.error_count, fallback.metrics.error_count);
+        assert_eq!(
+            structured.metrics.help_invocations,
+            fallback.metrics.help_invocations
+        );
     }
 }
