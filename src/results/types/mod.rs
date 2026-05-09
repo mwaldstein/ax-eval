@@ -70,6 +70,9 @@ pub struct EvaluationMetricsRecord {
     pub judge_passed: Option<bool>,
     /// Efficiency metrics
     pub efficiency: EfficiencyMetricsRecord,
+    /// Source used to build interaction metrics
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interaction_evidence_source: Option<crate::interaction_profile::InteractionEvidenceSource>,
     /// Composite quality score (0.0-1.0), only present if scenario configures composite weights
     #[serde(skip_serializing_if = "Option::is_none")]
     pub composite_score: Option<f64>,

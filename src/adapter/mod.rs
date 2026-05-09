@@ -60,6 +60,11 @@ impl ToolRunOutput {
 
 /// Trait for tool adapters that execute LLM CLI tools.
 pub trait ToolAdapter: Send + Sync {
+    /// Whether this adapter provides structured tool-call evidence for interaction profiles.
+    fn supports_structured_tool_calls(&self) -> bool {
+        false
+    }
+
     /// Check if tool is installed and authenticated.
     fn is_available(&self) -> Result<ToolStatus, AdapterError>;
 

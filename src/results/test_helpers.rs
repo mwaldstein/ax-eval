@@ -58,6 +58,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
                 iteration_ratio: 1.5,
                 completed: true,
             },
+            interaction_evidence_source: None,
             composite_score: Some(0.9),
             evaluator_results: vec![],
         },

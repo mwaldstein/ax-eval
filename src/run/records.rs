@@ -60,6 +60,7 @@ pub fn build_result_record(
                 iteration_ratio: metrics.efficiency.iteration_ratio,
                 completed: metrics.efficiency.completed,
             },
+            interaction_evidence_source: Some(metrics.interaction_evidence_source),
             composite_score: metrics.composite_score,
             evaluator_results: metrics
                 .evaluator_results
@@ -116,6 +117,7 @@ pub fn handle_dry_run(
                 iteration_ratio: 0.0,
                 completed: false,
             },
+            interaction_evidence_source: None,
             composite_score: None,
             evaluator_results: vec![],
         },

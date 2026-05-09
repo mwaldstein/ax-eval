@@ -1,7 +1,7 @@
 use crate::judge::{load_rubric, JudgeResponse};
 use crate::scenario::{Gate, JudgeConfig, Scenario};
 use crate::script_runner::ScriptRunner;
-use crate::transcript::{EfficiencyMetrics, InteractionInput};
+use crate::transcript::InteractionInput;
 use anyhow::{Context, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,8 @@ pub struct EvaluationContext<'a> {
     pub command_pattern: Option<&'a str>,
     pub script_runner: Option<&'a ScriptRunner>,
     pub interaction_input: &'a InteractionInput,
+    pub supports_structured_tool_calls: bool,
+    pub completed: bool,
 }
 
 pub trait GateEvaluator {
@@ -68,6 +70,8 @@ impl GateEvaluator for Gate {
                 ctx.target_binary,
                 ctx.command_pattern,
                 ctx.interaction_input,
+                ctx.supports_structured_tool_calls,
+                ctx.completed,
             ),
             Gate::Script {
                 command,
@@ -548,14 +552,20 @@ fn eval_no_transcript_errors(
     target_binary: &str,
     command_pattern: Option<&str>,
     interaction_input: &InteractionInput,
+    supports_structured_tool_calls: bool,
+    completed: bool,
 ) -> GateResult {
     eval_gate!(
         "NoTranscriptErrors",
-        crate::eval_helpers::no_transcript_errors(
-            env_root,
-            target_binary,
-            command_pattern,
-            interaction_input
+        crate::interaction_profile::no_transcript_errors(
+            crate::interaction_profile::InteractionProfileInput {
+                env_root,
+                target_binary,
+                command_pattern,
+                interaction_input,
+                completed,
+                supports_structured_tool_calls,
+            }
         ),
         |no_errors| (
             no_errors,
@@ -605,7 +615,8 @@ pub struct EvaluationMetrics {
     pub judge_score: Option<f64>,
     pub judge_response: Option<JudgeResponse>,
     pub judge_passed: Option<bool>,
-    pub efficiency: EfficiencyMetrics,
+    pub efficiency: crate::transcript::EfficiencyMetrics,
+    pub interaction_evidence_source: crate::interaction_profile::InteractionEvidenceSource,
     /// Composite score is only computed if scenario configures composite weights
     #[serde(skip_serializing_if = "Option::is_none")]
     pub composite_score: Option<f64>,
@@ -897,31 +908,24 @@ fn run_evaluators(
     results
 }
 
-fn compute_efficiency_or_default(
+fn build_interaction_profile(
     env_root: &Path,
     target_binary: &str,
     command_pattern: Option<&str>,
     interaction_input: &InteractionInput,
     completed: bool,
-) -> EfficiencyMetrics {
-    let mut metrics = crate::eval_helpers::compute_efficiency_metrics(
-        env_root,
-        target_binary,
-        command_pattern,
-        interaction_input,
+    supports_structured_tool_calls: bool,
+) -> Result<crate::interaction_profile::InteractionProfile> {
+    crate::interaction_profile::build_interaction_profile(
+        crate::interaction_profile::InteractionProfileInput {
+            env_root,
+            target_binary,
+            command_pattern,
+            interaction_input,
+            completed,
+            supports_structured_tool_calls,
+        },
     )
-    .unwrap_or(EfficiencyMetrics {
-        total_commands: 0,
-        unique_commands: 0,
-        error_count: 0,
-        retry_count: 0,
-        help_invocations: 0,
-        first_try_success_rate: 0.0,
-        iteration_ratio: 0.0,
-        completed: false,
-    });
-    metrics.completed = completed;
-    metrics
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -935,14 +939,17 @@ fn build_metrics(
     judge_passed: Option<bool>,
     interaction_input: &InteractionInput,
     completed: bool,
-) -> EvaluationMetrics {
-    let efficiency = compute_efficiency_or_default(
+    supports_structured_tool_calls: bool,
+) -> Result<EvaluationMetrics> {
+    let interaction_profile = build_interaction_profile(
         env_root,
         &scenario.target.binary,
         scenario.target.command_pattern.as_deref(),
         interaction_input,
         completed,
-    );
+        supports_structured_tool_calls,
+    )?;
+    let efficiency = interaction_profile.metrics;
     let composite_score = scenario.evaluation.composite.as_ref().map(|weights| {
         crate::eval_helpers::compute_composite_score(
             judge_score,
@@ -953,7 +960,7 @@ fn build_metrics(
         )
     });
 
-    EvaluationMetrics {
+    Ok(EvaluationMetrics {
         gates_passed,
         gates_total: scenario.evaluation.gates.len(),
         details,
@@ -961,9 +968,10 @@ fn build_metrics(
         judge_response,
         judge_passed,
         efficiency,
+        interaction_evidence_source: interaction_profile.evidence_source,
         composite_score,
         evaluator_results: Vec::new(),
-    }
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -976,6 +984,7 @@ pub fn evaluate(
     judge_tool: Option<&str>,
     interaction_input: &InteractionInput,
     completed: bool,
+    supports_structured_tool_calls: bool,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
 
@@ -985,6 +994,8 @@ pub fn evaluate(
         command_pattern: scenario.target.command_pattern.as_deref(),
         script_runner,
         interaction_input,
+        supports_structured_tool_calls,
+        completed,
     };
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
@@ -1008,7 +1019,8 @@ pub fn evaluate(
         judge_passed,
         interaction_input,
         completed,
-    );
+        supports_structured_tool_calls,
+    )?;
 
     // Run custom evaluators after gates and judge evaluation
     metrics.evaluator_results = run_evaluators(scenario, script_runner);

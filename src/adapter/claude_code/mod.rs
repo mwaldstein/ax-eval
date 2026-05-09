@@ -8,6 +8,10 @@ use std::path::Path;
 pub struct ClaudeCodeAdapter;
 
 impl ToolAdapter for ClaudeCodeAdapter {
+    fn supports_structured_tool_calls(&self) -> bool {
+        true
+    }
+
     fn is_available(&self) -> Result<super::ToolStatus, super::AdapterError> {
         let runner = SessionRunner::new();
         match runner.run_command("claude", &["--version"], Path::new("."), 10) {

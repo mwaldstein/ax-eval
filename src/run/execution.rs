@@ -175,6 +175,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         input.judge_tool,
         &run_output.interaction_input,
         completed,
+        input.adapter.supports_structured_tool_calls(),
     )?;
     println!("Evaluation metrics: {:?}", metrics);
 

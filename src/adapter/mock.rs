@@ -29,6 +29,10 @@ impl MockAdapter {
 }
 
 impl ToolAdapter for MockAdapter {
+    fn supports_structured_tool_calls(&self) -> bool {
+        true
+    }
+
     fn is_available(&self) -> Result<super::ToolStatus, super::AdapterError> {
         Ok(super::ToolStatus {
             available: true,

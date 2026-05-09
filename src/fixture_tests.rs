@@ -114,6 +114,7 @@ mod tests {
             None,
             &InteractionInput::TranscriptRegex,
             true,
+            false,
         )
         .expect("evaluate");
 

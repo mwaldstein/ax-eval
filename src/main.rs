@@ -13,6 +13,7 @@ mod evaluation;
 mod fixture;
 #[cfg(test)]
 mod fixture_tests;
+mod interaction_profile;
 mod judge;
 mod output;
 mod results;

@@ -8,6 +8,10 @@ use std::path::Path;
 pub struct CodexAdapter;
 
 impl ToolAdapter for CodexAdapter {
+    fn supports_structured_tool_calls(&self) -> bool {
+        true
+    }
+
     fn is_available(&self) -> Result<super::ToolStatus, super::AdapterError> {
         let runner = SessionRunner::new();
         let available = match runner.run_command("codex", &["--version"], Path::new("."), 10) {
