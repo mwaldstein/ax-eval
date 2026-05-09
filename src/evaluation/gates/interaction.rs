@@ -1,0 +1,12 @@
+use crate::interaction_profile::InteractionProfile;
+
+use super::GateResult;
+
+pub(super) fn eval_no_transcript_errors(interaction_profile: &InteractionProfile) -> GateResult {
+    let no_errors = interaction_profile.metrics.error_count == 0;
+    GateResult {
+        gate_type: "NoTranscriptErrors".to_string(),
+        passed: no_errors,
+        message: format!("Transcript has no command errors: {}", no_errors),
+    }
+}
