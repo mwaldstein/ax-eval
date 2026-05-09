@@ -1,3 +1,4 @@
+use crate::interaction_profile::InteractionProfile;
 use crate::judge::{load_rubric, JudgeResponse};
 use crate::scenario::{Gate, JudgeConfig, Scenario};
 use crate::script_runner::ScriptRunner;
@@ -10,35 +11,11 @@ use std::fmt;
 use std::path::Path;
 use std::process::{Command, Output};
 
-macro_rules! eval_gate {
-    ($gate_type:expr, $expr:expr, |$result:ident| $closure:expr) => {
-        match $expr {
-            Ok($result) => {
-                let (passed, message) = $closure;
-                GateResult {
-                    gate_type: $gate_type.to_string(),
-                    passed,
-                    message,
-                }
-            }
-            Err(e) => GateResult {
-                gate_type: $gate_type.to_string(),
-                passed: false,
-                message: format!("Evaluation error: {:#}", e),
-            },
-        }
-    };
-}
-
 /// Context passed to gate evaluators, containing environment and optional script runner.
 pub struct EvaluationContext<'a> {
     pub env_root: &'a Path,
-    pub target_binary: &'a str,
-    pub command_pattern: Option<&'a str>,
     pub script_runner: Option<&'a ScriptRunner>,
-    pub interaction_input: &'a InteractionInput,
-    pub supports_structured_tool_calls: bool,
-    pub completed: bool,
+    pub interaction_profile: &'a InteractionProfile,
 }
 
 pub trait GateEvaluator {
@@ -65,14 +42,7 @@ impl GateEvaluator for Gate {
                 eval_file_contains(path, substring, ctx.env_root)
             }
             Gate::FileMatches { path, pattern } => eval_file_matches(path, pattern, ctx.env_root),
-            Gate::NoTranscriptErrors => eval_no_transcript_errors(
-                ctx.env_root,
-                ctx.target_binary,
-                ctx.command_pattern,
-                ctx.interaction_input,
-                ctx.supports_structured_tool_calls,
-                ctx.completed,
-            ),
+            Gate::NoTranscriptErrors => eval_no_transcript_errors(ctx.interaction_profile),
             Gate::Script {
                 command,
                 description,
@@ -547,31 +517,13 @@ fn eval_script(
     }
 }
 
-fn eval_no_transcript_errors(
-    env_root: &Path,
-    target_binary: &str,
-    command_pattern: Option<&str>,
-    interaction_input: &InteractionInput,
-    supports_structured_tool_calls: bool,
-    completed: bool,
-) -> GateResult {
-    eval_gate!(
-        "NoTranscriptErrors",
-        crate::interaction_profile::no_transcript_errors(
-            crate::interaction_profile::InteractionProfileInput {
-                env_root,
-                target_binary,
-                command_pattern,
-                interaction_input,
-                completed,
-                supports_structured_tool_calls,
-            }
-        ),
-        |no_errors| (
-            no_errors,
-            format!("Transcript has no command errors: {}", no_errors)
-        )
-    )
+fn eval_no_transcript_errors(interaction_profile: &InteractionProfile) -> GateResult {
+    let no_errors = interaction_profile.metrics.error_count == 0;
+    GateResult {
+        gate_type: "NoTranscriptErrors".to_string(),
+        passed: no_errors,
+        message: format!("Transcript has no command errors: {}", no_errors),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -931,24 +883,14 @@ fn build_interaction_profile(
 #[allow(clippy::too_many_arguments)]
 fn build_metrics(
     scenario: &Scenario,
-    env_root: &Path,
     details: Vec<GateResult>,
     gates_passed: usize,
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
-    interaction_input: &InteractionInput,
-    completed: bool,
-    supports_structured_tool_calls: bool,
-) -> Result<EvaluationMetrics> {
-    let interaction_profile = build_interaction_profile(
-        env_root,
-        &scenario.target.binary,
-        scenario.target.command_pattern.as_deref(),
-        interaction_input,
-        completed,
-        supports_structured_tool_calls,
-    )?;
+    interaction_profile: InteractionProfile,
+) -> EvaluationMetrics {
+    let evidence_source = interaction_profile.evidence_source;
     let efficiency = interaction_profile.metrics;
     let composite_score = scenario.evaluation.composite.as_ref().map(|weights| {
         crate::eval_helpers::compute_composite_score(
@@ -960,7 +902,7 @@ fn build_metrics(
         )
     });
 
-    Ok(EvaluationMetrics {
+    EvaluationMetrics {
         gates_passed,
         gates_total: scenario.evaluation.gates.len(),
         details,
@@ -968,10 +910,10 @@ fn build_metrics(
         judge_response,
         judge_passed,
         efficiency,
-        interaction_evidence_source: interaction_profile.evidence_source,
+        interaction_evidence_source: evidence_source,
         composite_score,
         evaluator_results: Vec::new(),
-    })
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -988,14 +930,19 @@ pub fn evaluate(
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
 
+    let interaction_profile = build_interaction_profile(
+        env_root,
+        &scenario.target.binary,
+        scenario.target.command_pattern.as_deref(),
+        interaction_input,
+        completed,
+        supports_structured_tool_calls,
+    )?;
+
     let ctx = EvaluationContext {
         env_root,
-        target_binary: &scenario.target.binary,
-        command_pattern: scenario.target.command_pattern.as_deref(),
         script_runner,
-        interaction_input,
-        supports_structured_tool_calls,
-        completed,
+        interaction_profile: &interaction_profile,
     };
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
@@ -1011,16 +958,13 @@ pub fn evaluate(
     )?;
     let mut metrics = build_metrics(
         scenario,
-        env_root,
         details,
         gates_passed,
         judge_score,
         judge_response,
         judge_passed,
-        interaction_input,
-        completed,
-        supports_structured_tool_calls,
-    )?;
+        interaction_profile,
+    );
 
     // Run custom evaluators after gates and judge evaluation
     metrics.evaluator_results = run_evaluators(scenario, script_runner);

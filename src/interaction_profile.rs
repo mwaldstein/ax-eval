@@ -74,11 +74,6 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
     })
 }
 
-pub fn no_transcript_errors(input: InteractionProfileInput<'_>) -> Result<bool> {
-    let profile = build_interaction_profile(input)?;
-    Ok(profile.metrics.error_count == 0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
