@@ -37,6 +37,28 @@ pub struct SetupCommandReport {
     pub output: String,
 }
 
+pub struct TargetEnvVars {
+    vars: Vec<(String, String)>,
+}
+
+impl TargetEnvVars {
+    pub fn from_config(target_env: Option<&HashMap<String, String>>) -> Self {
+        let vars = target_env
+            .map(|vars| {
+                vars.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect::<Vec<(String, String)>>()
+            })
+            .unwrap_or_default();
+
+        Self { vars }
+    }
+
+    pub fn into_session_env(self) -> Vec<(String, String)> {
+        self.vars
+    }
+}
+
 pub fn setup_scenario_env(
     s: &Scenario,
     scenario_path: &std::path::Path,
@@ -73,13 +95,7 @@ pub fn execute_setup_commands(
     let runner = crate::session::SessionRunner::new();
     let mut setup_success = true;
     let mut setup_commands: Vec<SetupCommandReport> = Vec::new();
-    let env_vars: Vec<(String, String)> = target_env
-        .map(|vars| {
-            vars.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<Vec<(String, String)>>()
-        })
-        .unwrap_or_default();
+    let env_vars = TargetEnvVars::from_config(target_env).into_session_env();
 
     for (i, cmd) in setup.commands.iter().enumerate() {
         println!("  Command {}/{}: {}", i + 1, setup.commands.len(), cmd);
@@ -130,13 +146,7 @@ pub fn execute_health_check(
 
     println!("Running target health check: {}", command);
     let runner = crate::session::SessionRunner::new();
-    let env_vars: Vec<(String, String)> = target_env
-        .map(|vars| {
-            vars.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<Vec<(String, String)>>()
-        })
-        .unwrap_or_default();
+    let env_vars = TargetEnvVars::from_config(target_env).into_session_env();
 
     let (output, exit_code) = runner.run_command_with_env(
         "sh",
@@ -265,6 +275,18 @@ mod tests {
         assert_ne!(first, different_tool);
         assert_ne!(first, different_model);
         assert_ne!(first, different_fixture);
+    }
+
+    #[test]
+    fn target_env_vars_convert_to_session_env() {
+        let mut target_env = HashMap::new();
+        target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
+        target_env.insert("ANOTHER_VAR".to_string(), "also works".to_string());
+
+        let session_env = TargetEnvVars::from_config(Some(&target_env)).into_session_env();
+
+        assert!(session_env.contains(&("TARGET_ENV_TEST".to_string(), "works".to_string())));
+        assert!(session_env.contains(&("ANOTHER_VAR".to_string(), "also works".to_string())));
     }
 
     #[test]
