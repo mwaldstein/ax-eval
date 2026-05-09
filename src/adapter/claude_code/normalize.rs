@@ -279,3 +279,120 @@ fn parse_cost(output: &str) -> Option<f64> {
         value.get("total_cost_usd").and_then(Value::as_f64)
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_claude_complete_messages() {
+        let raw = format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "Bash",
+                        "input": {"command": "notes add \"Hello\"", "description": "add note"}
+                    }]
+                }
+            }),
+            serde_json::json!({
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": "Created note",
+                        "is_error": false
+                    }]
+                }
+            })
+        );
+
+        let output = normalize(raw, 0);
+        let command_events = output.command_events().expect("structured command events");
+
+        assert_eq!(command_events.len(), 1);
+        assert_eq!(command_events[0].command, "notes add \"Hello\"");
+        assert_eq!(command_events[0].exit_code, Some(0));
+        assert!(output.transcript.contains("$ notes add \"Hello\""));
+    }
+
+    #[test]
+    fn normalizes_claude_partial_stream_events() {
+        let raw = format!(
+            "{}\n{}\n{}\n{}\n",
+            serde_json::json!({
+                "type": "stream_event",
+                "event": {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {"type": "tool_use", "id": "toolu_1", "name": "Bash"}
+                }
+            }),
+            serde_json::json!({
+                "type": "stream_event",
+                "event": {
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {"type": "input_json_delta", "partial_json": "{\"command\":\"notes"}
+                }
+            }),
+            serde_json::json!({
+                "type": "stream_event",
+                "event": {
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {"type": "input_json_delta", "partial_json": " list\"}"}
+                }
+            }),
+            serde_json::json!({
+                "type": "stream_event",
+                "event": {"type": "content_block_stop", "index": 0}
+            })
+        );
+
+        let output = normalize(raw, 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].command, "notes list");
+        assert_eq!(command_events[0].exit_code, Some(0));
+    }
+
+    #[test]
+    fn normalizes_claude_failed_tool_result() {
+        let raw = format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "type": "assistant",
+                "message": {
+                    "content": [{
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "Bash",
+                        "input": {"command": "notes badcmd"}
+                    }]
+                }
+            }),
+            serde_json::json!({
+                "type": "user",
+                "message": {
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": "Command failed",
+                        "is_error": true
+                    }]
+                }
+            })
+        );
+
+        let output = normalize(raw, 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].exit_code, Some(1));
+    }
+}

@@ -146,3 +146,113 @@ fn synthesize_transcript(output: &str) -> String {
 
     transcript
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_codex_jsonl() -> String {
+        format!(
+            "{}\n{}\n{}\n{}\n{}\n{}\n{}\n",
+            serde_json::json!({"type": "thread.started", "thread_id": "t1"}),
+            serde_json::json!({"type": "turn.started"}),
+            serde_json::json!({
+                "type": "item.started",
+                "item": {"id": "i1", "type": "command_execution", "command": "bash -lc ls", "status": "in_progress"}
+            }),
+            serde_json::json!({
+                "type": "item.completed",
+                "item": {
+                    "id": "i1",
+                    "type": "command_execution",
+                    "command": "bash -lc ls",
+                    "aggregated_output": "docs\nsrc\n",
+                    "exit_code": 0,
+                    "status": "completed"
+                }
+            }),
+            serde_json::json!({
+                "type": "turn.completed",
+                "usage": {"input_tokens": 100, "cached_input_tokens": 50, "output_tokens": 30}
+            }),
+            serde_json::json!({
+                "type": "item.completed",
+                "item": {
+                    "id": "i2",
+                    "type": "command_execution",
+                    "command": "bash -lc false",
+                    "aggregated_output": "",
+                    "exit_code": 1,
+                    "status": "completed"
+                }
+            }),
+            serde_json::json!({
+                "type": "turn.completed",
+                "usage": {"input_tokens": 20, "cached_input_tokens": 0, "output_tokens": 10}
+            }),
+        )
+    }
+
+    #[test]
+    fn normalizes_codex_jsonl() {
+        let output = normalize(sample_codex_jsonl(), 0);
+        let command_events = output.command_events().expect("structured command events");
+
+        assert_eq!(output.token_usage.as_ref().unwrap().input, 170);
+        assert_eq!(command_events.len(), 2);
+        assert_eq!(command_events[0].command, "bash -lc ls");
+        assert_eq!(command_events[1].exit_code, Some(1));
+        assert!(output.transcript.contains("docs\nsrc\n"));
+        assert!(output.transcript.contains("exit code: 1"));
+    }
+
+    #[test]
+    fn normalizes_codex_experimental_json_item_type() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "item_type": "command_execution",
+                "command": "bash -lc pwd",
+                "aggregated_output": "/home/user\n",
+                "exit_code": 0,
+                "status": "completed"
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert!(output.transcript.contains("$ bash -lc pwd"));
+        assert_eq!(command_events[0].exit_code, Some(0));
+    }
+
+    #[test]
+    fn normalizes_codex_failed_status_to_nonzero_exit() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "command_execution",
+                "command": "bash -lc rm /root",
+                "aggregated_output": "Permission denied",
+                "exit_code": 0,
+                "status": "failed"
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert!(output.transcript.contains("exit code: 1"));
+        assert_eq!(command_events[0].exit_code, Some(1));
+    }
+
+    #[test]
+    fn handles_plain_text_without_panicking() {
+        let output = normalize("just plain text".to_string(), 0);
+
+        assert!(output.token_usage.is_none());
+        assert!(output.transcript.is_empty());
+    }
+}

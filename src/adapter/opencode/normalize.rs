@@ -156,3 +156,118 @@ fn synthesize_transcript(output: &str) -> String {
 
     transcript
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_opencode_json() -> String {
+        format!(
+            "{}\n{}\n{}\n{}\n{}\n{}\n",
+            serde_json::json!({
+                "type": "step_finish",
+                "part": {
+                    "type": "step-finish",
+                    "tokens": {"input": 10, "output": 20, "reasoning": 5, "total": 35},
+                    "cost": 0.042
+                }
+            }),
+            serde_json::json!({
+                "type": "step_finish",
+                "part": {
+                    "type": "step-finish",
+                    "tokens": {"input": 5, "output": 15, "reasoning": 0, "total": 20},
+                    "cost": 0.058
+                }
+            }),
+            serde_json::json!({
+                "type": "step_finish",
+                "part": {
+                    "type": "step-finish",
+                    "tokens": {"input": 8, "output": 25, "reasoning": 0, "total": 33},
+                    "cost": 0.067
+                }
+            }),
+            serde_json::json!({
+                "type": "tool_use",
+                "part": {
+                    "type": "tool",
+                    "tool": "bash",
+                    "state": {
+                        "input": {"command": "./notes init", "description": "init db"},
+                        "metadata": {"output": "Initialized", "exit": 0, "description": "init db"}
+                    }
+                }
+            }),
+            serde_json::json!({
+                "type": "tool_use",
+                "part": {
+                    "type": "tool",
+                    "tool": "bash",
+                    "state": {
+                        "input": {"command": "./notes add \"Hello\"", "description": "add"},
+                        "metadata": {"output": "Created note 1", "exit": 0, "description": "add"}
+                    }
+                }
+            }),
+            serde_json::json!({
+                "type": "tool_use",
+                "part": {
+                    "type": "tool",
+                    "tool": "bash",
+                    "state": {
+                        "input": {"command": "./notes badcmd", "description": "bad"},
+                        "metadata": {"output": "Error: unknown command", "exit": 1, "description": "bad"}
+                    }
+                }
+            }),
+        )
+    }
+
+    #[test]
+    fn normalizes_opencode_json() {
+        let output = normalize(sample_opencode_json(), 0);
+        let command_events = output.command_events().expect("structured command events");
+
+        let usage = output.token_usage.as_ref().unwrap();
+        assert_eq!(usage.input, 28);
+        assert_eq!(usage.output, 60);
+        assert!((output.cost_usd.unwrap() - 0.167).abs() < 0.001);
+        assert_eq!(command_events.len(), 3);
+        assert_eq!(command_events[2].command, "./notes badcmd");
+        assert_eq!(command_events[2].exit_code, Some(1));
+        assert!(output.transcript.contains("Error: unknown command"));
+    }
+
+    #[test]
+    fn skips_non_bash_tools() {
+        let json_output = serde_json::json!({
+            "type": "tool_use",
+            "part": {
+                "type": "tool",
+                "tool": "read",
+                "state": {
+                    "input": {"filePath": "/foo"},
+                    "metadata": {"output": "bar"}
+                }
+            }
+        })
+        .to_string();
+
+        let output = normalize(json_output, 0);
+        assert!(output.transcript.is_empty());
+        assert!(output
+            .command_events()
+            .expect("structured command events")
+            .is_empty());
+    }
+
+    #[test]
+    fn handles_plain_text_without_panicking() {
+        let output = normalize("just plain text".to_string(), 0);
+
+        assert!(output.token_usage.is_none());
+        assert!(output.cost_usd.is_none());
+        assert!(output.transcript.is_empty());
+    }
+}
