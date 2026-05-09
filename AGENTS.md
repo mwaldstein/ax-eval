@@ -301,6 +301,19 @@ See `Cargo.toml` for complete list.
 
 For issues: https://github.com/anomalyco/llm-tool-test/issues
 
+## Commit Messages
+
+Use concise imperative commit messages: `Add target health checks`, not `Added target health checks`.
+Keep the subject specific and usually under 72 characters; avoid vague subjects like `Docs update`.
+For code changes, prefer a plain imperative subject such as `Fix cache invalidation`.
+Prefixes are optional; use them only when they clarify scope.
+Allowed prefixes: `docs:`, `test:`, `ci:`, `chore:`.
+Do not require Conventional Commits unless release automation later depends on it.
+Commit one logical change at a time.
+Add a body when the reason or tradeoff is not obvious from the diff.
+Reference issues at the end of the body when relevant, e.g. `Refs #123`.
+Capitalize the first word unless using an optional prefix.
+
 ## Agent skills
 
 ### Issue tracker
