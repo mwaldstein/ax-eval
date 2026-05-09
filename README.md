@@ -131,6 +131,8 @@ template_folder: example_basic
 
 target:
   binary: notes
+  env:
+    NOTES_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
 
 task:
   prompt: |

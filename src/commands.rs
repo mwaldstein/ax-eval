@@ -285,7 +285,8 @@ target:
   command_pattern: "mytool\\s+(\\S+)"
   health_check: "mytool --version"
   env:
-    MYTOOL_STATE: ".mytool/state.json"
+    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    MYTOOL_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/mytool-export.json"
 
 task:
   prompt: |

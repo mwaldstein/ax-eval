@@ -59,6 +59,35 @@ impl TargetEnvVars {
     }
 }
 
+pub fn expand_target_env(
+    target_env: Option<&HashMap<String, String>>,
+    fixture_dir: &Path,
+    results_dir: &Path,
+) -> Option<HashMap<String, String>> {
+    target_env.map(|vars| {
+        vars.iter()
+            .map(|(key, value)| {
+                (
+                    key.clone(),
+                    expand_target_env_value(value, fixture_dir, results_dir),
+                )
+            })
+            .collect()
+    })
+}
+
+fn expand_target_env_value(value: &str, fixture_dir: &Path, results_dir: &Path) -> String {
+    value
+        .replace(
+            "${LLM_TOOL_TEST_FIXTURE_DIR}",
+            &fixture_dir.to_string_lossy(),
+        )
+        .replace(
+            "${LLM_TOOL_TEST_RESULTS_DIR}",
+            &results_dir.to_string_lossy(),
+        )
+}
+
 pub fn setup_scenario_env(
     s: &Scenario,
     scenario_path: &std::path::Path,
@@ -247,6 +276,65 @@ mod tests {
         assert_eq!(commands[0].command, "test \"$TARGET_ENV_TEST\" = \"works\"");
         assert!(commands[0].success);
         assert!(commands[0].output.is_empty());
+    }
+
+    #[test]
+    fn target_env_expands_fixture_and_results_placeholders() {
+        let dir = tempdir().expect("create temp dir");
+        let fixture_dir = dir.path().join("results").join("fixture");
+        let results_dir = dir.path().join("results");
+
+        let mut target_env = HashMap::new();
+        target_env.insert(
+            "MYTOOL_ROOT_DIR".to_string(),
+            "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
+        );
+        target_env.insert(
+            "MYTOOL_EXPORT".to_string(),
+            "${LLM_TOOL_TEST_RESULTS_DIR}/export.json".to_string(),
+        );
+
+        let expanded =
+            expand_target_env(Some(&target_env), &fixture_dir, &results_dir).expect("expanded env");
+
+        assert_eq!(
+            expanded.get("MYTOOL_ROOT_DIR"),
+            Some(&fixture_dir.to_string_lossy().to_string())
+        );
+        assert_eq!(
+            expanded.get("MYTOOL_EXPORT"),
+            Some(&format!("{}/export.json", results_dir.to_string_lossy()))
+        );
+    }
+
+    #[test]
+    fn setup_commands_receive_expanded_fixture_dir_env_var() {
+        let dir = tempdir().expect("create temp dir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
+        std::fs::create_dir_all(&env.root).expect("create fixture root");
+
+        let artifacts_dir = dir.path().join("artifacts");
+        let results_dir = dir.path().join("results");
+        std::fs::create_dir_all(&results_dir).expect("create results dir");
+        let writer = TranscriptWriter::new(artifacts_dir, results_dir.clone()).expect("writer");
+
+        let setup = Setup {
+            commands: vec!["test \"$MYTOOL_ROOT_DIR\" = \"$PWD\"".to_string()],
+        };
+        let mut target_env = HashMap::new();
+        target_env.insert(
+            "MYTOOL_ROOT_DIR".to_string(),
+            "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
+        );
+        let expanded = expand_target_env(Some(&target_env), &env.root, &results_dir);
+
+        let (success, reports) =
+            execute_setup_commands(&setup, &env, &writer, 10, expanded.as_ref())
+                .expect("run setup commands");
+
+        assert!(success);
+        assert_eq!(reports.len(), 1);
+        assert!(reports[0].success);
     }
 
     #[test]

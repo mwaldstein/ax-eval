@@ -20,7 +20,7 @@ Each scenario must declare the CLI tool under evaluation. This is the **target t
 |-------|------|----------|-------------|
 | `target.binary` | string | yes | Path or name of the CLI tool binary |
 | `target.command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. Defaults to the binary name. |
-| `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens) |
+| `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens, fixture paths) |
 | `target.health_check` | string | no | Command to verify the tool is working before/after runs |
 
 ### Configuration Source
@@ -33,11 +33,28 @@ target:
   command_pattern: "mytool\\s+"
   health_check: "mytool --version"
   env:
+    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    MYTOOL_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/mytool-export.json"
     MYTOOL_CONFIG: "/etc/mytool/config.toml"
     MYTOOL_AUTH_TOKEN: "token-value"
 ```
 
-If no target is specified, scenario loading fails with a clear error. Environment values are passed literally; shell-style `${VAR}` interpolation is not performed by the scenario loader.
+If no target is specified, scenario loading fails with a clear error.
+Most environment values are passed literally. Two run-directory placeholders are
+expanded after the isolated workspace is created:
+
+- `${LLM_TOOL_TEST_FIXTURE_DIR}`: absolute path to the per-run fixture directory.
+- `${LLM_TOOL_TEST_RESULTS_DIR}`: absolute path to the per-run results directory.
+
+Use these when the target tool needs a root/config/output path inside the test
+workspace:
+
+```yaml
+target:
+  binary: mytool
+  env:
+    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+```
 
 ### `command_pattern`
 

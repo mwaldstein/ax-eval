@@ -167,7 +167,9 @@ All scripts receive these environment variables:
 | `LLM_TOOL_TEST_TRANSCRIPT` | Path to `artifacts/transcript.raw.txt` (post-execution and evaluation scripts only) |
 | `LLM_TOOL_TEST_EVENTS` | Path to `artifacts/events.jsonl` (post-execution and evaluation scripts only) |
 
-Scripts also inherit any `target.env` variables defined in the scenario.
+Scripts also inherit any `target.env` variables defined in the scenario, after
+run-directory placeholders such as `${LLM_TOOL_TEST_FIXTURE_DIR}` and
+`${LLM_TOOL_TEST_RESULTS_DIR}` are expanded.
 
 ---
 

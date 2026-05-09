@@ -125,6 +125,8 @@ template_folder: example_basic
 
 target:
   binary: notes
+  env:
+    NOTES_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
 
 task:
   prompt: |
@@ -144,6 +146,18 @@ Good scenarios evaluate outcomes, not the exact process an agent used. Because L
 Use gates as fail-fast sanity checks. The richer evaluation signal comes from the metrics, transcript, and optional judge rubric.
 
 For the complete scenario schema, see the [scenario spec](../specs/scenarios.md).
+
+`target.env` values are passed to setup commands, target health checks, agent
+adapter runs, post scripts, script gates, and evaluators. Use
+`${LLM_TOOL_TEST_FIXTURE_DIR}` when a target tool needs an environment variable
+pointing at the isolated test workspace:
+
+```yaml
+target:
+  binary: mytool
+  env:
+    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+```
 
 ## Templates
 

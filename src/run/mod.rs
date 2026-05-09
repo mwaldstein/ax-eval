@@ -70,7 +70,7 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
         create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
     };
     use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
-    use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
+    use crate::run::setup::{expand_target_env, prepare_writer_and_setup, setup_scenario_env};
     use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
 
     let s = request.scenario;
@@ -83,6 +83,11 @@ pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<Re
 
     let workspace = setup_scenario_env(s, request.scenario_path, &results_dir)?;
     let cache_key = workspace.cache_key(tool, model)?;
+
+    let mut scenario = s.clone();
+    scenario.target.env =
+        expand_target_env(s.target.env.as_ref(), &workspace.env.root, &results_dir);
+    let s = &scenario;
 
     if let Some(cached) = request.cached_record(&cache_key)? {
         println!("Cache HIT! Using cached result: {}", cached.id);
