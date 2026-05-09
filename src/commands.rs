@@ -27,7 +27,6 @@ pub struct ExecutionConfig {
 }
 
 pub struct ExecutionContext<'a> {
-    pub base_dir: &'a Path,
     pub results_db: &'a ResultsDB,
     pub cache: &'a Cache,
 }
@@ -69,21 +68,20 @@ pub fn handle_run_command(
         for config in &matrix {
             println!("\n=== Running: {} / {} ===", config.tool, config.model);
 
-            let result = run::run_single_scenario(
-                &s,
-                &record.path,
-                &config.tool,
-                &config.model,
-                exec_config.dry_run,
-                exec_config.no_cache,
-                exec_config.timeout_secs,
-                exec_config.no_judge,
-                exec_config.judge_model.as_deref(),
-                exec_config.judge_tool.as_deref(),
-                ctx.base_dir,
-                ctx.results_db,
-                ctx.cache,
-            );
+            let result = run::run_single_scenario(run::ScenarioRunRequest {
+                scenario: &s,
+                scenario_path: &record.path,
+                tool: &config.tool,
+                model: &config.model,
+                dry_run: exec_config.dry_run,
+                no_cache: exec_config.no_cache,
+                timeout_secs: exec_config.timeout_secs,
+                no_judge: exec_config.no_judge,
+                judge_model: exec_config.judge_model.as_deref(),
+                judge_tool: exec_config.judge_tool.as_deref(),
+                results_db: ctx.results_db,
+                cache: ctx.cache,
+            });
 
             results.push((config.clone(), result));
         }

@@ -3,6 +3,162 @@ use crate::scenario::Scenario;
 use std::path::PathBuf;
 
 #[test]
+fn scenario_run_request_resolves_effective_timeout() {
+    let scenario_yaml = r#"
+name: request_timeout_test
+description: "Test scenario timeout resolution"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Create a note"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+run:
+  timeout_secs: 120
+"#;
+    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario_path = PathBuf::from("fixtures/request_timeout_test.yaml");
+    let base_dir = PathBuf::from("target/test_timeout");
+    let results_db = ResultsDB::new(&base_dir);
+    let cache = Cache::new(&base_dir);
+
+    let request = ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    };
+
+    assert_eq!(request.effective_timeout(), 120);
+
+    let mut cli_timeout_scenario = scenario.clone();
+    cli_timeout_scenario.run = None;
+    let request = ScenarioRunRequest {
+        scenario: &cli_timeout_scenario,
+        ..request
+    };
+
+    assert_eq!(request.effective_timeout(), 300);
+}
+
+#[test]
+fn scenario_run_request_resolves_results_dir() {
+    let scenario_yaml = r#"
+name: request_results_dir_test
+description: "Test scenario results dir resolution"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Create a note"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario_path = PathBuf::from("fixtures/request_results_dir_test.yaml");
+    let base_dir = PathBuf::from("target/test_results_dir");
+    let results_db = ResultsDB::new(&base_dir);
+    let cache = Cache::new(&base_dir);
+
+    let request = ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock-model",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    };
+
+    let results_dir = request.results_dir();
+    let dir_name = results_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("results dir name");
+
+    assert_eq!(
+        results_dir.parent(),
+        Some(std::path::Path::new("llm-tool-test-results"))
+    );
+    assert!(
+        dir_name.ends_with("-mock-mock-model-request_results_dir_test"),
+        "{}",
+        dir_name
+    );
+    assert_eq!(dir_name.chars().nth(8), Some('-'));
+    assert!(
+        dir_name
+            .chars()
+            .take(15)
+            .all(|ch| ch.is_ascii_digit() || ch == '-'),
+        "{}",
+        dir_name
+    );
+}
+
+#[test]
+fn scenario_run_request_builds_run_plan() {
+    let scenario_yaml = r#"
+name: request_plan_test
+description: "Test scenario run planning"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Create a note"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+run:
+  timeout_secs: 90
+"#;
+    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario_path = PathBuf::from("fixtures/request_plan_test.yaml");
+    let base_dir = PathBuf::from("target/test_plan");
+    let results_db = ResultsDB::new(&base_dir);
+    let cache = Cache::new(&base_dir);
+
+    let request = ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock-model",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    };
+
+    let plan = request.plan();
+
+    assert_eq!(plan.effective_timeout, 90);
+    assert_eq!(plan.results_dir, request.results_dir());
+}
+
+#[test]
 fn test_scenario_timeout_overrides_cli() {
     let scenario_yaml = r#"
 name: timeout_test_override
@@ -35,21 +191,20 @@ run:
     std::fs::create_dir_all(&template_dir).unwrap();
 
     let cli_timeout = 300;
-    let result = run_single_scenario(
-        &scenario,
-        &fixture_file,
-        "mock",
-        "mock",
-        false,
-        true,
-        cli_timeout,
-        false,
-        None,
-        None,
-        &base_dir,
-        &results_db,
-        &cache,
-    );
+    let result = run_single_scenario(ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &fixture_file,
+        tool: "mock",
+        model: "mock",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: cli_timeout,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    });
 
     let _ = std::fs::remove_file(&fixture_file);
     let _ = std::fs::remove_dir_all(&template_dir);
@@ -92,21 +247,20 @@ evaluation:
     std::fs::create_dir_all(&template_dir).unwrap();
 
     let cli_timeout = 60;
-    let result = run_single_scenario(
-        &scenario,
-        &fixture_file,
-        "mock",
-        "mock",
-        false,
-        true,
-        cli_timeout,
-        false,
-        None,
-        None,
-        &base_dir,
-        &results_db,
-        &cache,
-    );
+    let result = run_single_scenario(ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &fixture_file,
+        tool: "mock",
+        model: "mock",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: cli_timeout,
+        no_judge: false,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    });
 
     let _ = std::fs::remove_file(&fixture_file);
     let _ = std::fs::remove_dir_all(&template_dir);

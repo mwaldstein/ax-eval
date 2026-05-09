@@ -174,7 +174,6 @@ fn main() -> anyhow::Result<()> {
             };
 
             let ctx = commands::ExecutionContext {
-                base_dir: &base_dir,
                 results_db: &results_db,
                 cache: &cache,
             };

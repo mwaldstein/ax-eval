@@ -9,24 +9,52 @@ pub mod utils;
 use crate::output;
 use crate::results::{Cache, ResultRecord, ResultsDB};
 use crate::scenario::Scenario;
+use std::path::{Path, PathBuf};
 
-#[allow(clippy::too_many_arguments)]
-pub fn run_single_scenario(
-    s: &Scenario,
-    scenario_path: &std::path::Path,
-    tool: &str,
-    model: &str,
-    dry_run: bool,
-    no_cache: bool,
-    timeout_secs: u64,
-    no_judge: bool,
-    judge_model: Option<&str>,
-    judge_tool: Option<&str>,
-    _base_dir: &std::path::Path,
-    results_db: &ResultsDB,
-    cache: &Cache,
-) -> anyhow::Result<ResultRecord> {
-    use crate::run::cache::{check_cache, compute_cache_key_with_fixture};
+pub struct ScenarioRunRequest<'a> {
+    pub scenario: &'a Scenario,
+    pub scenario_path: &'a Path,
+    pub tool: &'a str,
+    pub model: &'a str,
+    pub dry_run: bool,
+    pub no_cache: bool,
+    pub timeout_secs: u64,
+    pub no_judge: bool,
+    pub judge_model: Option<&'a str>,
+    pub judge_tool: Option<&'a str>,
+    pub results_db: &'a ResultsDB,
+    pub cache: &'a Cache,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScenarioRunPlan {
+    pub effective_timeout: u64,
+    pub results_dir: PathBuf,
+}
+
+impl ScenarioRunRequest<'_> {
+    pub fn effective_timeout(&self) -> u64 {
+        self.scenario
+            .run
+            .as_ref()
+            .and_then(|r| r.timeout_secs)
+            .unwrap_or(self.timeout_secs)
+    }
+
+    pub fn results_dir(&self) -> PathBuf {
+        crate::run::utils::get_results_dir(self.tool, self.model, &self.scenario.name)
+    }
+
+    pub fn plan(&self) -> ScenarioRunPlan {
+        ScenarioRunPlan {
+            effective_timeout: self.effective_timeout(),
+            results_dir: self.results_dir(),
+        }
+    }
+}
+
+pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<ResultRecord> {
+    use crate::run::cache::check_cache;
     use crate::run::execution::{
         create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
     };
@@ -34,39 +62,33 @@ pub fn run_single_scenario(
     use crate::run::setup::{prepare_writer_and_setup, setup_scenario_env};
     use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
 
-    let effective_timeout = s
-        .run
-        .as_ref()
-        .and_then(|r| r.timeout_secs)
-        .unwrap_or(timeout_secs);
+    let s = request.scenario;
+    let tool = request.tool;
+    let model = request.model;
+    let plan = request.plan();
 
-    let results_dir = crate::run::utils::get_results_dir(tool, model, &s.name);
+    let results_dir = plan.results_dir;
     std::fs::create_dir_all(&results_dir)?;
 
-    let workspace = setup_scenario_env(s, scenario_path, &results_dir)?;
-    let cache_key = compute_cache_key_with_fixture(
-        &workspace.scenario_yaml,
-        &workspace.prompt,
-        &workspace.env.root,
-        tool,
-        model,
-    )?;
+    let workspace = setup_scenario_env(s, request.scenario_path, &results_dir)?;
+    let cache_key = workspace.cache_key(tool, model)?;
 
-    if !no_cache {
-        if let Some(cached) = check_cache(cache, &cache_key)? {
+    if !request.no_cache {
+        if let Some(cached) = check_cache(request.cache, &cache_key)? {
             println!("Cache HIT! Using cached result: {}", cached.id);
             output::print_result_summary(&cached);
             return Ok(cached);
         }
     }
 
-    if dry_run {
+    if request.dry_run {
         return handle_dry_run(s, tool, model, &cache_key);
     }
 
     let adapter = create_adapter_and_check(tool)?;
 
-    let prepared = prepare_writer_and_setup(&results_dir, &workspace.env, s, effective_timeout)?;
+    let prepared =
+        prepare_writer_and_setup(&results_dir, &workspace.env, s, plan.effective_timeout)?;
 
     let evaluation = run_evaluation_flow(EvaluationFlowInput {
         adapter: adapter.as_ref(),
@@ -74,10 +96,10 @@ pub fn run_single_scenario(
         env: &workspace.env,
         tool,
         model,
-        effective_timeout,
-        no_judge,
-        judge_model,
-        judge_tool,
+        effective_timeout: plan.effective_timeout,
+        no_judge: request.no_judge,
+        judge_model: request.judge_model,
+        judge_tool: request.judge_tool,
         writer: &prepared.writer,
         artifacts: &prepared.artifacts,
     })?;
@@ -115,13 +137,25 @@ pub fn run_single_scenario(
     );
 
     finalize_execution(
-        results_db,
-        cache,
+        request.results_db,
+        request.cache,
         &cache_key,
         &record,
         &results_dir,
         prepared.setup_success,
     )
+}
+
+impl setup::ScenarioWorkspace {
+    fn cache_key(&self, tool: &str, model: &str) -> anyhow::Result<crate::results::CacheKey> {
+        crate::run::cache::compute_cache_key_with_fixture(
+            &self.scenario_yaml,
+            &self.prompt,
+            &self.env.root,
+            tool,
+            model,
+        )
+    }
 }
 
 #[cfg(test)]
