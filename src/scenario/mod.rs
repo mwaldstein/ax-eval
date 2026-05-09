@@ -12,6 +12,7 @@
 //! println!("Running scenario: {}", scenario.name);
 //! ```
 
+pub mod catalog;
 pub mod types;
 
 pub use types::*;

@@ -3,10 +3,9 @@ use crate::evaluation::ScoreTier;
 use crate::output;
 use crate::results::{Cache, ResultsDB};
 use crate::run;
-use crate::scenario::load;
-use crate::utils::resolve_fixtures_path;
+use crate::scenario::catalog::ScenarioCatalog;
 use chrono::{Duration, Utc};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub struct ScenarioSelection {
     pub scenario: Option<String>,
@@ -33,83 +32,25 @@ pub struct ExecutionContext<'a> {
     pub cache: &'a Cache,
 }
 
-#[allow(clippy::too_many_arguments)]
-fn resolve_scenario_path(path: &str) -> PathBuf {
-    let p = Path::new(path);
-    if p.is_absolute() || p.exists() {
-        p.to_path_buf()
-    } else {
-        let fixtures_dir = resolve_fixtures_path("");
-        let fixture_path = fixtures_dir.join(path);
-        if fixture_path.exists() {
-            fixture_path
-        } else {
-            fixtures_dir.join(format!("{}.yaml", path))
-        }
-    }
-}
-
-fn find_scenarios(dir: &Path, scenarios: &mut Vec<(String, PathBuf)>) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(ext) = path.extension() {
-                    if ext == "yaml" {
-                        if let Ok(s) = load(&path) {
-                            scenarios.push((s.name, path));
-                        }
-                    }
-                }
-            } else if path.is_dir() {
-                find_scenarios(&path, scenarios);
-            }
-        }
-    }
-}
-
 pub fn handle_run_command(
     selection: &ScenarioSelection,
     exec_config: &ExecutionConfig,
     ctx: &ExecutionContext,
     config: &Config,
 ) -> anyhow::Result<()> {
+    let catalog = ScenarioCatalog::from_default_fixtures();
     let scenarios_to_run = if selection.all {
-        let mut scenarios = Vec::new();
-        let fixtures_dir = resolve_fixtures_path("");
-        if fixtures_dir.exists() {
-            find_scenarios(&fixtures_dir, &mut scenarios);
-        }
-
-        let mut filtered_scenarios = Vec::new();
-        for (name, path) in scenarios {
-            let s = load(&path)?;
-
-            let tags_match = if selection.tags.is_empty() {
-                true
-            } else {
-                selection.tags.iter().any(|tag| s.tags.contains(tag))
-            };
-
-            let tier_match = s.tier <= selection.tier;
-
-            if tags_match && tier_match {
-                filtered_scenarios.push((name, path));
-            }
-        }
-        filtered_scenarios
+        catalog.select_all(&selection.tags, selection.tier)?
     } else if let Some(path) = &selection.scenario {
-        let resolved_path = resolve_scenario_path(path);
-        let s = load(&resolved_path)?;
-        vec![(s.name, resolved_path)]
+        vec![catalog.load_one(path)?]
     } else {
         println!("No scenario specified. Use --scenario <path> or --all");
         return Ok(());
     };
 
-    for (name, path) in scenarios_to_run {
-        let s = load(&path)?;
-        println!("Loaded scenario: {}", name);
+    for record in scenarios_to_run {
+        let s = record.scenario;
+        println!("Loaded scenario: {}", s.name);
 
         let matrix = crate::build_tool_matrix(
             &exec_config.tool,
@@ -130,7 +71,7 @@ pub fn handle_run_command(
 
             let result = run::run_single_scenario(
                 &s,
-                &path,
+                &record.path,
                 &config.tool,
                 &config.model,
                 exec_config.dry_run,
@@ -160,47 +101,8 @@ pub fn handle_list_command(
     tier: &usize,
     _results_db: &ResultsDB,
 ) -> anyhow::Result<()> {
-    let mut scenarios = Vec::new();
-
-    fn find_scenarios(
-        dir: &std::path::Path,
-        scenarios: &mut Vec<(PathBuf, String, usize, String, Vec<String>)>,
-    ) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension() {
-                        if ext == "yaml" {
-                            if let Ok(s) = load(&path) {
-                                scenarios.push((path, s.name, s.tier, s.description, s.tags));
-                            }
-                        }
-                    }
-                } else if path.is_dir() {
-                    find_scenarios(&path, scenarios);
-                }
-            }
-        }
-    }
-
-    let fixtures_dir = resolve_fixtures_path("");
-    if fixtures_dir.exists() {
-        find_scenarios(&fixtures_dir, &mut scenarios);
-    }
-
-    let filtered_scenarios: Vec<_> = scenarios
-        .iter()
-        .filter(|(_, _, scenario_tier, _, scenario_tags)| {
-            let tier_match = scenario_tier <= tier;
-            let tags_match = if tags.is_empty() {
-                true
-            } else {
-                tags.iter().any(|tag| scenario_tags.contains(tag))
-            };
-            tier_match && tags_match
-        })
-        .collect();
+    let catalog = ScenarioCatalog::from_default_fixtures();
+    let summaries = catalog.summaries(tags, *tier)?;
 
     let tier_label = match *tier {
         0 => "smoke",
@@ -210,13 +112,16 @@ pub fn handle_list_command(
         _ => "unknown",
     };
     println!("Available scenarios (tier {}):", tier_label);
-    for (_path, name, _scenario_tier, description, scenario_tags) in &filtered_scenarios {
-        let tags_str = if scenario_tags.is_empty() {
+    for summary in &summaries {
+        let tags_str = if summary.tags.is_empty() {
             String::new()
         } else {
-            format!(" [{}]", scenario_tags.join(", "))
+            format!(" [{}]", summary.tags.join(", "))
         };
-        println!("  [{}] {}{} - {}", tier_label, name, tags_str, description);
+        println!(
+            "  [{}] {}{} - {}",
+            tier_label, summary.name, tags_str, summary.description
+        );
     }
 
     Ok(())
