@@ -27,7 +27,14 @@ pub struct PreparedScenarioRun {
     pub artifacts: RunArtifacts,
     pub writer: TranscriptWriter,
     pub setup_success: bool,
-    pub setup_commands: Vec<(String, bool, String)>,
+    pub setup_commands: Vec<SetupCommandReport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetupCommandReport {
+    pub command: String,
+    pub success: bool,
+    pub output: String,
 }
 
 pub fn setup_scenario_env(
@@ -55,18 +62,17 @@ pub fn setup_scenario_env(
     })
 }
 
-#[allow(clippy::type_complexity)]
 pub fn execute_setup_commands(
     setup: &Setup,
     env: &TestEnv,
     writer: &TranscriptWriter,
     effective_timeout: u64,
     target_env: Option<&HashMap<String, String>>,
-) -> anyhow::Result<(bool, Vec<(String, bool, String)>)> {
+) -> anyhow::Result<(bool, Vec<SetupCommandReport>)> {
     println!("Running {} setup command(s)...", setup.commands.len());
     let runner = crate::session::SessionRunner::new();
     let mut setup_success = true;
-    let mut setup_commands: Vec<(String, bool, String)> = Vec::new();
+    let mut setup_commands: Vec<SetupCommandReport> = Vec::new();
     let env_vars: Vec<(String, String)> = target_env
         .map(|vars| {
             vars.iter()
@@ -86,7 +92,11 @@ pub fn execute_setup_commands(
         )?;
 
         let success = exit_code == 0;
-        setup_commands.push((cmd.to_string(), success, output.clone()));
+        setup_commands.push(SetupCommandReport {
+            command: cmd.to_string(),
+            success,
+            output: output.clone(),
+        });
 
         writer.append_event(&serde_json::json!({
             "type": "setup_command",
@@ -156,7 +166,6 @@ pub fn execute_health_check(
     Ok(())
 }
 
-#[allow(clippy::type_complexity)]
 pub fn prepare_writer_and_setup(
     results_dir: &Path,
     env: &TestEnv,
@@ -225,7 +234,9 @@ mod tests {
 
         assert!(setup_success);
         assert_eq!(commands.len(), 1);
-        assert!(commands[0].1);
+        assert_eq!(commands[0].command, "test \"$TARGET_ENV_TEST\" = \"works\"");
+        assert!(commands[0].success);
+        assert!(commands[0].output.is_empty());
     }
 
     #[test]
