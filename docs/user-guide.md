@@ -6,13 +6,20 @@ For the high-level value proposition, start with the [README](../README.md). For
 
 ## Safety Flag
 
-`llm-tool-test` will not launch agent runs unless explicitly enabled:
+`LLM_TOOL_TEST_ENABLED=1` is real-run consent. `llm-tool-test` will not launch
+an agent adapter unless this variable is set, because real runs may spend LLM API
+credits and execute agent-driven CLI commands.
 
 ```bash
 export LLM_TOOL_TEST_ENABLED=1
 ```
 
-This prevents accidental expensive LLM API calls.
+Use `--dry-run` when you want to validate scenario selection, fixture setup,
+cache keys, and run planning without setting the safety flag or invoking an LLM:
+
+```bash
+llm-tool-test run --scenario example_basic --dry-run
+```
 
 ## Runtime Agent Tools
 
@@ -62,7 +69,7 @@ llm-tool-test run --all --tags smoke --tags guidance-test --tier 1 --tool claude
 llm-tool-test run --all --tier 1 --tool claude-code
 ```
 
-Dry run without LLM calls:
+Dry run without LLM calls or `LLM_TOOL_TEST_ENABLED=1`:
 
 ```bash
 llm-tool-test run --scenario example_basic --dry-run
@@ -96,16 +103,19 @@ llm-tool-test clean
 ## Typical Workflow
 
 ```bash
-# 1. Enable the safety flag
+# 1. Validate selection and setup without a real LLM
+llm-tool-test run --scenario example_basic --dry-run
+
+# 2. Enable real-run consent
 export LLM_TOOL_TEST_ENABLED=1
 
-# 2. List available scenarios
+# 3. List available scenarios
 llm-tool-test scenarios
 
-# 3. Run a scenario with an agent tool
+# 4. Run a scenario with an agent tool
 llm-tool-test run --scenario example_basic --tool claude-code
 
-# 4. Check the evaluation profile
+# 5. Check the evaluation profile
 cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
 
 # 5. Review the transcript for debugging
@@ -314,7 +324,9 @@ Use CI gates for catastrophic regressions. Use the evaluation profile to underst
 
 ## Troubleshooting
 
-**"LLM testing is disabled"**: set `LLM_TOOL_TEST_ENABLED=1`.
+**"Real LLM tool runs require LLM_TOOL_TEST_ENABLED=1"**: use `--dry-run` to
+validate without an LLM, or set `LLM_TOOL_TEST_ENABLED=1` to consent to real
+agent execution.
 
 **Scenario not found**: check that the scenario exists in `fixtures/`, then run `llm-tool-test scenarios`.
 

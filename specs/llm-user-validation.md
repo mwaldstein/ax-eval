@@ -331,12 +331,13 @@ If cache hit, reuse transcript and evaluation results. Disable with `--no-cache`
 - Selected agent tool and model
 - Generated run metadata placeholder
 
-No LLM API calls are made.
+No LLM API calls are made, no agent adapter is launched, and
+`LLM_TOOL_TEST_ENABLED=1` is not required.
 
 ### Environment Variables
 
 ```bash
-LLM_TOOL_TEST_ENABLED=1          # Must be set to run tests (safety)
+LLM_TOOL_TEST_ENABLED=1          # Required only for real agent execution; not needed for --dry-run.
 ```
 
 ---

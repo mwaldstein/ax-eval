@@ -50,27 +50,36 @@ cargo build --release
 
 You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or `codex`).
 
-1. **Enable the safety flag.** Required to launch agent runs — prevents accidental execution in CI or shared environments, where runs would incur token cost and execute arbitrary CLI commands.
+1. **Validate without a real LLM**. `--dry-run` checks scenario selection,
+   fixture setup, cache keys, and run planning without requiring real-run
+   consent.
+   ```bash
+   llm-tool-test run --scenario example_basic --dry-run
+   ```
+
+2. **Enable real-run consent.** `LLM_TOOL_TEST_ENABLED=1` is required only for
+   real agent execution. It prevents accidental LLM API spend and arbitrary
+   agent-driven CLI execution in CI or shared environments.
    ```bash
    export LLM_TOOL_TEST_ENABLED=1
    ```
 
-2. **List scenarios**: View built-in examples.
+3. **List scenarios**: View built-in examples.
    ```bash
    llm-tool-test scenarios
    ```
 
-3. **Print a scenario template**: Start from a schema-valid YAML example.
+4. **Print a scenario template**: Start from a schema-valid YAML example.
    ```bash
    llm-tool-test template scenario > fixtures/my_scenario.yaml
    ```
 
-4. **Run evaluation**:
+5. **Run evaluation**:
    ```bash
    llm-tool-test run --scenario example_basic --tool claude-code
    ```
 
-5. **Review results**:
+6. **Review results**:
    ```bash
    cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
    ```

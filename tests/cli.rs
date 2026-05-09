@@ -45,6 +45,20 @@ fn test_run_help_includes_judge_tool_option() {
 }
 
 #[test]
+fn test_run_help_documents_safety_and_examples() {
+    llm_tool_test()
+        .args(["run", "--help"])
+        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("LLM_TOOL_TEST_ENABLED=1"))
+        .stdout(predicate::str::contains(
+            "llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode",
+        ))
+        .stdout(predicate::str::contains("Artifacts are written"));
+}
+
+#[test]
 fn test_cli_help_points_to_template_command() {
     llm_tool_test()
         .arg("--help")
@@ -130,7 +144,9 @@ evaluation:
         .args(["run", "--scenario", "fixtures/qipu/test_basic.yaml"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("LLM_TOOL_TEST_ENABLED"));
+        .stderr(predicate::str::contains("LLM_TOOL_TEST_ENABLED"))
+        .stderr(predicate::str::contains("--dry-run"))
+        .stderr(predicate::str::contains("explicit safety consent"));
 }
 
 #[test]
@@ -353,6 +369,47 @@ evaluation:
             "--dry-run",
         ])
         .env("LLM_TOOL_TEST_ENABLED", "1")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_run_command_dry_run_does_not_require_safety_env_var() {
+    let dir = tempdir().unwrap();
+
+    let fixtures_dir = dir.path().join("fixtures");
+    let qipu_dir = fixtures_dir.join("qipu");
+    fs::create_dir_all(&qipu_dir).unwrap();
+    create_qipu_template(dir.path());
+
+    let scenario_content = r#"
+name: dry_run_without_env_test
+description: "Dry run without real LLM consent"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Test"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    fs::write(
+        qipu_dir.join("dry_run_without_env_test.yaml"),
+        scenario_content,
+    )
+    .unwrap();
+
+    llm_tool_test()
+        .current_dir(dir.path())
+        .args([
+            "run",
+            "--scenario",
+            "fixtures/qipu/dry_run_without_env_test.yaml",
+            "--dry-run",
+        ])
+        .env_remove("LLM_TOOL_TEST_ENABLED")
         .assert()
         .success();
 }

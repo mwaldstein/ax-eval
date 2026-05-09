@@ -141,13 +141,14 @@ fn main() -> anyhow::Result<()> {
             no_judge,
             timeout_secs,
         } => {
-            // Safety check: only run tests when explicitly enabled
-            if std::env::var("LLM_TOOL_TEST_ENABLED").as_deref() != Ok("1") {
+            // Safety check: only real LLM executions require explicit consent.
+            if !dry_run && std::env::var("LLM_TOOL_TEST_ENABLED").as_deref() != Ok("1") {
                 anyhow::bail!(
-                    "LLM tool test runs require LLM_TOOL_TEST_ENABLED=1 to be set as a safety measure.\n\
-                     This prevents accidental expensive LLM API calls.\n\
+                    "Real LLM tool runs require LLM_TOOL_TEST_ENABLED=1 as an explicit safety consent.\n\
+                     This prevents accidental expensive LLM API calls and arbitrary agent-driven CLI execution.\n\
                      \n\
-                     To run tests, set:\n\
+                     To validate selection and setup without an LLM, use --dry-run.\n\
+                     To run a real agent evaluation, set:\n\
                      export LLM_TOOL_TEST_ENABLED=1"
                 );
             }
