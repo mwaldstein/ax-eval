@@ -217,6 +217,11 @@ The profile includes:
 
 Use `metrics.json` when comparing repeated runs programmatically.
 
+The `interaction_evidence_source` field shows how command metrics were built:
+`structured_tool_calls` means the adapter provided canonical command events;
+`transcript_regex_fallback` means metrics came from transcript regex analysis
+for an adapter that cannot expose structured tool calls.
+
 Common comparisons:
 
 - Did the new model reduce token usage?
@@ -252,6 +257,11 @@ Use CI gates for catastrophic regressions. Use the evaluation profile to underst
 **Scenario not found**: check that the scenario exists in `fixtures/`, then run `llm-tool-test scenarios`.
 
 **Gate failures**: inspect `evaluation.md`, `metrics.json`, and `transcript.raw.txt`.
+
+**Interaction evidence failures**: a structured-capable adapter returned
+fallback evidence or no usable target-tool events. Inspect `metrics.json`,
+`tool-output.raw.txt`, and `transcript.raw.txt`; this usually means the
+adapter's raw-output parser no longer matches the CLI output schema.
 
 **Timeout errors**: increase timeout with `--timeout-secs 600`.
 

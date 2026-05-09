@@ -42,16 +42,28 @@ artifacts:
 - Cost, if available.
 - Exit status.
 
+Adapters that can expose structured tool calls must return structured command
+events and set `supports_structured_tool_calls()` to `true` on their
+`ToolAdapter` implementation. For normal completed runs, those events must
+include at least one usable target-tool command. Evaluation fails when a
+structured-capable adapter falls back to transcript regex evidence or returns no
+usable target-tool events.
+
+Transcript regex analysis is only fallback evidence for adapters that cannot
+provide structured tool calls. See `docs/adr/0002-prefer-structured-interaction-evidence.md`.
+
 ## Adding An Adapter
 
 1. Create `src/adapter/<name>/mod.rs` and implement `ToolAdapter`.
 2. Create `src/adapter/<name>/normalize.rs` for raw output -> `ToolRunOutput`.
-3. Use shared helpers from `src/adapter/normalize.rs` for canonical construction.
-4. Register the module in `src/adapter/mod.rs`.
-5. Add the adapter to dispatch in `src/run/execution.rs`.
-6. Add normalization behavior tests in `src/adapter/normalize.rs` or adapter-local tests.
-7. Add integration test coverage in `tests/cli.rs` where relevant.
-8. Add e2e coverage in `tests/e2e.rs` if the tool supports real-LLM execution.
+3. Set `supports_structured_tool_calls()` to `true` if the CLI exposes tool
+   calls in structured output.
+4. Use shared helpers from `src/adapter/normalize.rs` for canonical construction.
+5. Register the module in `src/adapter/mod.rs`.
+6. Add the adapter to dispatch in `src/run/execution.rs`.
+7. Add normalization behavior tests in `src/adapter/normalize.rs` or adapter-local tests.
+8. Add integration test coverage in `tests/cli.rs` where relevant.
+9. Add e2e coverage in `tests/e2e.rs` if the tool supports real-LLM execution.
 
 ## Testing
 

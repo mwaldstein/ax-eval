@@ -42,7 +42,7 @@ The framework measures quality along two axes:
 
 There are few universally applicable, objective measures of "did the LLM use this tool well." Rather than invent domain-specific metrics, the framework measures quality in three layers, ordered from cheapest to most expensive. Each layer answers a different question:
 
-1. **Interaction quality** — Did the LLM use the tool efficiently? **(quantitative, transcript-derived, always available)** — the primary comparative signal
+1. **Interaction quality** — Did the LLM use the tool efficiently? **(quantitative, evidence-derived, always available)** — the primary comparative signal
 2. **Outcome assertions (gates)** — Did the task produce the right results? **(binary, fail-fast, scenario-author-defined)** — necessary but not the point
 3. **LLM-as-judge** — Was the tool used as intended? **(qualitative, rubric-driven, optional)** — encodes intrinsic knowledge of how the tool should be used
 
@@ -50,11 +50,24 @@ There are few universally applicable, objective measures of "did the LLM use thi
 
 ## Layer 1: Interaction Quality
 
-These metrics are derived from the transcript and are always available, regardless of the tool being tested. They measure *how* the LLM interacted with the tool, not *what* it produced.
+These metrics are derived from interaction evidence and are always available, regardless of the tool being tested. They measure *how* the LLM interacted with the tool, not *what* it produced.
+
+### Interaction Evidence
+
+Structured tool calls are the canonical evidence source for interaction
+profiles. If an adapter supports structured tool calls, it must return
+structured command events for normal completed runs. Returning transcript regex
+evidence, or returning no usable target-tool events, is an evaluation failure.
+
+Transcript regex analysis is fallback evidence only for adapters that cannot
+provide structured tool calls. See ADR-0002.
 
 ### Command Identification
 
-The transcript analyzer must know which commands belong to the target tool. This requires a configurable command pattern, specified per scenario or globally:
+The interaction profile must know which commands belong to the target tool.
+For structured evidence, target commands are identified from adapter-provided
+command events using `target.binary`. For regex fallback evidence, this requires
+a configurable command pattern, specified per scenario or globally:
 
 ```yaml
 # In scenario YAML
@@ -66,7 +79,11 @@ target:
 command_pattern = "my-tool\\s+(\\S+)"
 ```
 
-The pattern identifies target tool invocations in the transcript. If the pattern includes a capture group, the captured text is used to extract the subcommand for per-subcommand analytics (e.g., distinguishing `my-tool create` from `my-tool list`). If no capture group is present, only aggregate counts (total commands, error rate, etc.) are available.
+The pattern identifies target tool invocations in the transcript when regex
+fallback is used. If the pattern includes a capture group, the captured text is
+used to extract the subcommand for per-subcommand analytics (e.g.,
+distinguishing `my-tool create` from `my-tool list`). If no capture group is
+present, only aggregate counts (total commands, error rate, etc.) are available.
 
 ### Metrics
 
@@ -82,7 +99,15 @@ The pattern identifies target tool invocations in the transcript. If the pattern
 
 ### Data Source
 
-Interaction metrics are currently derived from `transcript.raw.txt` using `target.command_pattern`. Some adapters synthesize a plain-text transcript from their structured JSON output before analysis. Exit code detection is therefore only as reliable as the transcript or synthesized transcript content.
+Interaction profiles record their evidence source in `metrics.json` as
+`interaction_evidence_source`.
+
+- `structured_tool_calls`: metrics came from adapter-provided command events.
+- `transcript_regex_fallback`: metrics came from `transcript.raw.txt` using
+  `target.command_pattern`.
+
+Exit code detection for regex fallback is only as reliable as the transcript
+content. Structured-capable adapters must not use this fallback.
 
 ### Completion
 

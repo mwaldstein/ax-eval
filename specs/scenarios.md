@@ -19,7 +19,7 @@ Each scenario must declare the CLI tool under evaluation. This is the **target t
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `target.binary` | string | yes | Path or name of the CLI tool binary |
-| `target.command_pattern` | string | no | Regex for identifying target tool invocations in transcripts. Defaults to the binary name. |
+| `target.command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. Defaults to the binary name. |
 | `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens) |
 | `target.health_check` | string | no | Command to verify the tool is working before/after runs |
 
@@ -41,7 +41,14 @@ If no target is specified, scenario loading fails with a clear error. Environmen
 
 ### `command_pattern`
 
-The command pattern is used by transcript analysis to identify tool invocations, count them, and extract arguments. It defaults to a simple match on the binary name but can be customized for tools with subcommand patterns. The capture group is optional — when present, it enables per-subcommand analytics:
+The command pattern is used only by transcript regex fallback analysis. Adapters
+that support structured tool calls must provide structured interaction evidence
+instead; `command_pattern` is ignored for those adapter-backed metrics.
+
+For fallback adapters, the pattern identifies tool invocations, counts them, and
+extracts arguments. It defaults to a simple match on the binary name but can be
+customized for tools with subcommand patterns. The capture group is optional —
+when present, it enables per-subcommand analytics:
 
 ```yaml
 # Simple: just match the binary
@@ -333,6 +340,7 @@ llm-tool-test-results/<timestamp>-<agent>-<model>-<scenario>/
   "judge_score": 0.82,
   "duration_secs": 45.3,
   "cost_usd": 0.023,
+  "interaction_evidence_source": "structured_tool_calls",
   "outcome": "Pass"
 }
 ```
