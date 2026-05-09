@@ -1,7 +1,9 @@
 use super::EvaluatorResult;
 use crate::scenario::Scenario;
+use crate::script_contract::{
+    evaluator_execution_failed, evaluator_runner_unavailable, interpret_evaluator_report,
+};
 use crate::script_runner::ScriptRunner;
-use serde_json::Value;
 
 /// Run custom evaluator scripts from scenario configuration.
 pub fn run_evaluators(
@@ -16,35 +18,11 @@ pub fn run_evaluators(
 
             let result = if let Some(runner) = script_runner {
                 match runner.run_report(&entry.command, entry.timeout_secs) {
-                    Ok(report) => {
-                        if let Some(error) = report.failure_summary() {
-                            EvaluatorResult {
-                                name: entry.name.clone(),
-                                metrics: None,
-                                score: None,
-                                summary: None,
-                                error: Some(error),
-                            }
-                        } else {
-                            parse_evaluator_stdout(&entry.name, &report.result.stdout)
-                        }
-                    }
-                    Err(e) => EvaluatorResult {
-                        name: entry.name.clone(),
-                        metrics: None,
-                        score: None,
-                        summary: None,
-                        error: Some(format!("Execution failed: {}", e)),
-                    },
+                    Ok(report) => interpret_evaluator_report(&entry.name, &report),
+                    Err(e) => evaluator_execution_failed(&entry.name, &e),
                 }
             } else {
-                EvaluatorResult {
-                    name: entry.name.clone(),
-                    metrics: None,
-                    score: None,
-                    summary: None,
-                    error: Some("Script runner not available".to_string()),
-                }
+                evaluator_runner_unavailable(&entry.name)
             };
 
             if let Some(ref err) = result.error {
@@ -58,34 +36,6 @@ pub fn run_evaluators(
     }
 
     results
-}
-
-fn parse_evaluator_stdout(name: &str, stdout: &str) -> EvaluatorResult {
-    match serde_json::from_str::<Value>(stdout) {
-        Ok(json) => {
-            let metrics = json.get("metrics").cloned();
-            let score = json.get("score").and_then(|v| v.as_f64());
-            let summary = json
-                .get("summary")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            EvaluatorResult {
-                name: name.to_string(),
-                metrics,
-                score,
-                summary,
-                error: None,
-            }
-        }
-        Err(e) => EvaluatorResult {
-            name: name.to_string(),
-            metrics: None,
-            score: None,
-            summary: Some(stdout.trim().to_string()),
-            error: Some(format!("Invalid JSON output: {}", e)),
-        },
-    }
 }
 
 #[cfg(test)]

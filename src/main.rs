@@ -20,6 +20,7 @@ mod output;
 mod results;
 mod run;
 mod scenario;
+mod script_contract;
 mod script_runner;
 mod session;
 mod target_env;
