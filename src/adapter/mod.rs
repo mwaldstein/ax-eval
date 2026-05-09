@@ -8,7 +8,7 @@ pub mod opencode;
 mod mock_test;
 
 use crate::scenario::Scenario;
-use crate::transcript::{CommandEvent, InteractionMetricsSource};
+use crate::transcript::{CommandEvent, InteractionInput};
 use std::path::Path;
 
 /// Error type for adapter operations.
@@ -45,10 +45,17 @@ pub struct ToolRunOutput {
     pub exit_code: i32,
     pub cost_usd: Option<f64>,
     pub token_usage: Option<TokenUsage>,
-    /// Which canonical artifact must be used for interaction metrics.
-    pub metrics_source: InteractionMetricsSource,
-    /// Canonical command events, used when `metrics_source` is `StructuredToolCalls`.
-    pub command_events: Vec<CommandEvent>,
+    /// Canonical input for interaction metrics.
+    pub interaction_input: InteractionInput,
+}
+
+impl ToolRunOutput {
+    pub fn command_events(&self) -> Option<&[CommandEvent]> {
+        match &self.interaction_input {
+            InteractionInput::StructuredToolCalls(events) => Some(events),
+            InteractionInput::TranscriptRegex => None,
+        }
+    }
 }
 
 /// Trait for tool adapters that execute LLM CLI tools.

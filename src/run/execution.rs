@@ -103,24 +103,24 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         input.effective_timeout,
     )?;
     let duration = start.elapsed();
-    let output = run_output.transcript;
+    let output = &run_output.transcript;
     let exit_code = run_output.exit_code;
     let cost = run_output.cost_usd;
-    let token_usage = run_output.token_usage;
-    let metrics_source = run_output.metrics_source;
-    let command_events = run_output.command_events;
+    let token_usage = run_output.token_usage.clone();
 
     // Write transcript immediately after execution so evaluation can read it
-    input.writer.write_raw(&output)?;
-    if let Some(raw_output) = run_output.raw_output {
-        input.writer.write_tool_output(&raw_output)?;
+    input.writer.write_raw(output)?;
+    if let Some(raw_output) = &run_output.raw_output {
+        input.writer.write_tool_output(raw_output)?;
     }
-    if !command_events.is_empty() {
-        input.writer.write_command_events(&command_events)?;
+    if let Some(command_events) = run_output.command_events() {
+        if !command_events.is_empty() {
+            input.writer.write_command_events(command_events)?;
+        }
     }
     // Also copy transcript to fixture directory for gate evaluators that read from env_root
     let fixture_transcript = input.env.root.join("transcript.raw.txt");
-    std::fs::write(&fixture_transcript, &output).ok();
+    std::fs::write(&fixture_transcript, output).ok();
     let event = if let Some(c) = cost {
         serde_json::json!({
             "type": "execution",
@@ -173,8 +173,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         Some(&script_runner),
         input.judge_model,
         input.judge_tool,
-        metrics_source,
-        &command_events,
+        &run_output.interaction_input,
         completed,
     )?;
     println!("Evaluation metrics: {:?}", metrics);

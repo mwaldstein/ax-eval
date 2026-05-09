@@ -1,6 +1,6 @@
 use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
-use crate::transcript::InteractionMetricsSource;
+use crate::transcript::InteractionInput;
 use std::path::Path;
 
 pub struct MockAdapter;
@@ -40,8 +40,7 @@ impl ToolAdapter for MockAdapter {
             exit_code: 0,
             cost_usd: None,
             token_usage: None,
-            metrics_source: InteractionMetricsSource::TranscriptRegex,
-            command_events: Vec::new(),
+            interaction_input: InteractionInput::TranscriptRegex,
         })
     }
 }

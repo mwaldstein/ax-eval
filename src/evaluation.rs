@@ -1,7 +1,7 @@
 use crate::judge::{load_rubric, JudgeResponse};
 use crate::scenario::{Gate, JudgeConfig, Scenario};
 use crate::script_runner::ScriptRunner;
-use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionMetricsSource};
+use crate::transcript::{EfficiencyMetrics, InteractionInput};
 use anyhow::{Context, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -36,8 +36,7 @@ pub struct EvaluationContext<'a> {
     pub target_binary: &'a str,
     pub command_pattern: Option<&'a str>,
     pub script_runner: Option<&'a ScriptRunner>,
-    pub metrics_source: InteractionMetricsSource,
-    pub command_events: &'a [CommandEvent],
+    pub interaction_input: &'a InteractionInput,
 }
 
 pub trait GateEvaluator {
@@ -68,8 +67,7 @@ impl GateEvaluator for Gate {
                 ctx.env_root,
                 ctx.target_binary,
                 ctx.command_pattern,
-                ctx.metrics_source,
-                ctx.command_events,
+                ctx.interaction_input,
             ),
             Gate::Script {
                 command,
@@ -549,8 +547,7 @@ fn eval_no_transcript_errors(
     env_root: &Path,
     target_binary: &str,
     command_pattern: Option<&str>,
-    metrics_source: InteractionMetricsSource,
-    command_events: &[CommandEvent],
+    interaction_input: &InteractionInput,
 ) -> GateResult {
     eval_gate!(
         "NoTranscriptErrors",
@@ -558,8 +555,7 @@ fn eval_no_transcript_errors(
             env_root,
             target_binary,
             command_pattern,
-            metrics_source,
-            command_events
+            interaction_input
         ),
         |no_errors| (
             no_errors,
@@ -905,16 +901,14 @@ fn compute_efficiency_or_default(
     env_root: &Path,
     target_binary: &str,
     command_pattern: Option<&str>,
-    metrics_source: InteractionMetricsSource,
-    command_events: &[CommandEvent],
+    interaction_input: &InteractionInput,
     completed: bool,
 ) -> EfficiencyMetrics {
     let mut metrics = crate::eval_helpers::compute_efficiency_metrics(
         env_root,
         target_binary,
         command_pattern,
-        metrics_source,
-        command_events,
+        interaction_input,
     )
     .unwrap_or(EfficiencyMetrics {
         total_commands: 0,
@@ -939,16 +933,14 @@ fn build_metrics(
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
-    metrics_source: InteractionMetricsSource,
-    command_events: &[CommandEvent],
+    interaction_input: &InteractionInput,
     completed: bool,
 ) -> EvaluationMetrics {
     let efficiency = compute_efficiency_or_default(
         env_root,
         &scenario.target.binary,
         scenario.target.command_pattern.as_deref(),
-        metrics_source,
-        command_events,
+        interaction_input,
         completed,
     );
     let composite_score = scenario.evaluation.composite.as_ref().map(|weights| {
@@ -982,8 +974,7 @@ pub fn evaluate(
     script_runner: Option<&ScriptRunner>,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
-    metrics_source: InteractionMetricsSource,
-    command_events: &[CommandEvent],
+    interaction_input: &InteractionInput,
     completed: bool,
 ) -> Result<EvaluationMetrics> {
     println!("Evaluating results for scenario: {}", scenario.name);
@@ -993,8 +984,7 @@ pub fn evaluate(
         target_binary: &scenario.target.binary,
         command_pattern: scenario.target.command_pattern.as_deref(),
         script_runner,
-        metrics_source,
-        command_events,
+        interaction_input,
     };
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
@@ -1016,8 +1006,7 @@ pub fn evaluate(
         judge_score,
         judge_response,
         judge_passed,
-        metrics_source,
-        command_events,
+        interaction_input,
         completed,
     );
 

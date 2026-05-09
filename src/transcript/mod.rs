@@ -5,8 +5,8 @@ pub mod writer;
 
 pub use analyzer::TranscriptAnalyzer;
 pub use types::{
-    CommandEvent, EfficiencyMetrics, EvaluationReport, InteractionMetricsSource, RunMetadata,
-    RunReport, TokenUsage,
+    CommandEvent, EfficiencyMetrics, EvaluationReport, InteractionInput, RunMetadata, RunReport,
+    TokenUsage,
 };
 pub use writer::TranscriptWriter;
 

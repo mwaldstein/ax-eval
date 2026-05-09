@@ -1,5 +1,5 @@
 use super::{TokenUsage, ToolRunOutput};
-use crate::transcript::{CommandEvent, InteractionMetricsSource};
+use crate::transcript::{CommandEvent, InteractionInput};
 use regex::Regex;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -16,8 +16,7 @@ pub(crate) fn opencode_output(output: String, exit_code: i32) -> ToolRunOutput {
         exit_code,
         cost_usd: cost,
         token_usage,
-        metrics_source: InteractionMetricsSource::StructuredToolCalls,
-        command_events,
+        interaction_input: InteractionInput::StructuredToolCalls(command_events),
     }
 }
 
@@ -32,8 +31,7 @@ pub(crate) fn codex_output(output: String, exit_code: i32) -> ToolRunOutput {
         exit_code,
         cost_usd: None,
         token_usage,
-        metrics_source: InteractionMetricsSource::StructuredToolCalls,
-        command_events,
+        interaction_input: InteractionInput::StructuredToolCalls(command_events),
     }
 }
 
@@ -53,8 +51,7 @@ pub(crate) fn claude_code_output(output: String, exit_code: i32) -> ToolRunOutpu
         exit_code,
         cost_usd: cost,
         token_usage: None,
-        metrics_source: InteractionMetricsSource::StructuredToolCalls,
-        command_events,
+        interaction_input: InteractionInput::StructuredToolCalls(command_events),
     }
 }
 
@@ -728,11 +725,12 @@ mod tests {
     #[test]
     fn normalizes_codex_jsonl() {
         let output = codex_output(sample_codex_jsonl(), 0);
+        let command_events = output.command_events().expect("structured command events");
 
-        assert_eq!(output.token_usage.unwrap().input, 170);
-        assert_eq!(output.command_events.len(), 2);
-        assert_eq!(output.command_events[0].command, "bash -lc ls");
-        assert_eq!(output.command_events[1].exit_code, Some(1));
+        assert_eq!(output.token_usage.as_ref().unwrap().input, 170);
+        assert_eq!(command_events.len(), 2);
+        assert_eq!(command_events[0].command, "bash -lc ls");
+        assert_eq!(command_events[1].exit_code, Some(1));
         assert!(output.transcript.contains("docs\nsrc\n"));
         assert!(output.transcript.contains("exit code: 1"));
     }
@@ -753,8 +751,9 @@ mod tests {
         .to_string();
 
         let output = codex_output(jsonl_output, 0);
+        let command_events = output.command_events().expect("structured command events");
         assert!(output.transcript.contains("$ bash -lc pwd"));
-        assert_eq!(output.command_events[0].exit_code, Some(0));
+        assert_eq!(command_events[0].exit_code, Some(0));
     }
 
     #[test]
@@ -773,21 +772,23 @@ mod tests {
         .to_string();
 
         let output = codex_output(jsonl_output, 0);
+        let command_events = output.command_events().expect("structured command events");
         assert!(output.transcript.contains("exit code: 1"));
-        assert_eq!(output.command_events[0].exit_code, Some(1));
+        assert_eq!(command_events[0].exit_code, Some(1));
     }
 
     #[test]
     fn normalizes_opencode_json() {
         let output = opencode_output(sample_opencode_json(), 0);
+        let command_events = output.command_events().expect("structured command events");
 
-        let usage = output.token_usage.unwrap();
+        let usage = output.token_usage.as_ref().unwrap();
         assert_eq!(usage.input, 28);
         assert_eq!(usage.output, 60);
         assert!((output.cost_usd.unwrap() - 0.167).abs() < 0.001);
-        assert_eq!(output.command_events.len(), 3);
-        assert_eq!(output.command_events[2].command, "./notes badcmd");
-        assert_eq!(output.command_events[2].exit_code, Some(1));
+        assert_eq!(command_events.len(), 3);
+        assert_eq!(command_events[2].command, "./notes badcmd");
+        assert_eq!(command_events[2].exit_code, Some(1));
         assert!(output.transcript.contains("Error: unknown command"));
     }
 
@@ -808,7 +809,10 @@ mod tests {
 
         let output = opencode_output(json_output, 0);
         assert!(output.transcript.is_empty());
-        assert!(output.command_events.is_empty());
+        assert!(output
+            .command_events()
+            .expect("structured command events")
+            .is_empty());
     }
 
     #[test]
@@ -842,10 +846,11 @@ mod tests {
         );
 
         let output = claude_code_output(raw, 0);
+        let command_events = output.command_events().expect("structured command events");
 
-        assert_eq!(output.command_events.len(), 1);
-        assert_eq!(output.command_events[0].command, "notes add \"Hello\"");
-        assert_eq!(output.command_events[0].exit_code, Some(0));
+        assert_eq!(command_events.len(), 1);
+        assert_eq!(command_events[0].command, "notes add \"Hello\"");
+        assert_eq!(command_events[0].exit_code, Some(0));
         assert!(output.transcript.contains("$ notes add \"Hello\""));
     }
 
@@ -884,8 +889,9 @@ mod tests {
         );
 
         let output = claude_code_output(raw, 0);
-        assert_eq!(output.command_events[0].command, "notes list");
-        assert_eq!(output.command_events[0].exit_code, Some(0));
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].command, "notes list");
+        assert_eq!(command_events[0].exit_code, Some(0));
     }
 
     #[test]
@@ -917,7 +923,8 @@ mod tests {
         );
 
         let output = claude_code_output(raw, 0);
-        assert_eq!(output.command_events[0].exit_code, Some(1));
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].exit_code, Some(1));
     }
 
     #[test]

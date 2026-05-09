@@ -1,4 +1,4 @@
-use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionMetricsSource};
+use crate::transcript::{EfficiencyMetrics, InteractionInput};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -7,16 +7,10 @@ pub fn no_transcript_errors(
     env_root: &Path,
     target_binary: &str,
     command_pattern: Option<&str>,
-    metrics_source: InteractionMetricsSource,
-    command_events: &[CommandEvent],
+    interaction_input: &InteractionInput,
 ) -> Result<bool> {
-    let metrics = compute_efficiency_metrics(
-        env_root,
-        target_binary,
-        command_pattern,
-        metrics_source,
-        command_events,
-    )?;
+    let metrics =
+        compute_efficiency_metrics(env_root, target_binary, command_pattern, interaction_input)?;
     Ok(metrics.error_count == 0)
 }
 
@@ -25,17 +19,16 @@ pub fn compute_efficiency_metrics(
     env_root: &Path,
     target_binary: &str,
     command_pattern: Option<&str>,
-    metrics_source: InteractionMetricsSource,
-    command_events: &[CommandEvent],
+    interaction_input: &InteractionInput,
 ) -> Result<EfficiencyMetrics> {
-    match metrics_source {
-        InteractionMetricsSource::StructuredToolCalls => Ok(
+    match interaction_input {
+        InteractionInput::StructuredToolCalls(command_events) => Ok(
             crate::transcript::TranscriptAnalyzer::analyze_command_events_for_target(
                 command_events,
                 target_binary,
             ),
         ),
-        InteractionMetricsSource::TranscriptRegex => {
+        InteractionInput::TranscriptRegex => {
             let transcript_path = env_root.join("transcript.raw.txt");
             let content = std::fs::read_to_string(&transcript_path)
                 .context("Failed to read transcript file for regex efficiency metrics")?;
@@ -83,6 +76,7 @@ pub fn compute_composite_score(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transcript::CommandEvent;
 
     #[test]
     fn structured_tool_calls_do_not_fall_back_to_transcript_regex() {
@@ -101,8 +95,7 @@ mod tests {
             temp.path(),
             "notes",
             None,
-            InteractionMetricsSource::StructuredToolCalls,
-            &events,
+            &InteractionInput::StructuredToolCalls(events),
         )
         .expect("compute metrics");
 
@@ -118,17 +111,11 @@ mod tests {
             "notes add\nexit code: 1\n",
         )
         .expect("write transcript");
-        let events = vec![CommandEvent {
-            command: "notes add".to_string(),
-            exit_code: Some(0),
-        }];
-
         let metrics = compute_efficiency_metrics(
             temp.path(),
             "notes",
             None,
-            InteractionMetricsSource::TranscriptRegex,
-            &events,
+            &InteractionInput::TranscriptRegex,
         )
         .expect("compute metrics");
 
