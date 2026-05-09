@@ -95,22 +95,26 @@ pub struct EvaluatorResult {
     pub error: Option<String>,
 }
 
-#[allow(clippy::too_many_arguments)]
-fn build_metrics(
-    scenario: &Scenario,
+struct MetricsBuildInput<'a> {
+    scenario: &'a Scenario,
     details: Vec<GateResult>,
     gates_passed: usize,
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
     interaction_profile: InteractionProfile,
-) -> EvaluationMetrics {
+}
+
+fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
+    let scenario = input.scenario;
+    let judge_score = input.judge_score;
+    let interaction_profile = input.interaction_profile;
     let evidence_source = interaction_profile.evidence_source;
     let efficiency = interaction_profile.metrics;
     let composite_score = scenario.evaluation.composite.as_ref().map(|weights| {
         crate::eval_helpers::compute_composite_score(
             judge_score,
-            gates_passed,
+            input.gates_passed,
             scenario.evaluation.gates.len(),
             &efficiency,
             Some(weights),
@@ -118,12 +122,12 @@ fn build_metrics(
     });
 
     EvaluationMetrics {
-        gates_passed,
+        gates_passed: input.gates_passed,
         gates_total: scenario.evaluation.gates.len(),
-        details,
+        details: input.details,
         judge_score,
-        judge_response,
-        judge_passed,
+        judge_response: input.judge_response,
+        judge_passed: input.judge_passed,
         efficiency,
         interaction_evidence_source: evidence_source,
         composite_score,
@@ -178,15 +182,15 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         input.judge_model,
         input.judge_tool,
     )?;
-    let mut metrics = build_metrics(
+    let mut metrics = build_metrics(MetricsBuildInput {
         scenario,
         details,
         gates_passed,
-        judge_result.score,
-        judge_result.response,
-        judge_result.passed,
+        judge_score: judge_result.score,
+        judge_response: judge_result.response,
+        judge_passed: judge_result.passed,
         interaction_profile,
-    );
+    });
 
     // Run custom evaluators after gates and judge evaluation
     metrics.evaluator_results = run_evaluators(scenario, input.script_runner);
@@ -255,5 +259,42 @@ mod tests {
         assert_eq!(metrics.gates_total, 0);
         assert_eq!(metrics.efficiency.total_commands, 1);
         assert!(metrics.efficiency.completed);
+    }
+
+    #[test]
+    fn metrics_build_input_builds_metrics_record() {
+        let scenario = scenario();
+        let interaction_profile = InteractionProfile {
+            metrics: crate::transcript::EfficiencyMetrics {
+                total_commands: 1,
+                unique_commands: 1,
+                error_count: 0,
+                retry_count: 0,
+                help_invocations: 0,
+                first_try_success_rate: 1.0,
+                iteration_ratio: 1.0,
+                completed: true,
+            },
+            evidence_source:
+                crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+        };
+
+        let metrics = build_metrics(MetricsBuildInput {
+            scenario: &scenario,
+            details: vec![],
+            gates_passed: 0,
+            judge_score: None,
+            judge_response: None,
+            judge_passed: None,
+            interaction_profile,
+        });
+
+        assert_eq!(metrics.gates_passed, 0);
+        assert_eq!(metrics.gates_total, 0);
+        assert_eq!(metrics.efficiency.total_commands, 1);
+        assert_eq!(
+            metrics.interaction_evidence_source,
+            crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls
+        );
     }
 }
