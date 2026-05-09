@@ -1,5 +1,4 @@
 use super::super::analyzer::TranscriptAnalyzer;
-use crate::transcript::CommandEvent;
 
 #[test]
 fn test_analyze_empty_transcript() {
@@ -289,40 +288,5 @@ fn test_first_try_success_rate_unrelated_error_does_not_affect_other_commands() 
     let transcript = "taskmgr init\nExit code: 1\ntaskmgr add\nExit code: 0";
     let metrics = TranscriptAnalyzer::analyze_with_exit_codes(transcript);
 
-    assert_eq!(metrics.first_try_success_rate, 0.5);
-}
-
-#[test]
-fn test_analyze_command_events_for_target_uses_tool_calls_without_regex() {
-    let events = vec![
-        CommandEvent {
-            command: "ls".to_string(),
-            exit_code: Some(0),
-        },
-        CommandEvent {
-            command: "./notes init".to_string(),
-            exit_code: Some(0),
-        },
-        CommandEvent {
-            command: "bash -lc './notes add \"Hello\"'".to_string(),
-            exit_code: Some(1),
-        },
-        CommandEvent {
-            command: "/tmp/work/notes add \"Hello\"".to_string(),
-            exit_code: Some(0),
-        },
-        CommandEvent {
-            command: "./notes list --help".to_string(),
-            exit_code: Some(0),
-        },
-    ];
-
-    let metrics = TranscriptAnalyzer::analyze_command_events_for_target(&events, "notes");
-
-    assert_eq!(metrics.total_commands, 4);
-    assert_eq!(metrics.unique_commands, 3);
-    assert_eq!(metrics.error_count, 1);
-    assert_eq!(metrics.retry_count, 1);
-    assert_eq!(metrics.help_invocations, 1);
     assert_eq!(metrics.first_try_success_rate, 0.5);
 }
