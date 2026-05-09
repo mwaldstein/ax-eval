@@ -56,6 +56,39 @@ target:
     MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
 ```
 
+`llm-tool-test` does not modify `PATH` to locate the target tool. If
+`target.binary` is a bare command name, the command must already be discoverable
+in the environment used for the run. During local development, where the target
+tool often lives in a build output directory such as `target/debug`,
+`target/release`, or `dist`, prepend that directory before invoking the harness:
+
+```bash
+PATH="$PWD/target/debug:$PATH" \
+  LLM_TOOL_TEST_ENABLED=1 \
+  llm-tool-test run --scenario my_scenario --tool opencode
+```
+
+For scenario-specific lookup, set `PATH` in `target.env`; it is passed to setup
+commands, health checks, agent adapter runs, post scripts, script gates, and
+evaluators:
+
+```yaml
+target:
+  binary: mytool
+  health_check: "mytool --version"
+  env:
+    PATH: "/absolute/path/to/mytool/target/debug:/usr/local/bin:/usr/bin:/bin"
+```
+
+`target.env` values are literal except for
+`${LLM_TOOL_TEST_FIXTURE_DIR}` and `${LLM_TOOL_TEST_RESULTS_DIR}`. A value such
+as `PATH: "...:${PATH}"` does not inherit the caller's path; use shell-level
+`PATH` manipulation when you need that behavior.
+
+Use `./mytool` only when the target binary is part of the fixture workspace.
+Use an absolute `target.binary` only when the task and interaction metrics
+should expose that absolute command path to the agent and evaluators.
+
 ### `command_pattern`
 
 The command pattern is used only by transcript regex fallback analysis. Adapters

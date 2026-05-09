@@ -294,6 +294,9 @@ tier: 0
 template_folder: example_cli_workflow
 
 target:
+  # If mytool is built outside the fixture, make it discoverable before running:
+  # PATH="$PWD/target/debug:$PATH" LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario ...
+  # Or set a complete PATH in target.env for scenario-specific lookup.
   binary: mytool
   command_pattern: "mytool\\s+(\\S+)"
   health_check: "mytool --version"

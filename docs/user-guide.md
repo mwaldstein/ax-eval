@@ -172,6 +172,39 @@ target:
     MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
 ```
 
+### Target Tool Lookup During Development
+
+`llm-tool-test` does not rewrite `PATH` for the target tool. The agent sees the
+environment you give the harness, plus any variables declared in `target.env`.
+When the target CLI is built outside the fixture, make that build directory
+discoverable before running the scenario:
+
+```bash
+cargo build
+PATH="$PWD/target/debug:$PATH" \
+  LLM_TOOL_TEST_ENABLED=1 \
+  llm-tool-test run --scenario my_scenario --tool claude-code
+```
+
+You can also declare the development path in the scenario when every command in
+that scenario should use it:
+
+```yaml
+target:
+  binary: mytool
+  health_check: "mytool --version"
+  env:
+    PATH: "/absolute/path/to/mytool/target/debug:/usr/local/bin:/usr/bin:/bin"
+```
+
+Prefer a shell-level `PATH` change for one-off local development. Prefer
+`target.env` when the path is part of the scenario's reproducible setup. Values
+in `target.env` are literal except for the documented
+`${LLM_TOOL_TEST_FIXTURE_DIR}` and `${LLM_TOOL_TEST_RESULTS_DIR}` placeholders,
+so `PATH: "...:${PATH}"` will not inherit the caller's path. Use a relative
+command such as `./mytool` only when the binary is copied into the fixture
+itself.
+
 `interaction.target_commands` defaults to `required`, which is appropriate for
 normal CLI workflows. Set it to `optional` for validation scenarios where the
 agent may legitimately finish without calling the target tool, or `forbidden`

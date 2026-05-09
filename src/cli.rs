@@ -31,7 +31,7 @@ pub enum Commands {
     /// Run a test scenario
     #[command(
         long_about = "Run one scenario, all selected scenarios, or a configured tool/model matrix.\n\nReal agent execution is disabled unless LLM_TOOL_TEST_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.\n\nArtifacts are written under llm-tool-test-results/ by default, including reports, transcripts, metrics, and the isolated fixture workspace.",
-        after_help = "Examples:\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --all --tags smoke --tier 1 --tool claude-code\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --profile quick\n  llm-tool-test run --scenario fixtures/my_scenario.yaml --dry-run\n\nStart with `llm-tool-test template scenario` for a copyable scenario schema."
+        after_help = "Examples:\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode\n  PATH=\"$PWD/target/debug:$PATH\" LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --all --tags smoke --tier 1 --tool claude-code\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --profile quick\n  llm-tool-test run --scenario fixtures/my_scenario.yaml --dry-run\n\nStart with `llm-tool-test template scenario` for a copyable scenario schema."
     )]
     Run {
         /// Path to scenario file or name
