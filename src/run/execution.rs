@@ -34,6 +34,14 @@ struct ExecutionTranscriptInput<'a> {
     run_output: &'a ToolRunOutput,
 }
 
+struct PostScriptRunInput<'a> {
+    scenario: &'a Scenario,
+    tool: &'a str,
+    model: &'a str,
+    artifacts: &'a RunArtifacts,
+    writer: &'a TranscriptWriter,
+}
+
 pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapter>> {
     use crate::adapter::{
         claude_code::ClaudeCodeAdapter, codex::CodexAdapter, mock::MockAdapter,
@@ -90,20 +98,16 @@ fn persist_execution_transcript(input: ExecutionTranscriptInput<'_>) -> anyhow::
     Ok(())
 }
 
-fn run_post_scripts(
-    scenario: &Scenario,
-    tool: &str,
-    model: &str,
-    artifacts: &RunArtifacts,
-    writer: &TranscriptWriter,
-) -> anyhow::Result<()> {
-    if let Some(scripts) = &scenario.scripts {
+fn run_post_scripts(input: PostScriptRunInput<'_>) -> anyhow::Result<()> {
+    if let Some(scripts) = &input.scenario.scripts {
         println!("Running {} post-execution script(s)...", scripts.post.len());
-        let runner = artifacts.script_runner(scenario, tool, model);
+        let runner = input
+            .artifacts
+            .script_runner(input.scenario, input.tool, input.model);
 
         for entry in &scripts.post {
             let report = runner.run_report(&entry.command, entry.timeout_secs)?;
-            writer.append_event(&report.event("post_script"))?;
+            input.writer.append_event(&report.event("post_script"))?;
 
             if !report.succeeded() {
                 eprintln!("Warning: post script failed: {}", entry.command);
@@ -139,13 +143,13 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
     })?;
 
     // Run post-execution scripts after transcript writing, before evaluation
-    run_post_scripts(
-        input.scenario,
-        input.tool,
-        input.model,
-        input.artifacts,
-        input.writer,
-    )?;
+    run_post_scripts(PostScriptRunInput {
+        scenario: input.scenario,
+        tool: input.tool,
+        model: input.model,
+        artifacts: input.artifacts,
+        writer: input.writer,
+    })?;
 
     // Create script runner for evaluation (used by script gates)
     let script_runner = input
@@ -201,7 +205,36 @@ pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scenario::{Evaluation, Scenario, ScriptEntry, ScriptsConfig, TargetConfig, Task};
     use crate::transcript::{CommandEvent, InteractionInput};
+
+    fn scenario_with_scripts(scripts: Option<ScriptsConfig>) -> Scenario {
+        Scenario {
+            name: "execution-test".to_string(),
+            description: "Test execution behavior".to_string(),
+            template_folder: "fixture".to_string(),
+            target: TargetConfig {
+                binary: "target".to_string(),
+                command_pattern: None,
+                health_check: None,
+                env: None,
+            },
+            task: Task {
+                prompt: "Do the task".to_string(),
+            },
+            evaluation: Evaluation {
+                gates: vec![],
+                judge: None,
+                composite: None,
+            },
+            tier: 0,
+            tool_matrix: None,
+            setup: None,
+            tags: vec![],
+            run: None,
+            scripts,
+        }
+    }
 
     #[test]
     fn execution_transcript_input_persists_tool_output_artifacts() {
@@ -251,5 +284,40 @@ mod tests {
         assert_eq!(events[0]["tool"], "mock");
         assert_eq!(events[0]["exit_code"], 0);
         assert_eq!(events[0]["cost_usd"], 0.25);
+    }
+
+    #[test]
+    fn post_script_input_records_post_script_events() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        let artifacts = RunArtifacts::new(&dir.path().join("results"), &env);
+        let writer = artifacts.writer().expect("writer");
+        let scenario = scenario_with_scripts(Some(ScriptsConfig {
+            post: vec![ScriptEntry {
+                command: "echo post-ok".to_string(),
+                timeout_secs: 10,
+            }],
+            evaluators: vec![],
+        }));
+
+        run_post_scripts(PostScriptRunInput {
+            scenario: &scenario,
+            tool: "mock",
+            model: "model",
+            artifacts: &artifacts,
+            writer: &writer,
+        })
+        .expect("run post scripts");
+
+        let events = writer.read_events().expect("events");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["type"], "post_script");
+        assert_eq!(events[0]["command"], "echo post-ok");
+        assert_eq!(events[0]["exit_code"], 0);
+        assert!(events[0]["stdout"]
+            .as_str()
+            .expect("stdout")
+            .contains("post-ok"));
     }
 }
