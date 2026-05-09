@@ -1,4 +1,6 @@
-use super::{normalize, ToolAdapter, ToolRunOutput};
+pub(crate) mod normalize;
+
+use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
 use crate::session::SessionRunner;
 use std::path::Path;
@@ -64,6 +66,6 @@ impl ToolAdapter for ClaudeCodeAdapter {
         let (output, exit_code) =
             runner.run_command_with_env("claude", &args, cwd, timeout_secs, &target_env)?;
 
-        Ok(normalize::claude_code_output(output, exit_code))
+        Ok(normalize::normalize(output, exit_code))
     }
 }

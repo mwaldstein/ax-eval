@@ -139,14 +139,14 @@ pub trait ToolAdapter: Send + Sync {
     fn check_availability(&self) -> anyhow::Result<()>;
 
     /// Run the tool with the given scenario in the specified working directory.
-    /// Returns (output, exit_code, cost_usd, token_usage).
+    /// Returns canonical run artifacts.
     fn run(
         &self,
         scenario: &Scenario,
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
-    ) -> anyhow::Result<(String, i32, Option<f64>, Option<TokenUsage>)>;
+    ) -> anyhow::Result<ToolRunOutput>;
 }
 
 pub struct ToolStatus {
@@ -163,10 +163,25 @@ pub struct TokenUsage {
 ### Adapter Responsibilities
 
 - **Execution**: Launch the agent process with appropriate flags and prompt.
-- **Transcript capture**: Capture full PTY output from the agent session.
-- **Transcript normalization**: When an adapter receives structured JSON output, it should synthesize a plain-text transcript with commands and exit codes so Layer 1 metrics can be derived consistently.
+- **Raw output capture**: Capture full output from the agent session.
+- **Tool event normalization**: Keep adapter-specific raw-output parsing next to the adapter in `src/adapter/<name>/normalize.rs`. When an adapter receives structured JSON output, synthesize canonical transcript text and command events so interaction metrics can be derived consistently.
+- **Canonical artifact construction**: Use shared helpers in `src/adapter/normalize.rs` for common `ToolRunOutput` construction. Keep tool-specific event schemas out of the shared module.
 - **Cost/token tracking**: Parse actual cost and token usage from agent output when available. Do not estimate from character counts.
 - **Timeout enforcement**: Kill the agent process if it exceeds the configured timeout.
+
+### Adapter Module Layout
+
+Runtime adapters use a directory module:
+
+```text
+src/adapter/<name>/
+├── mod.rs        # Tool invocation and ToolAdapter implementation
+└── normalize.rs  # Raw output -> ToolRunOutput
+```
+
+This keeps tool invocation and raw event schema knowledge local to the adapter,
+while shared normalization helpers remain in `src/adapter/normalize.rs`. See
+`src/adapter/README.md` for the maintainer checklist.
 
 ### Available Adapters
 

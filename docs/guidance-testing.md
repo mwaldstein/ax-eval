@@ -1,0 +1,43 @@
+# Guidance Testing
+
+The framework includes comparative examples for testing how AGENTS.md guidance
+quality affects LLM tool usage.
+
+## Built-In Examples
+
+- `example_guidance_minimal`: bare-bones AGENTS.md with just command names. The
+  LLM must discover init requirements, ID capture, linking rules, and search
+  behavior through trial and error.
+- `example_guidance_rich`: detailed AGENTS.md with examples, workflows, error
+  handling tables, and constraints. It should produce better interaction
+  metrics.
+
+Both use the same `notes` mock tool, task prompt, and evaluation gates.
+
+## Running The Comparison
+
+```bash
+llm-tool-test run --all --tags guidance-test
+```
+
+Compare `metrics.json` across result directories.
+
+Primary signals:
+
+- Lower error rates and help-seeking.
+- Higher first-try success rate.
+- Fewer total commands and lower token usage.
+- Lower cost per task completion.
+
+Gate pass rate is a sanity check, not the main signal. The purpose of this
+comparison is to measure interaction quality.
+
+## Running All Examples With A Real LLM
+
+All built-in example scenarios share the `examples` tag.
+
+```bash
+llm-tool-test scenarios --tags examples
+llm-tool-test run --all --tags examples --tool opencode
+llm-tool-test run --all --tags examples --tool opencode --model opencode/kimi-k2.6
+```

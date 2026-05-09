@@ -1,4 +1,6 @@
-use super::{normalize, ToolAdapter, ToolRunOutput};
+pub(crate) mod normalize;
+
+use super::{ToolAdapter, ToolRunOutput};
 use crate::scenario::Scenario;
 use crate::session::SessionRunner;
 use std::path::Path;
@@ -60,6 +62,6 @@ impl ToolAdapter for OpenCodeAdapter {
         let (output, exit_code) =
             runner.run_command_with_env("opencode", &args, cwd, timeout_secs, &env_vars)?;
 
-        Ok(normalize::opencode_output(output, exit_code))
+        Ok(normalize::normalize(output, exit_code))
     }
 }
