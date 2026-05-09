@@ -3,6 +3,23 @@ use crate::scenario::{JudgeConfig, Scenario};
 use anyhow::{Context, Result};
 use std::path::Path;
 
+#[derive(Debug, Clone)]
+pub struct JudgeEvaluationResult {
+    pub score: Option<f64>,
+    pub response: Option<JudgeResponse>,
+    pub passed: Option<bool>,
+}
+
+impl JudgeEvaluationResult {
+    pub fn skipped() -> Self {
+        Self {
+            score: None,
+            response: None,
+            passed: None,
+        }
+    }
+}
+
 pub fn maybe_run_judge(
     scenario: &Scenario,
     env_root: &Path,
@@ -11,7 +28,7 @@ pub fn maybe_run_judge(
     gates_total: usize,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
-) -> Result<(Option<f64>, Option<JudgeResponse>, Option<bool>)> {
+) -> Result<JudgeEvaluationResult> {
     if let Some(judge_config) = &scenario.evaluation.judge {
         if judge_config.enabled && !no_judge {
             if gates_passed < gates_total {
@@ -20,7 +37,7 @@ pub fn maybe_run_judge(
                     gates_total - gates_passed,
                     gates_total
                 );
-                return Ok((None, None, None));
+                return Ok(JudgeEvaluationResult::skipped());
             }
             let (score, response) =
                 run_judge_evaluation(judge_config, judge_model, judge_tool, scenario, env_root)?;
@@ -38,10 +55,14 @@ pub fn maybe_run_judge(
                     );
                 }
             }
-            return Ok((score, response, passed));
+            return Ok(JudgeEvaluationResult {
+                score,
+                response,
+                passed,
+            });
         }
     }
-    Ok((None, None, None))
+    Ok(JudgeEvaluationResult::skipped())
 }
 
 fn run_judge_evaluation(
@@ -163,6 +184,15 @@ mod tests {
 
         judge_config.tool = None;
         assert_eq!(resolve_judge_tool(&judge_config, None), "opencode");
+    }
+
+    #[test]
+    fn judge_evaluation_result_represents_skipped_judge() {
+        let result = JudgeEvaluationResult::skipped();
+
+        assert_eq!(result.score, None);
+        assert!(result.response.is_none());
+        assert_eq!(result.passed, None);
     }
 
     #[test]

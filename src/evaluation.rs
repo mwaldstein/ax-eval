@@ -167,7 +167,7 @@ pub fn evaluate(
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
     let gates_total = scenario.evaluation.gates.len();
-    let (judge_score, judge_response, judge_passed) = maybe_run_judge(
+    let judge_result = maybe_run_judge(
         scenario,
         env_root,
         no_judge,
@@ -180,9 +180,9 @@ pub fn evaluate(
         scenario,
         details,
         gates_passed,
-        judge_score,
-        judge_response,
-        judge_passed,
+        judge_result.score,
+        judge_result.response,
+        judge_result.passed,
         interaction_profile,
     );
 
