@@ -1,6 +1,6 @@
 use crate::fixture::TestEnv;
 use crate::scenario::Scenario;
-use crate::script_runner::ScriptRunner;
+use crate::script_runner::{ScriptRunner, ScriptRunnerConfig};
 use crate::transcript::TranscriptWriter;
 use std::path::{Path, PathBuf};
 
@@ -46,16 +46,16 @@ impl RunArtifacts {
     }
 
     pub fn script_runner(&self, scenario: &Scenario, tool: &str, model: &str) -> ScriptRunner {
-        ScriptRunner::new(
-            self.fixture_dir.clone(),
-            self.results_dir.clone(),
-            scenario.name.clone(),
-            tool.to_string(),
-            model.to_string(),
-            Some(self.transcript_path()),
-            Some(self.events_path()),
-            scenario.target.env.clone().unwrap_or_default(),
-        )
+        ScriptRunner::new(ScriptRunnerConfig {
+            fixture_dir: self.fixture_dir.clone(),
+            results_dir: self.results_dir.clone(),
+            scenario_name: scenario.name.clone(),
+            agent: tool.to_string(),
+            model: model.to_string(),
+            transcript_path: Some(self.transcript_path()),
+            events_path: Some(self.events_path()),
+            target_env: scenario.target.env.clone().unwrap_or_default(),
+        })
     }
 }
 

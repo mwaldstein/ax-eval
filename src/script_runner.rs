@@ -87,32 +87,37 @@ pub struct ScriptRunner {
     target_env: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ScriptRunnerConfig {
+    pub fixture_dir: PathBuf,
+    pub results_dir: PathBuf,
+    pub scenario_name: String,
+    pub agent: String,
+    pub model: String,
+    pub transcript_path: Option<PathBuf>,
+    pub events_path: Option<PathBuf>,
+    pub target_env: HashMap<String, String>,
+}
+
 impl ScriptRunner {
     /// Create a new script runner.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        fixture_dir: PathBuf,
-        results_dir: PathBuf,
-        scenario_name: String,
-        agent: String,
-        model: String,
-        transcript_path: Option<PathBuf>,
-        events_path: Option<PathBuf>,
-        target_env: HashMap<String, String>,
-    ) -> Self {
+    pub fn new(config: ScriptRunnerConfig) -> Self {
         // Ensure fixture_dir is absolute so that scripts referencing
         // LLM_TOOL_TEST_FIXTURE_DIR resolve paths correctly regardless
         // of the script's working directory.
-        let fixture_dir = fixture_dir.canonicalize().unwrap_or(fixture_dir);
+        let fixture_dir = config
+            .fixture_dir
+            .canonicalize()
+            .unwrap_or(config.fixture_dir);
         Self {
             fixture_dir,
-            results_dir,
-            scenario_name,
-            agent,
-            model,
-            transcript_path,
-            events_path,
-            target_env,
+            results_dir: config.results_dir,
+            scenario_name: config.scenario_name,
+            agent: config.agent,
+            model: config.model,
+            transcript_path: config.transcript_path,
+            events_path: config.events_path,
+            target_env: config.target_env,
         }
     }
 
@@ -186,16 +191,49 @@ mod tests {
     use tempfile::TempDir;
 
     fn create_test_runner(fixture_dir: PathBuf) -> ScriptRunner {
-        ScriptRunner::new(
+        ScriptRunner::new(ScriptRunnerConfig {
             fixture_dir,
-            PathBuf::from("/tmp/results"),
-            "test_scenario".to_string(),
-            "test_agent".to_string(),
-            "test_model".to_string(),
-            None,
-            None,
-            HashMap::new(),
-        )
+            results_dir: PathBuf::from("/tmp/results"),
+            scenario_name: "test_scenario".to_string(),
+            agent: "test_agent".to_string(),
+            model: "test_model".to_string(),
+            transcript_path: None,
+            events_path: None,
+            target_env: HashMap::new(),
+        })
+    }
+
+    #[test]
+    fn script_runner_config_builds_runner_environment() {
+        let temp = TempDir::new().unwrap();
+        let results = TempDir::new().unwrap();
+        let transcript_path = results.path().join("transcript.raw.txt");
+        let events_path = results.path().join("events.jsonl");
+        let mut target_env = HashMap::new();
+        target_env.insert("TARGET_OVERRIDE".to_string(), "target-value".to_string());
+
+        let runner = ScriptRunner::new(ScriptRunnerConfig {
+            fixture_dir: temp.path().to_path_buf(),
+            results_dir: results.path().to_path_buf(),
+            scenario_name: "scenario-a".to_string(),
+            agent: "mock".to_string(),
+            model: "model-a".to_string(),
+            transcript_path: Some(transcript_path.clone()),
+            events_path: Some(events_path.clone()),
+            target_env,
+        });
+
+        let env = runner.build_env();
+
+        assert_eq!(env["LLM_TOOL_TEST_SCENARIO"], "scenario-a");
+        assert_eq!(env["LLM_TOOL_TEST_AGENT"], "mock");
+        assert_eq!(env["LLM_TOOL_TEST_MODEL"], "model-a");
+        assert_eq!(
+            env["LLM_TOOL_TEST_TRANSCRIPT"],
+            transcript_path.to_string_lossy()
+        );
+        assert_eq!(env["LLM_TOOL_TEST_EVENTS"], events_path.to_string_lossy());
+        assert_eq!(env["TARGET_OVERRIDE"], "target-value");
     }
 
     #[test]
@@ -327,16 +365,16 @@ mod tests {
             "overridden".to_string(),
         );
 
-        let runner = ScriptRunner::new(
-            temp.path().to_path_buf(),
-            PathBuf::from("/tmp/results"),
-            "test_scenario".to_string(),
-            "test_agent".to_string(),
-            "test_model".to_string(),
-            None,
-            None,
+        let runner = ScriptRunner::new(ScriptRunnerConfig {
+            fixture_dir: temp.path().to_path_buf(),
+            results_dir: PathBuf::from("/tmp/results"),
+            scenario_name: "test_scenario".to_string(),
+            agent: "test_agent".to_string(),
+            model: "test_model".to_string(),
+            transcript_path: None,
+            events_path: None,
             target_env,
-        );
+        });
 
         let result = runner.run("echo $LLM_TOOL_TEST_SCENARIO", 10).unwrap();
 

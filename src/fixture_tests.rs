@@ -13,7 +13,7 @@ mod tests {
     use crate::interaction_profile::AdapterEvidenceCapability;
     use crate::run::setup::setup_scenario_env;
     use crate::scenario::load;
-    use crate::script_runner::ScriptRunner;
+    use crate::script_runner::{ScriptRunner, ScriptRunnerConfig};
     use std::collections::HashMap;
     use std::path::Path;
     use std::process::Command as StdCommand;
@@ -69,16 +69,16 @@ mod tests {
 
         // Run post scripts
         if let Some(scripts) = &scenario.scripts {
-            let runner = ScriptRunner::new(
-                env.root.clone(),
-                results_dir.clone(),
-                scenario.name.clone(),
-                "fixture_test".to_string(),
-                "default".to_string(),
-                None,
-                None,
-                target_env.clone(),
-            );
+            let runner = ScriptRunner::new(ScriptRunnerConfig {
+                fixture_dir: env.root.clone(),
+                results_dir: results_dir.clone(),
+                scenario_name: scenario.name.clone(),
+                agent: "fixture_test".to_string(),
+                model: "default".to_string(),
+                transcript_path: None,
+                events_path: None,
+                target_env: target_env.clone(),
+            });
             for entry in &scripts.post {
                 let result = runner
                     .run(&entry.command, entry.timeout_secs)
@@ -94,16 +94,16 @@ mod tests {
         }
 
         // Evaluate
-        let script_runner = ScriptRunner::new(
-            env.root.clone(),
+        let script_runner = ScriptRunner::new(ScriptRunnerConfig {
+            fixture_dir: env.root.clone(),
             results_dir,
-            scenario.name.clone(),
-            "fixture_test".to_string(),
-            "default".to_string(),
-            None,
-            None,
+            scenario_name: scenario.name.clone(),
+            agent: "fixture_test".to_string(),
+            model: "default".to_string(),
+            transcript_path: None,
+            events_path: None,
             target_env,
-        );
+        });
 
         let metrics = evaluation::evaluate(
             &scenario,

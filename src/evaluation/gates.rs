@@ -80,6 +80,7 @@ pub fn evaluate_gates(gates: &[Gate], ctx: &GateEvaluationContext<'_>) -> (Vec<G
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::script_runner::ScriptRunnerConfig;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
@@ -89,16 +90,16 @@ mod tests {
     }
 
     fn test_runner(fixture_dir: PathBuf) -> ScriptRunner {
-        ScriptRunner::new(
+        ScriptRunner::new(ScriptRunnerConfig {
             fixture_dir,
-            PathBuf::from("/tmp/results"),
-            "test".to_string(),
-            "test_agent".to_string(),
-            "test_model".to_string(),
-            None,
-            None,
-            HashMap::new(),
-        )
+            results_dir: PathBuf::from("/tmp/results"),
+            scenario_name: "test".to_string(),
+            agent: "test_agent".to_string(),
+            model: "test_model".to_string(),
+            transcript_path: None,
+            events_path: None,
+            target_env: HashMap::new(),
+        })
     }
 
     #[test]
