@@ -17,7 +17,7 @@ evaluation:
 run:
   timeout_secs: 600
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.run.is_some());
     let run = scenario.run.unwrap();
@@ -39,7 +39,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.run.is_none());
 }
@@ -61,7 +61,7 @@ evaluation:
 run:
   timeout_secs: 300
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.run.is_some());
     let run = scenario.run.unwrap();

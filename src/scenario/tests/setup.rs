@@ -19,7 +19,7 @@ setup:
     - "qipu init"
     - "echo setup complete"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.setup.is_some());
     let setup = scenario.setup.unwrap();
@@ -43,7 +43,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.setup.is_none());
 }
@@ -67,7 +67,7 @@ setup:
     - "pwd"
     - "ls -la"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert!(scenario.setup.is_some());
     let setup = scenario.setup.unwrap();
     assert_eq!(setup.commands.len(), 2);

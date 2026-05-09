@@ -25,7 +25,7 @@ task:
 evaluation:
   gates: []
 "#;
-        let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+        let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
         let transcript = adapter.generate_transcript(&scenario);
 
         // The mock adapter should return a non-empty transcript
@@ -47,7 +47,7 @@ task:
 evaluation:
   gates: []
 "#;
-        let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+        let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
         let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
@@ -81,7 +81,7 @@ evaluation:
     - type: command_succeeds
       command: "echo test"
 "#;
-        let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+        let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
         let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);
@@ -107,7 +107,7 @@ task:
 evaluation:
   gates: []
 "#;
-        let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+        let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
 
         let temp_dir = tempfile::tempdir().unwrap();
         let result = adapter.run(&scenario, temp_dir.path(), Some("mock"), 30);

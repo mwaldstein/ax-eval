@@ -15,7 +15,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.tool_matrix.is_none());
 }
@@ -40,7 +40,7 @@ tool_matrix:
   - tool: claude-code
     models: [default]
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.tool_matrix.is_some());
 
@@ -71,7 +71,7 @@ tool_matrix:
     models: []
   - tool: claude-code
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert!(scenario.tool_matrix.is_some());
 
@@ -99,7 +99,7 @@ evaluation:
       command: "true"
 tier: 1
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert_eq!(scenario.tier, 1);
     assert!(scenario.tool_matrix.is_none());
@@ -120,7 +120,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert_eq!(scenario.tier, 0);
 }
@@ -141,7 +141,7 @@ evaluation:
       command: "true"
 tags: [capture, links, retrieval]
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "test");
     assert_eq!(scenario.tags, vec!["capture", "links", "retrieval"]);
 }
@@ -173,7 +173,7 @@ setup:
   commands:
     - "qipu init"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     assert_eq!(scenario.name, "capture_article_basic");
     assert_eq!(
         scenario.description,

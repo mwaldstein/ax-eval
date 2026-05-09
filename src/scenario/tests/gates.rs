@@ -15,7 +15,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::CommandSucceeds { command } => assert_eq!(command, "true"),
@@ -43,7 +43,7 @@ evaluation:
     rubric: rubrics/test.yaml
     pass_threshold: 0.75
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
     let judge = scenario.evaluation.judge.expect("judge config");
 
     assert!(judge.enabled);
@@ -68,7 +68,7 @@ evaluation:
       command: "printf hello"
       substring: "hell"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::CommandOutputContains { command, substring } => {
@@ -95,7 +95,7 @@ evaluation:
       command: "printf hello"
       pattern: "^hello$"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::CommandOutputMatches { command, pattern } => {
@@ -123,7 +123,7 @@ evaluation:
       path: "$.ok"
       assertion: "equals true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::CommandJsonPath {
@@ -160,7 +160,7 @@ evaluation:
       path: "README.md"
       pattern: "hello.*world"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::FileExists { path } => assert_eq!(path, "README.md"),
@@ -200,7 +200,7 @@ evaluation:
       command: "./scripts/check.sh"
       description: "custom check"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::Script {
@@ -230,7 +230,7 @@ evaluation:
   gates:
     - type: no_transcript_errors
 "#;
-    let scenario: Scenario = serde_yaml::from_str(yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
 
     match &scenario.evaluation.gates[0] {
         Gate::NoTranscriptErrors => {}

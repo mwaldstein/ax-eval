@@ -27,7 +27,7 @@ use std::path::Path;
 pub fn load_rubric(path: &Path) -> Result<Rubric> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read rubric file: {}", path.display()))?;
-    let rubric: Rubric = serde_yaml::from_str(&content)
+    let rubric: Rubric = yaml_serde::from_str(&content)
         .with_context(|| format!("Failed to parse rubric YAML: {}", path.display()))?;
 
     let total_weight: f64 = rubric.criteria.iter().map(|c| c.weight).sum();

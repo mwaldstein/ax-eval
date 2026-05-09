@@ -40,7 +40,7 @@ use std::path::Path;
 /// ```
 pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Scenario> {
     let content = std::fs::read_to_string(path)?;
-    let scenario: Scenario = serde_yaml::from_str(&content)?;
+    let scenario: Scenario = yaml_serde::from_str(&content)?;
     Ok(scenario)
 }
 

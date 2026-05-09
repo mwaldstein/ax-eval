@@ -20,7 +20,7 @@ evaluation:
 run:
   timeout_secs: 120
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let scenario_path = PathBuf::from("fixtures/request_timeout_test.yaml");
     let base_dir = PathBuf::from("target/test_timeout");
     let results_db = ResultsDB::new(&base_dir);
@@ -68,7 +68,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let scenario_path = PathBuf::from("fixtures/request_results_dir_test.yaml");
     let base_dir = PathBuf::from("target/test_results_dir");
     let results_db = ResultsDB::new(&base_dir);
@@ -132,7 +132,7 @@ evaluation:
 run:
   timeout_secs: 90
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let scenario_path = PathBuf::from("fixtures/request_plan_test.yaml");
     let base_dir = PathBuf::from("target/test_plan");
     let results_db = ResultsDB::new(&base_dir);
@@ -174,7 +174,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let scenario_path = PathBuf::from("fixtures/request_cache_policy_test.yaml");
     let base_dir = tempfile::tempdir().expect("base dir");
     let results_db = ResultsDB::new(base_dir.path());
@@ -233,7 +233,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let scenario_path = PathBuf::from("fixtures/request_dry_run_policy_test.yaml");
     let base_dir = tempfile::tempdir().expect("base dir");
     let results_db = ResultsDB::new(base_dir.path());
@@ -281,7 +281,7 @@ evaluation:
 run:
   timeout_secs: 120
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let base_dir = PathBuf::from("target/test_timeout");
     std::fs::create_dir_all(&base_dir).unwrap();
 
@@ -337,7 +337,7 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    let scenario: Scenario = serde_yaml::from_str(scenario_yaml).unwrap();
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
     let base_dir = PathBuf::from("target/test_timeout");
     std::fs::create_dir_all(&base_dir).unwrap();
 
