@@ -1,8 +1,9 @@
 use crate::fixture::TestEnv;
+use crate::run::artifacts::RunArtifacts;
 use crate::scenario::{Scenario, Setup};
 use crate::transcript::TranscriptWriter;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub struct ScenarioWorkspace {
     pub env: TestEnv,
@@ -11,7 +12,7 @@ pub struct ScenarioWorkspace {
 }
 
 pub struct PreparedScenarioRun {
-    pub transcript_dir: PathBuf,
+    pub artifacts: RunArtifacts,
     pub writer: TranscriptWriter,
     pub setup_success: bool,
     pub setup_commands: Vec<(String, bool, String)>,
@@ -150,9 +151,8 @@ pub fn prepare_writer_and_setup(
     s: &Scenario,
     effective_timeout: u64,
 ) -> anyhow::Result<PreparedScenarioRun> {
-    let artifacts_dir = results_dir.join("artifacts");
-    std::fs::create_dir_all(&artifacts_dir)?;
-    let writer = TranscriptWriter::new(artifacts_dir.clone(), results_dir.to_path_buf())?;
+    let artifacts = RunArtifacts::new(results_dir, env);
+    let writer = artifacts.writer()?;
 
     let (setup_success, setup_commands) = if let Some(setup) = &s.setup {
         execute_setup_commands(
@@ -177,7 +177,7 @@ pub fn prepare_writer_and_setup(
     }
 
     Ok(PreparedScenarioRun {
-        transcript_dir: artifacts_dir,
+        artifacts,
         writer,
         setup_success,
         setup_commands,

@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod cache;
 pub mod execution;
 pub mod records;
@@ -78,8 +79,7 @@ pub fn run_single_scenario(
         judge_model,
         judge_tool,
         writer: &prepared.writer,
-        transcript_dir: &prepared.transcript_dir,
-        results_dir: &results_dir,
+        artifacts: &prepared.artifacts,
     })?;
 
     let outcome = determine_outcome(&evaluation.metrics);
@@ -96,7 +96,11 @@ pub fn run_single_scenario(
         setup_commands: prepared.setup_commands,
     })?;
 
-    let transcript_path = prepared.transcript_dir.to_string_lossy().to_string();
+    let transcript_path = prepared
+        .artifacts
+        .artifacts_dir()
+        .to_string_lossy()
+        .to_string();
     let record = build_result_record(
         s,
         tool,

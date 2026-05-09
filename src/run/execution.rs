@@ -1,10 +1,9 @@
 use crate::adapter::{TokenUsage, ToolAdapter, ToolRunOutput};
 use crate::evaluation::EvaluationMetrics;
 use crate::fixture::TestEnv;
+use crate::run::artifacts::RunArtifacts;
 use crate::scenario::Scenario;
-use crate::script_runner::ScriptRunner;
 use crate::transcript::TranscriptWriter;
-use std::path::Path;
 
 pub struct EvaluationFlowInput<'a> {
     pub adapter: &'a dyn ToolAdapter,
@@ -17,8 +16,7 @@ pub struct EvaluationFlowInput<'a> {
     pub judge_model: Option<&'a str>,
     pub judge_tool: Option<&'a str>,
     pub writer: &'a TranscriptWriter,
-    pub transcript_dir: &'a Path,
-    pub results_dir: &'a Path,
+    pub artifacts: &'a RunArtifacts,
 }
 
 pub struct EvaluationFlowResult {
@@ -49,25 +47,14 @@ pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapte
 
 fn run_post_scripts(
     scenario: &Scenario,
-    env: &TestEnv,
     tool: &str,
     model: &str,
-    results_dir: &Path,
-    transcript_path: Option<&Path>,
+    artifacts: &RunArtifacts,
     writer: &TranscriptWriter,
 ) -> anyhow::Result<()> {
     if let Some(scripts) = &scenario.scripts {
         println!("Running {} post-execution script(s)...", scripts.post.len());
-        let runner = ScriptRunner::new(
-            env.root.clone(),
-            results_dir.to_path_buf(),
-            scenario.name.clone(),
-            tool.to_string(),
-            model.to_string(),
-            transcript_path.map(|p| p.to_path_buf()),
-            Some(writer.base_dir.join("events.jsonl")),
-            scenario.target.env.clone().unwrap_or_default(),
-        );
+        let runner = artifacts.script_runner(scenario, tool, model);
 
         for entry in &scripts.post {
             let result = runner.run(&entry.command, entry.timeout_secs)?;
@@ -119,8 +106,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         }
     }
     // Also copy transcript to fixture directory for gate evaluators that read from env_root
-    let fixture_transcript = input.env.root.join("transcript.raw.txt");
-    std::fs::write(&fixture_transcript, output).ok();
+    input.artifacts.write_fixture_transcript(output);
     let event = if let Some(c) = cost {
         serde_json::json!({
             "type": "execution",
@@ -140,29 +126,18 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
     input.writer.append_event(&event)?;
 
     // Run post-execution scripts after transcript writing, before evaluation
-    let transcript_path = input.transcript_dir.join("transcript.raw.txt");
-    let events_path = input.writer.base_dir.join("events.jsonl");
     run_post_scripts(
         input.scenario,
-        input.env,
         input.tool,
         input.model,
-        input.results_dir,
-        Some(&transcript_path),
+        input.artifacts,
         input.writer,
     )?;
 
     // Create script runner for evaluation (used by script gates)
-    let script_runner = ScriptRunner::new(
-        input.env.root.clone(),
-        input.results_dir.to_path_buf(),
-        input.scenario.name.clone(),
-        input.tool.to_string(),
-        input.model.to_string(),
-        Some(transcript_path),
-        Some(events_path),
-        input.scenario.target.env.clone().unwrap_or_default(),
-    );
+    let script_runner = input
+        .artifacts
+        .script_runner(input.scenario, input.tool, input.model);
 
     println!("Running evaluation...");
     let completed = exit_code == 0;
