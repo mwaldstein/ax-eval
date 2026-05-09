@@ -1,7 +1,13 @@
 use super::*;
 use crate::results::test_helpers::create_test_record;
 use crate::scenario::Scenario;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+fn write_temp_scenario(dir: &Path, name: &str, body: &str) -> PathBuf {
+    let path = dir.join(format!("{name}.yaml"));
+    std::fs::write(&path, body).expect("write scenario");
+    path
+}
 
 #[test]
 fn scenario_run_request_resolves_effective_timeout() {
@@ -376,4 +382,145 @@ evaluation:
         "Should succeed with mock adapter: {:?}",
         result
     );
+}
+
+#[test]
+fn scenario_run_lifecycle_dry_run_does_not_append_result() {
+    let scenario_yaml = r#"
+name: lifecycle_dry_run_test
+description: Test dry-run lifecycle short-circuit
+template_folder: example_basic
+target:
+  binary: taskmgr
+task:
+  prompt: "Create a task"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scenario_path = write_temp_scenario(dir.path(), "lifecycle_dry_run_test", scenario_yaml);
+    let results_db = ResultsDB::new(dir.path());
+    let cache = Cache::new(dir.path());
+
+    let record = run_single_scenario(ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock",
+        dry_run: true,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: true,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    })
+    .expect("dry run");
+
+    assert_eq!(record.outcome, "Dry run");
+    assert!(results_db
+        .load_all()
+        .expect("load result records")
+        .is_empty());
+}
+
+#[test]
+fn scenario_run_lifecycle_bubbles_evaluation_failure_without_record() {
+    let scenario_yaml = r#"
+name: lifecycle_evaluation_failure_test
+description: Test lifecycle evaluation failure behavior
+template_folder: example_basic
+target:
+  binary: taskmgr
+interaction:
+  target_commands: forbidden
+task:
+  prompt: "Create a task"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scenario_path = write_temp_scenario(
+        dir.path(),
+        "lifecycle_evaluation_failure_test",
+        scenario_yaml,
+    );
+    let results_db = ResultsDB::new(dir.path());
+    let cache = Cache::new(dir.path());
+
+    let result = run_single_scenario(ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: true,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    });
+
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("target-tool events are forbidden"));
+    assert!(results_db
+        .load_all()
+        .expect("load result records")
+        .is_empty());
+}
+
+#[test]
+fn scenario_run_lifecycle_finalizes_when_setup_fails() {
+    let scenario_yaml = r#"
+name: lifecycle_setup_failure_test
+description: Test lifecycle setup failure behavior
+template_folder: example_basic
+target:
+  binary: taskmgr
+task:
+  prompt: "Create a task"
+setup:
+  commands:
+    - "exit 7"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scenario_path =
+        write_temp_scenario(dir.path(), "lifecycle_setup_failure_test", scenario_yaml);
+    let results_db = ResultsDB::new(dir.path());
+    let cache = Cache::new(dir.path());
+
+    let record = run_single_scenario(ScenarioRunRequest {
+        scenario: &scenario,
+        scenario_path: &scenario_path,
+        tool: "mock",
+        model: "mock",
+        dry_run: false,
+        no_cache: true,
+        timeout_secs: 300,
+        no_judge: true,
+        judge_model: None,
+        judge_tool: None,
+        results_db: &results_db,
+        cache: &cache,
+    })
+    .expect("run with failed setup");
+
+    assert_eq!(record.outcome, "Pass");
+    assert_eq!(results_db.load_all().expect("load result records").len(), 1);
 }

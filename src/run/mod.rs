@@ -1,12 +1,12 @@
 pub mod artifacts;
 pub mod cache;
 pub mod execution;
+pub mod lifecycle;
 pub mod records;
 pub mod setup;
 pub mod transcript;
 pub mod utils;
 
-use crate::output;
 use crate::results::{Cache, CacheKey, ResultRecord, ResultsDB};
 use crate::scenario::Scenario;
 use std::path::{Path, PathBuf};
@@ -66,94 +66,7 @@ impl ScenarioRunRequest<'_> {
 }
 
 pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<ResultRecord> {
-    use crate::run::execution::{
-        create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
-    };
-    use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
-    use crate::run::setup::{prepare_writer_and_setup, PreparedRunContext};
-    use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
-
-    let s = request.scenario;
-    let tool = request.tool;
-    let model = request.model;
-    let plan = request.plan();
-
-    let results_dir = plan.results_dir;
-    std::fs::create_dir_all(&results_dir)?;
-
-    let context = PreparedRunContext::new(s, request.scenario_path, &results_dir)?;
-    let cache_key = context.cache_key(tool, model)?;
-
-    if let Some(cached) = request.cached_record(&cache_key)? {
-        println!("Cache HIT! Using cached result: {}", cached.id);
-        output::print_result_summary(&cached);
-        return Ok(cached);
-    }
-
-    if request.should_dry_run() {
-        return handle_dry_run(s, tool, model, &cache_key);
-    }
-
-    let adapter = create_adapter_and_check(tool)?;
-
-    let prepared = prepare_writer_and_setup(&context, s, plan.effective_timeout)?;
-
-    let evaluation = run_evaluation_flow(EvaluationFlowInput {
-        adapter: adapter.as_ref(),
-        scenario: s,
-        env: &context.workspace.env,
-        tool,
-        model,
-        effective_timeout: plan.effective_timeout,
-        no_judge: request.no_judge,
-        judge_model: request.judge_model,
-        judge_tool: request.judge_tool,
-        writer: &prepared.writer,
-        artifacts: &prepared.artifacts,
-        target_env: &context.target_env,
-    })?;
-
-    let outcome = determine_outcome(&evaluation.metrics);
-
-    write_transcript_files(TranscriptFilesInput {
-        writer: &prepared.writer,
-        scenario: s,
-        tool,
-        model,
-        cache_key: &cache_key,
-        evaluation: &evaluation,
-        outcome: &outcome,
-        setup_success: prepared.setup_success,
-        setup_commands: prepared.setup_commands,
-    })?;
-
-    let transcript_path = prepared
-        .artifacts
-        .artifacts_dir()
-        .to_string_lossy()
-        .to_string();
-    let record = ResultRecordInput {
-        scenario: s,
-        tool,
-        model,
-        cache_key: &cache_key,
-        metrics: evaluation.metrics,
-        outcome,
-        duration_secs: evaluation.duration.as_secs_f64(),
-        cost: evaluation.cost,
-        token_usage: evaluation.token_usage,
-        transcript_path,
-    }
-    .build();
-
-    finalize_execution(
-        request.results_db,
-        request.cache,
-        &cache_key,
-        &record,
-        &results_dir,
-        prepared.setup_success,
-    )
+    lifecycle::ScenarioRunLifecycle::new(request).run()
 }
 
 #[cfg(test)]
