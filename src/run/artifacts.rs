@@ -41,8 +41,9 @@ impl RunArtifacts {
         TranscriptWriter::new(self.artifacts_dir.clone(), self.results_dir.clone())
     }
 
-    pub fn write_fixture_transcript(&self, content: &str) {
-        std::fs::write(self.fixture_transcript_path(), content).ok();
+    pub fn write_fixture_transcript(&self, content: &str) -> anyhow::Result<()> {
+        std::fs::write(self.fixture_transcript_path(), content)?;
+        Ok(())
     }
 
     pub fn script_runner(&self, scenario: &Scenario, tool: &str, model: &str) -> ScriptRunner {

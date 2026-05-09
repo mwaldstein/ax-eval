@@ -75,7 +75,7 @@ fn persist_execution_transcript(input: ExecutionTranscriptInput<'_>) -> anyhow::
         }
     }
     // Also copy transcript to fixture directory for gate evaluators that read from env_root.
-    input.artifacts.write_fixture_transcript(output);
+    input.artifacts.write_fixture_transcript(output)?;
 
     let event = if let Some(c) = input.run_output.cost_usd {
         serde_json::json!({
@@ -284,6 +284,34 @@ mod tests {
         assert_eq!(events[0]["tool"], "mock");
         assert_eq!(events[0]["exit_code"], 0);
         assert_eq!(events[0]["cost_usd"], 0.25);
+    }
+
+    #[test]
+    fn execution_transcript_input_reports_fixture_transcript_write_failure() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        std::fs::create_dir_all(env.root.join("transcript.raw.txt"))
+            .expect("blocking transcript directory");
+        let artifacts = RunArtifacts::new(&dir.path().join("results"), &env);
+        let writer = artifacts.writer().expect("writer");
+        let run_output = ToolRunOutput {
+            transcript: "agent transcript".to_string(),
+            raw_output: None,
+            exit_code: 0,
+            cost_usd: None,
+            token_usage: None,
+            interaction_input: InteractionInput::TranscriptRegex,
+        };
+
+        let result = persist_execution_transcript(ExecutionTranscriptInput {
+            writer: &writer,
+            artifacts: &artifacts,
+            tool: "mock",
+            run_output: &run_output,
+        });
+
+        assert!(result.is_err());
     }
 
     #[test]
