@@ -100,6 +100,57 @@ llm-tool-test clean --older-than "7d"
 llm-tool-test clean
 ```
 
+## Discover a Tool
+
+Use `discover` when you do not yet have scenarios for a target CLI and want an
+LLM-first evaluation of how self-describing the executable is:
+
+```bash
+export LLM_TOOL_TEST_ENABLED=1
+llm-tool-test discover qipu --tool opencode
+```
+
+Discovery runs one all-in-one workflow:
+
+1. An LLM agent inspects the target executable and writes `understanding.md`.
+2. The same discovery agent authors five complex, goal-oriented scenario YAML
+   files, templates, and judge rubrics under the discovery result directory.
+3. The harness validates the generated scenarios, runs the valid set with
+   caching disabled, and keeps going across scenario-level failures.
+4. An agent writes `discovery-summary.md`, and the harness writes
+   `discovery.json` with stable paths, run IDs, judge scores, failure
+   classifications, token totals, and cost when available.
+
+Artifacts are written under a directory like:
+
+```text
+llm-tool-test-results/<timestamp>-discover-<target>-<tool>-<model>/
+```
+
+`discover` treats low judge scores, failed target-tool calls, timeouts, and poor
+goal completion as findings rather than top-level command failures. The command
+fails only when the discovery workflow itself cannot complete, such as when the
+target executable is unavailable or zero generated scenarios are valid.
+
+By default, the agent/model passed with `--tool` and `--model` is both the
+evaluated scenario-run agent and the discovery authoring agent. Use
+`--discover-tool` or `--discover-model` when inspect, fixture authoring, and
+summary should use a different agent/model:
+
+```bash
+llm-tool-test discover qipu \
+  --tool opencode \
+  --model default \
+  --discover-tool codex \
+  --discover-model gpt-5
+```
+
+Judge selection remains separate through `--judge-tool` and `--judge-model`.
+Discovery-generated scenarios intentionally use qualitative judge rubrics as a
+first-class result; pass/fail is a coarse reference, while the numeric judge
+score, rationale, confidence, issues, highlights, and interaction metrics are
+the main evaluation signal.
+
 ## Typical Workflow
 
 ```bash

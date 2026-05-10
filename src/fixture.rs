@@ -1,7 +1,7 @@
 use crate::run::utils::copy_dir_recursive;
 use crate::utils::resolve_fixtures_path;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct TestEnv {
     pub root: PathBuf,
@@ -16,9 +16,23 @@ impl TestEnv {
         Ok(Self { root })
     }
 
-    pub fn setup_fixture(&self, fixture_name: &str) -> anyhow::Result<()> {
-        let templates_base = resolve_fixtures_path("templates");
-        let fixture_src = templates_base.join(fixture_name);
+    pub fn setup_fixture_relative_to(
+        &self,
+        fixture_name: &str,
+        scenario_dir: Option<&Path>,
+    ) -> anyhow::Result<()> {
+        let fixture_path = Path::new(fixture_name);
+        let local_fixture = scenario_dir
+            .filter(|_| !fixture_path.is_absolute())
+            .map(|dir| dir.join(fixture_path))
+            .filter(|path| path.exists());
+        let fixture_src = local_fixture.unwrap_or_else(|| {
+            if fixture_path.is_absolute() {
+                fixture_path.to_path_buf()
+            } else {
+                resolve_fixtures_path("templates").join(fixture_path)
+            }
+        });
         if !fixture_src.exists() {
             anyhow::bail!("Fixture not found: {:?}", fixture_src);
         }

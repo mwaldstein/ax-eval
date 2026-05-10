@@ -31,6 +31,7 @@ pub struct ExecutionConfig {
 pub struct ExecutionContext<'a> {
     pub results_db: &'a ResultsDB,
     pub cache: &'a Cache,
+    pub base_dir: &'a Path,
 }
 
 pub fn handle_run_command(
@@ -85,6 +86,7 @@ pub fn handle_run_command(
                 judge_tool: exec_config.judge_tool.as_deref(),
                 results_db: ctx.results_db,
                 cache: ctx.cache,
+                results_dir_override: None,
             });
 
             results.push((config.clone(), result));
@@ -106,6 +108,50 @@ pub fn handle_run_command(
         anyhow::bail!("{run_errors} scenario run(s) failed");
     }
 
+    Ok(())
+}
+
+pub struct DiscoverConfig {
+    pub target: String,
+    pub tool: String,
+    pub model: Option<String>,
+    pub discover_tool: Option<String>,
+    pub discover_model: Option<String>,
+    pub judge_model: Option<String>,
+    pub judge_tool: Option<String>,
+    pub timeout_secs: u64,
+}
+
+pub fn handle_discover_command(
+    config: &DiscoverConfig,
+    ctx: &ExecutionContext,
+) -> anyhow::Result<()> {
+    let run_model = config.model.as_deref().unwrap_or("default");
+    let discover_tool = config.discover_tool.as_deref().unwrap_or(&config.tool);
+    let discover_model = config.discover_model.as_deref().unwrap_or(run_model);
+
+    let root_dir = crate::discover::run_discovery(crate::discover::DiscoverRequest {
+        target: &config.target,
+        run_tool: &config.tool,
+        run_model,
+        discover_tool,
+        discover_model,
+        judge_model: config.judge_model.as_deref(),
+        judge_tool: config.judge_tool.as_deref(),
+        timeout_secs: config.timeout_secs,
+        results_base_dir: ctx.base_dir,
+        results_db: ctx.results_db,
+        cache: ctx.cache,
+    })?;
+
+    println!(
+        "Discovery summary: {}",
+        root_dir.join("discovery-summary.md").display()
+    );
+    println!(
+        "Discovery manifest: {}",
+        root_dir.join("discovery.json").display()
+    );
     Ok(())
 }
 

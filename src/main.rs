@@ -7,6 +7,7 @@ mod cli;
 mod command_execution;
 mod commands;
 mod config;
+mod discover;
 mod eval_helpers;
 #[cfg(test)]
 mod eval_tests_score;
@@ -186,6 +187,7 @@ fn main() -> anyhow::Result<()> {
             let ctx = commands::ExecutionContext {
                 results_db: &results_db,
                 cache: &cache,
+                base_dir: &base_dir,
             };
 
             if selection.scenario.is_some() || selection.all {
@@ -193,6 +195,45 @@ fn main() -> anyhow::Result<()> {
             } else {
                 println!("No scenario specified. Use --scenario <path> or --all");
             }
+        }
+        Commands::Discover {
+            target,
+            tool,
+            model,
+            discover_tool,
+            discover_model,
+            judge_model,
+            judge_tool,
+            timeout_secs,
+        } => {
+            if std::env::var("LLM_TOOL_TEST_ENABLED").as_deref() != Ok("1") {
+                anyhow::bail!(
+                    "Real LLM tool runs require LLM_TOOL_TEST_ENABLED=1 as an explicit safety consent.\n\
+                     This prevents accidental expensive LLM API calls and arbitrary agent-driven CLI execution.\n\
+                     \n\
+                     To run discovery, set:\n\
+                     export LLM_TOOL_TEST_ENABLED=1"
+                );
+            }
+
+            let ctx = commands::ExecutionContext {
+                results_db: &results_db,
+                cache: &cache,
+                base_dir: &base_dir,
+            };
+            commands::handle_discover_command(
+                &commands::DiscoverConfig {
+                    target: target.clone(),
+                    tool: tool.clone(),
+                    model: model.clone(),
+                    discover_tool: discover_tool.clone(),
+                    discover_model: discover_model.clone(),
+                    judge_model: judge_model.clone(),
+                    judge_tool: judge_tool.clone(),
+                    timeout_secs: *timeout_secs,
+                },
+                &ctx,
+            )?;
         }
         Commands::Scenarios { tags, tier } => {
             commands::handle_list_command(tags, tier, &results_db)?;

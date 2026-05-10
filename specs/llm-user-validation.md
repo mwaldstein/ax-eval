@@ -103,6 +103,42 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 5. **Evaluator** — three-layer evaluation producing a dimensional profile. Gates provide fail-fast; interaction metrics and judge provide the real value. See [specs/evaluation.md](evaluation.md).
 6. **Results & Artifacts** — structured output for analysis and review.
 
+### Discovery Workflow
+
+`llm-tool-test discover <target>` is a top-level workflow for bootstrapping an
+evaluation profile from the target executable itself. Discovery is not a
+scenario promotion mechanism and not a pass/fail test. It asks an LLM agent to
+inspect the command surface, explain what the tool appears to be for, author a
+fixed set of five complex goal-oriented scenarios, run those scenarios, and
+summarize the results for the tool author.
+
+Discovery artifacts live under the discovery result directory:
+
+```text
+llm-tool-test-results/<timestamp>-discover-<target>-<agent>-<model>/
+├── understanding.md
+├── scenarios/
+├── runs/
+├── discovery-summary.md
+└── discovery.json
+```
+
+Generated scenarios are intentionally ungated and must include enabled
+LLM-as-judge evaluation. In discovery, command errors, failed calls, low judge
+scores, and scenario-level pass/fail outcomes are findings. The main signal is
+the subjective usage evaluation: numeric judge scores, rationales, confidence,
+issues, highlights, and interaction metrics. The `discover` command exits
+non-zero only when the workflow itself cannot complete, such as when the target
+is unavailable, the agent cannot run, no generated scenarios are valid, or final
+artifacts cannot be written.
+
+Discovery separates the evaluated scenario-run agent from the discovery
+authoring agent. `--tool` and `--model` select the agent/model evaluated in the
+generated scenarios. `--discover-tool` and `--discover-model` select the
+agent/model used for inspect, fixture authoring, and final summary, defaulting
+to the base tool/model when omitted. Judge tool/model selection remains
+separate.
+
 ### Key Architectural Decisions
 
 1. **Separate binary**: `llm-tool-test` is a standalone tool, not a library or test harness linked into the target tool.
@@ -379,6 +415,10 @@ llm-tool-test run --dry-run                 # Validate selection without LLM cal
 
 # Matrix runs
 llm-tool-test run --all --profile quick
+
+# Discover a target tool and run generated scenarios
+llm-tool-test discover qipu --tool opencode
+llm-tool-test discover qipu --tool opencode --discover-tool codex
 
 # Print copyable schema templates
 llm-tool-test template scenario

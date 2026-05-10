@@ -25,6 +25,11 @@ Repeatability here is about benchmarking changes to your environment: does the s
 3. **Analyze** the metrics, transcript, and Judge score to see exactly where the agent hesitated.
 4. **Refine** and repeat.
 
+If you do not have scenarios yet, start with `discover`: it asks an agent to
+inspect your executable, write an understanding document, author five
+goal-oriented scenarios, run them, and summarize what the results reveal about
+your CLI's LLM usability.
+
 ## Install
 
 Install the latest release on macOS or Linux:
@@ -79,7 +84,15 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
    llm-tool-test run --scenario example_basic --tool claude-code
    ```
 
-6. **Review results**:
+6. **Or discover a target CLI before writing scenarios**:
+   ```bash
+   llm-tool-test discover mytool --tool claude-code
+   ```
+   Discovery writes `understanding.md`, generated scenarios, scenario run
+   artifacts, `discovery-summary.md`, and `discovery.json` under
+   `llm-tool-test-results/<timestamp>-discover-<target>-<tool>-<model>/`.
+
+7. **Review results**:
    ```bash
    cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
    ```

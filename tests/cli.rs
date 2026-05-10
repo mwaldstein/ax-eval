@@ -59,6 +59,30 @@ fn test_run_help_documents_safety_and_examples() {
 }
 
 #[test]
+fn test_discover_help_documents_agent_options() {
+    llm_tool_test()
+        .args(["discover", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Usage: llm-tool-test discover [OPTIONS] <TARGET>",
+        ))
+        .stdout(predicate::str::contains("--discover-tool"))
+        .stdout(predicate::str::contains("--discover-model"))
+        .stdout(predicate::str::contains("--judge-tool"));
+}
+
+#[test]
+fn test_discover_requires_safety_env_var() {
+    llm_tool_test()
+        .args(["discover", "qipu", "--tool", "mock"])
+        .env_remove("LLM_TOOL_TEST_ENABLED")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("LLM_TOOL_TEST_ENABLED=1"));
+}
+
+#[test]
 fn test_cli_help_points_to_template_command() {
     llm_tool_test()
         .arg("--help")

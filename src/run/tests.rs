@@ -45,6 +45,7 @@ run:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     };
 
     assert_eq!(request.effective_timeout(), 120);
@@ -93,6 +94,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     };
 
     let results_dir = request.results_dir();
@@ -157,6 +159,7 @@ run:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     };
 
     let plan = request.plan();
@@ -202,6 +205,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     };
 
     assert_eq!(
@@ -258,6 +262,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     };
 
     assert!(request.should_dry_run());
@@ -316,6 +321,7 @@ run:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     });
 
     let _ = std::fs::remove_file(&fixture_file);
@@ -372,6 +378,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     });
 
     let _ = std::fs::remove_file(&fixture_file);
@@ -418,6 +425,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     })
     .expect("dry run");
 
@@ -468,6 +476,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     });
 
     assert!(result
@@ -518,6 +527,7 @@ evaluation:
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
+        results_dir_override: None,
     })
     .expect("run with failed setup");
 

@@ -24,6 +24,7 @@ pub struct ScenarioRunRequest<'a> {
     pub judge_tool: Option<&'a str>,
     pub results_db: &'a ResultsDB,
     pub cache: &'a Cache,
+    pub results_dir_override: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,7 +43,9 @@ impl ScenarioRunRequest<'_> {
     }
 
     pub fn results_dir(&self) -> PathBuf {
-        crate::run::utils::get_results_dir(self.tool, self.model, &self.scenario.name)
+        self.results_dir_override.clone().unwrap_or_else(|| {
+            crate::run::utils::get_results_dir(self.tool, self.model, &self.scenario.name)
+        })
     }
 
     pub fn plan(&self) -> ScenarioRunPlan {

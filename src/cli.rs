@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     version,
     arg_required_else_help = true,
     about = "Evaluate how coding agents use CLI tools",
-    long_about = "llm-tool-test runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test guidance list\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>\n\nUse `llm-tool-test template <kind>` for copyable schema examples.",
-    after_help = "Common commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test template config > llm-tool-test-config.toml\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>"
+    long_about = "llm-tool-test runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test guidance list\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test discover qipu --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>\n\nUse `llm-tool-test template <kind>` for copyable schema examples.",
+    after_help = "Common commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test template config > llm-tool-test-config.toml\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test discover qipu --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -83,6 +83,43 @@ pub enum Commands {
         no_judge: bool,
 
         /// Maximum execution time in seconds per command
+        #[arg(long, default_value = "300")]
+        timeout_secs: u64,
+    },
+    /// Discover how well a target CLI describes itself to LLM agents
+    #[command(
+        long_about = "Run an all-in-one discovery workflow for a target executable. Discovery asks an LLM agent to understand the target command, author five complex goal-oriented scenarios, run the generated scenario batch, judge usage quality, and summarize the results.\n\nReal agent execution is disabled unless LLM_TOOL_TEST_ENABLED=1 is set, because discovery may spend LLM API credits and execute agent-driven CLI commands.",
+        after_help = "Example:\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test discover qipu --tool opencode\n\nUse --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent."
+    )]
+    Discover {
+        /// Target executable binary or command to discover
+        target: String,
+
+        /// Agent tool to evaluate in generated scenarios
+        #[arg(long, default_value = "opencode")]
+        tool: String,
+
+        /// Model to evaluate in generated scenarios
+        #[arg(long)]
+        model: Option<String>,
+
+        /// Agent tool used for inspect, fixture authoring, and final summary
+        #[arg(long)]
+        discover_tool: Option<String>,
+
+        /// Agent model used for inspect, fixture authoring, and final summary
+        #[arg(long)]
+        discover_model: Option<String>,
+
+        /// Judge model for LLM-as-judge evaluation
+        #[arg(long)]
+        judge_model: Option<String>,
+
+        /// Tool to use for LLM-as-judge evaluation
+        #[arg(long)]
+        judge_tool: Option<String>,
+
+        /// Maximum execution time in seconds per agent command
         #[arg(long, default_value = "300")]
         timeout_secs: u64,
     },

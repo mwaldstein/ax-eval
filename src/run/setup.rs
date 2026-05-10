@@ -83,7 +83,7 @@ pub fn setup_scenario_env(
     );
     let env_root = results_dir.join("fixture");
     let env = TestEnv::new(env_root)?;
-    env.setup_fixture(&s.template_folder)?;
+    env.setup_fixture_relative_to(&s.template_folder, scenario_path.parent())?;
 
     println!("Environment created at: {:?}", env.root);
 
