@@ -13,6 +13,7 @@
 //! ```
 
 pub mod catalog;
+pub mod discovery;
 pub mod types;
 
 pub use types::*;

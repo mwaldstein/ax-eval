@@ -514,8 +514,10 @@ fn validate_generated_scenarios(
         let mut diagnostics = Vec::new();
         match scenario::load(&path) {
             Ok(mut scenario) => {
-                normalize_discovery_paths(&path, &mut scenario);
-                validate_discovery_contract(&scenario, &mut diagnostics);
+                diagnostics.extend(scenario::discovery::apply_discovery_contract(
+                    &path,
+                    &mut scenario,
+                ));
                 let valid = diagnostics.is_empty();
                 manifests.push(GeneratedScenarioManifest {
                     path: display_path(&path),
@@ -539,41 +541,6 @@ fn validate_generated_scenarios(
     }
 
     Ok((manifests, valid_scenarios))
-}
-
-fn validate_discovery_contract(scenario: &Scenario, diagnostics: &mut Vec<String>) {
-    if !scenario.evaluation.gates.is_empty() {
-        diagnostics.push("Discovery scenarios must not include deterministic gates".to_string());
-    }
-    match &scenario.evaluation.judge {
-        Some(judge) if judge.enabled => {}
-        Some(_) => diagnostics.push("Discovery scenario judge must be enabled".to_string()),
-        None => diagnostics.push("Discovery scenarios must include an enabled judge".to_string()),
-    }
-}
-
-fn normalize_discovery_paths(path: &Path, scenario: &mut Scenario) {
-    let Some(parent) = path.parent() else {
-        return;
-    };
-    let template_folder = Path::new(&scenario.template_folder);
-    if !template_folder.is_absolute() {
-        let local = parent.join(template_folder);
-        if local.exists() {
-            scenario.template_folder = display_path(&local);
-        }
-    }
-    if let Some(judge) = &mut scenario.evaluation.judge {
-        if let Some(rubric) = &mut judge.rubric {
-            let rubric_path = Path::new(rubric);
-            if !rubric_path.is_absolute() {
-                let local = parent.join(rubric_path);
-                if local.exists() {
-                    *rubric = display_path(&local);
-                }
-            }
-        }
-    }
 }
 
 fn inspect_prompt(target: &str) -> String {
