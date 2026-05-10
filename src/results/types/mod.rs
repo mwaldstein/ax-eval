@@ -143,3 +143,69 @@ pub struct TokenUsageRecord {
     /// Number of output tokens
     pub output: usize,
 }
+
+impl From<crate::adapter::TokenUsage> for TokenUsageRecord {
+    fn from(value: crate::adapter::TokenUsage) -> Self {
+        Self {
+            input: value.input,
+            output: value.output,
+        }
+    }
+}
+
+impl From<crate::evaluation::GateResult> for GateResultRecord {
+    fn from(value: crate::evaluation::GateResult) -> Self {
+        Self {
+            gate_type: value.gate_type,
+            passed: value.passed,
+            message: value.message,
+        }
+    }
+}
+
+impl From<crate::transcript::EfficiencyMetrics> for EfficiencyMetricsRecord {
+    fn from(value: crate::transcript::EfficiencyMetrics) -> Self {
+        Self {
+            total_commands: value.total_commands,
+            unique_commands: value.unique_commands,
+            error_count: value.error_count,
+            retry_count: value.retry_count,
+            help_invocations: value.help_invocations,
+            first_try_success_rate: value.first_try_success_rate,
+            iteration_ratio: value.iteration_ratio,
+            completed: value.completed,
+        }
+    }
+}
+
+impl From<crate::evaluation::EvaluatorResult> for EvaluatorResultRecord {
+    fn from(value: crate::evaluation::EvaluatorResult) -> Self {
+        Self {
+            name: value.name,
+            metrics: value.metrics,
+            score: value.score,
+            summary: value.summary,
+            error: value.error,
+        }
+    }
+}
+
+impl From<crate::evaluation::EvaluationMetrics> for EvaluationMetricsRecord {
+    fn from(value: crate::evaluation::EvaluationMetrics) -> Self {
+        Self {
+            gates_passed: value.gates_passed,
+            gates_total: value.gates_total,
+            details: value.details.into_iter().map(Into::into).collect(),
+            judge_passed: value.judge_passed,
+            judge_threshold: value.judge_threshold,
+            efficiency: value.efficiency.into(),
+            interaction_evidence_source: Some(value.interaction_evidence_source),
+            composite_score: value.composite_score,
+            evaluator_results: value
+                .evaluator_results
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}

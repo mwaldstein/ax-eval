@@ -1,9 +1,7 @@
 use crate::adapter::TokenUsage as AdapterTokenUsage;
 use crate::evaluation::EvaluationMetrics;
 use crate::output;
-use crate::results::{
-    Cache, CacheKey, EvaluationMetricsRecord, ResultRecord, ResultsDB, TokenUsageRecord,
-};
+use crate::results::{Cache, CacheKey, EvaluationMetricsRecord, ResultRecord, ResultsDB};
 use crate::scenario::Scenario;
 use std::path::Path;
 
@@ -22,9 +20,11 @@ pub struct ResultRecordInput<'a> {
 
 impl ResultRecordInput<'_> {
     pub fn build(self) -> ResultRecord {
-        use crate::results::{EfficiencyMetricsRecord, EvaluatorResultRecord, GateResultRecord};
-
         let metrics = self.metrics;
+        let gates_passed =
+            metrics.gates_passed >= metrics.gates_total && metrics.judge_passed.unwrap_or(true);
+        let judge_score = metrics.judge_score;
+        let metrics_record = EvaluationMetricsRecord::from(metrics);
 
         ResultRecord {
             id: crate::results::generate_run_id(),
@@ -35,51 +35,10 @@ impl ResultRecordInput<'_> {
             timestamp: chrono::Utc::now(),
             duration_secs: self.duration_secs,
             cost_usd: self.cost,
-            token_usage: self.token_usage.map(|tu| TokenUsageRecord {
-                input: tu.input,
-                output: tu.output,
-            }),
-            gates_passed: metrics.gates_passed >= metrics.gates_total
-                && metrics.judge_passed.unwrap_or(true),
-            metrics: EvaluationMetricsRecord {
-                gates_passed: metrics.gates_passed,
-                gates_total: metrics.gates_total,
-                details: metrics
-                    .details
-                    .into_iter()
-                    .map(|d| GateResultRecord {
-                        gate_type: d.gate_type,
-                        passed: d.passed,
-                        message: d.message,
-                    })
-                    .collect(),
-                judge_passed: metrics.judge_passed,
-                judge_threshold: metrics.judge_threshold,
-                efficiency: EfficiencyMetricsRecord {
-                    total_commands: metrics.efficiency.total_commands,
-                    unique_commands: metrics.efficiency.unique_commands,
-                    error_count: metrics.efficiency.error_count,
-                    retry_count: metrics.efficiency.retry_count,
-                    help_invocations: metrics.efficiency.help_invocations,
-                    first_try_success_rate: metrics.efficiency.first_try_success_rate,
-                    iteration_ratio: metrics.efficiency.iteration_ratio,
-                    completed: metrics.efficiency.completed,
-                },
-                interaction_evidence_source: Some(metrics.interaction_evidence_source),
-                composite_score: metrics.composite_score,
-                evaluator_results: metrics
-                    .evaluator_results
-                    .into_iter()
-                    .map(|e| EvaluatorResultRecord {
-                        name: e.name,
-                        metrics: e.metrics,
-                        score: e.score,
-                        summary: e.summary,
-                        error: e.error,
-                    })
-                    .collect(),
-            },
-            judge_score: metrics.judge_score,
+            token_usage: self.token_usage.map(Into::into),
+            gates_passed,
+            metrics: metrics_record,
+            judge_score,
             outcome: self.outcome,
             transcript_path: self.transcript_path,
             cache_key: Some(self.cache_key.as_string()),

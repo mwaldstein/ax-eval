@@ -257,3 +257,58 @@ fn test_result_record_json_skip_none_cache_key() {
     assert!(!json.contains("\"cache_key\""));
     assert!(json.contains("\"judge_score\":null"));
 }
+
+#[test]
+fn evaluation_metrics_record_preserves_full_evaluation_profile() {
+    let metrics = crate::evaluation::EvaluationMetrics {
+        gates_passed: 1,
+        gates_total: 2,
+        details: vec![crate::evaluation::GateResult {
+            gate_type: "file_contains".to_string(),
+            passed: false,
+            message: "missing expected text".to_string(),
+        }],
+        judge_score: Some(0.62),
+        judge_response: None,
+        judge_passed: Some(false),
+        judge_threshold: Some(0.7),
+        efficiency: crate::transcript::EfficiencyMetrics {
+            total_commands: 4,
+            unique_commands: 3,
+            error_count: 1,
+            retry_count: 1,
+            help_invocations: 1,
+            first_try_success_rate: 0.5,
+            iteration_ratio: 0.75,
+            completed: true,
+        },
+        interaction_evidence_source:
+            crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+        composite_score: Some(0.58),
+        evaluator_results: vec![crate::evaluation::EvaluatorResult {
+            name: "quality".to_string(),
+            metrics: Some(serde_json::json!({ "items": 2 })),
+            score: Some(0.8),
+            summary: Some("usable".to_string()),
+            error: None,
+        }],
+    };
+
+    let record = EvaluationMetricsRecord::from(metrics);
+
+    assert_eq!(record.gates_passed, 1);
+    assert_eq!(record.gates_total, 2);
+    assert_eq!(record.details[0].gate_type, "file_contains");
+    assert_eq!(record.details[0].message, "missing expected text");
+    assert_eq!(record.judge_passed, Some(false));
+    assert_eq!(record.judge_threshold, Some(0.7));
+    assert_eq!(record.efficiency.total_commands, 4);
+    assert_eq!(record.efficiency.help_invocations, 1);
+    assert_eq!(
+        record.interaction_evidence_source,
+        Some(crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls)
+    );
+    assert_eq!(record.composite_score, Some(0.58));
+    assert_eq!(record.evaluator_results[0].name, "quality");
+    assert_eq!(record.evaluator_results[0].score, Some(0.8));
+}
