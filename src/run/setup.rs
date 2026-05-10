@@ -448,6 +448,64 @@ evaluation:
     }
 
     #[test]
+    fn setup_commands_receive_absolute_fixture_placeholder_with_relative_results_dir() {
+        let dir = tempdir().expect("create temp dir");
+        let scenario_path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &scenario_path,
+            r#"
+name: setup-absolute-fixture-env-test
+description: Test setup command receives absolute fixture placeholder expansion
+template_folder: example_basic
+target:
+  binary: taskmgr
+  env:
+    QIPU_STORE: "${LLM_TOOL_TEST_FIXTURE_DIR}/.qipu"
+setup:
+  commands:
+    - 'printf "%s" "$QIPU_STORE" > qipu-store.txt'
+task:
+  prompt: "Create a task"
+evaluation:
+  gates: []
+"#,
+        )
+        .expect("write scenario");
+        let scenario: Scenario =
+            yaml_serde::from_str(&std::fs::read_to_string(&scenario_path).expect("read scenario"))
+                .expect("parse scenario");
+        let relative_results_dir = std::path::PathBuf::from(format!(
+            "target/setup-absolute-fixture-env-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let context = PreparedRunContext::new(&scenario, &scenario_path, &relative_results_dir)
+            .expect("context");
+        let writer = context.artifacts.writer().expect("writer");
+
+        execute_setup_commands(
+            scenario.setup.as_ref().expect("setup"),
+            &context.workspace.env,
+            &writer,
+            10,
+            &context.target_env,
+        )
+        .expect("setup commands");
+
+        let expected_store = std::env::current_dir()
+            .expect("current dir")
+            .join(relative_results_dir.join("fixture").join(".qipu"));
+        let actual_store =
+            std::fs::read_to_string(context.workspace.env.root.join("qipu-store.txt"))
+                .expect("read qipu-store");
+
+        assert_eq!(actual_store, expected_store.to_string_lossy());
+        assert!(std::path::Path::new(&actual_store).is_absolute());
+    }
+
+    #[test]
     fn health_check_runs_in_fixture_dir_with_target_env_vars() {
         let dir = tempdir().expect("create temp dir");
         let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
