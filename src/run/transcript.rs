@@ -1,6 +1,6 @@
 use crate::evaluation::EvaluationMetrics;
 use crate::results::CacheKey;
-use crate::run::execution::EvaluationFlowResult;
+use crate::run::execution::RunAttemptResult;
 use crate::run::setup::SetupCommandReport;
 use crate::scenario::Scenario;
 use crate::transcript::{RunMetadata, TranscriptWriter};
@@ -11,13 +11,13 @@ pub struct TranscriptFilesInput<'a> {
     pub tool: &'a str,
     pub model: &'a str,
     pub cache_key: &'a CacheKey,
-    pub evaluation: &'a EvaluationFlowResult,
+    pub evaluation: &'a RunAttemptResult,
     pub setup_success: bool,
     pub setup_commands: Vec<SetupCommandReport>,
 }
 
 pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result<()> {
-    // Note: transcript.raw.txt and execution event are already written in run_evaluation_flow
+    // Note: transcript.raw.txt and execution event are already written in run_attempt
     let metrics: &EvaluationMetrics = &input.evaluation.metrics;
 
     let run_metadata =

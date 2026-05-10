@@ -1,29 +1,27 @@
 use crate::adapter::{TokenUsage, ToolAdapter, ToolRunOutput};
 use crate::evaluation::{EvaluationInput, EvaluationMetrics};
-use crate::fixture::TestEnv;
 use crate::interaction_profile::AdapterEvidenceCapability;
 use crate::run::artifacts::RunArtifacts;
+use crate::run::setup::{PreparedRunContext, PreparedScenarioRun};
 use crate::run::status;
 use crate::scenario::Scenario;
 use crate::target_env::TargetEnvironment;
 use crate::transcript::TranscriptWriter;
 
-pub struct EvaluationFlowInput<'a> {
+pub struct RunAttemptInput<'a> {
     pub adapter: &'a dyn ToolAdapter,
     pub scenario: &'a Scenario,
-    pub env: &'a TestEnv,
+    pub context: &'a PreparedRunContext,
+    pub prepared: &'a PreparedScenarioRun,
     pub tool: &'a str,
     pub model: &'a str,
     pub effective_timeout: u64,
     pub no_judge: bool,
     pub judge_model: Option<&'a str>,
     pub judge_tool: Option<&'a str>,
-    pub writer: &'a TranscriptWriter,
-    pub artifacts: &'a RunArtifacts,
-    pub target_env: &'a TargetEnvironment,
 }
 
-pub struct EvaluationFlowResult {
+pub struct RunAttemptResult {
     pub cost: Option<f64>,
     pub token_usage: Option<TokenUsage>,
     pub duration: std::time::Duration,
@@ -106,7 +104,7 @@ fn run_post_scripts(input: PostScriptRunInput<'_>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<EvaluationFlowResult> {
+pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResult> {
     let start = std::time::Instant::now();
     println!(
         "Running tool '{}' with model '{}'...",
@@ -114,10 +112,10 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
     );
     let run_output: ToolRunOutput = input.adapter.run(
         input.scenario,
-        &input.env.root,
+        &input.context.workspace.env.root,
         Some(input.model),
         input.effective_timeout,
-        input.target_env,
+        &input.context.target_env,
     )?;
     let duration = start.elapsed();
     let exit_code = run_output.exit_code;
@@ -125,8 +123,8 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
     let token_usage = run_output.token_usage.clone();
 
     persist_execution_transcript(ExecutionTranscriptInput {
-        writer: input.writer,
-        artifacts: input.artifacts,
+        writer: &input.prepared.writer,
+        artifacts: &input.prepared.artifacts,
         tool: input.tool,
         run_output: &run_output,
     })?;
@@ -136,22 +134,24 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         scenario: input.scenario,
         tool: input.tool,
         model: input.model,
-        artifacts: input.artifacts,
-        writer: input.writer,
-        target_env: input.target_env,
+        artifacts: &input.prepared.artifacts,
+        writer: &input.prepared.writer,
+        target_env: &input.context.target_env,
     })?;
 
     // Create script runner for evaluation (used by script gates)
-    let script_runner =
-        input
-            .artifacts
-            .script_runner(input.scenario, input.tool, input.model, input.target_env);
+    let script_runner = input.prepared.artifacts.script_runner(
+        input.scenario,
+        input.tool,
+        input.model,
+        &input.context.target_env,
+    );
 
     println!("Running evaluation...");
     let completed = exit_code == 0;
     let metrics = crate::evaluation::evaluate(EvaluationInput {
         scenario: input.scenario,
-        env_root: &input.env.root,
+        env_root: &input.context.workspace.env.root,
         no_judge: input.no_judge,
         script_runner: Some(&script_runner),
         judge_model: input.judge_model,
@@ -160,9 +160,9 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         adapter_capability: AdapterEvidenceCapability::from_supports_structured_tool_calls(
             input.adapter.supports_structured_tool_calls(),
         ),
-        transcript_path: input.artifacts.fixture_transcript_path(),
+        transcript_path: input.prepared.artifacts.fixture_transcript_path(),
         completed,
-        target_env: input.target_env,
+        target_env: &input.context.target_env,
     })?;
     println!(
         "Evaluation profile built: {} commands, {:.0}% first-try success, {} errors",
@@ -171,7 +171,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         metrics.efficiency.error_count
     );
 
-    Ok(EvaluationFlowResult {
+    Ok(RunAttemptResult {
         cost,
         token_usage,
         duration,
@@ -186,6 +186,7 @@ pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixture::TestEnv;
     use crate::scenario::{Evaluation, Scenario, ScriptEntry, ScriptsConfig, TargetConfig, Task};
     use crate::transcript::{CommandEvent, InteractionInput};
 
