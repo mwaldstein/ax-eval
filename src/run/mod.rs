@@ -4,6 +4,7 @@ pub mod execution;
 pub mod lifecycle;
 pub mod records;
 pub mod setup;
+pub mod status;
 pub mod transcript;
 pub mod utils;
 

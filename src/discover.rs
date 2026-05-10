@@ -1,16 +1,17 @@
+mod batch;
 mod manifest;
 mod prompts;
+mod scenarios;
 
 use self::manifest::{
-    build_manifest, create_discovery_dir, display_path, safe_segment, usage_summary,
-    write_manifest, write_partial_manifest, DiscoveryRunManifest, GeneratedScenarioManifest,
+    build_manifest, create_discovery_dir, usage_summary, write_manifest, write_partial_manifest,
 };
 use self::prompts::{author_prompt, inspect_prompt, summary_prompt, understanding_repair_prompt};
+use self::scenarios::validate_generated_scenarios;
 use crate::adapter::registry::AdapterRegistry;
 use crate::adapter::ToolRunOutput;
 use crate::results::{Cache, ResultsDB};
-use crate::run;
-use crate::scenario::{self, Evaluation, Scenario, TargetConfig, Task};
+use crate::scenario::{Evaluation, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
 use std::fs;
@@ -42,11 +43,6 @@ pub struct DiscoverRequest<'a> {
     pub results_base_dir: &'a Path,
     pub results_db: &'a ResultsDB,
     pub cache: &'a Cache,
-}
-
-struct ValidScenario {
-    path: PathBuf,
-    scenario: Scenario,
 }
 
 pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
@@ -110,8 +106,12 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
         "Running {} valid generated scenario(s) as one discovery batch...",
         valid_scenarios.len()
     );
-    let (run_manifests, run_usage) =
-        run_generated_scenarios(&request, &mut adapter_registry, &runs_dir, &valid_scenarios);
+    let (run_manifests, run_usage) = batch::run_generated_scenarios(
+        &request,
+        &mut adapter_registry,
+        &runs_dir,
+        &valid_scenarios,
+    );
 
     let manifest_path = root_dir.join("discovery.json");
     let summary_path = root_dir.join("discovery-summary.md");
@@ -317,136 +317,6 @@ fn write_understanding_diagnostics(
     Ok(())
 }
 
-fn run_generated_scenarios(
-    request: &DiscoverRequest<'_>,
-    adapter_registry: &mut AdapterRegistry,
-    runs_dir: &Path,
-    valid_scenarios: &[ValidScenario],
-) -> (Vec<DiscoveryRunManifest>, UsageTotals) {
-    let mut run_manifests = Vec::new();
-    let mut usage = UsageTotals::default();
-
-    for valid in valid_scenarios {
-        let result_dir = runs_dir.join(safe_segment(&valid.scenario.name));
-        let adapter = match adapter_registry.resolve_checked(request.run_tool) {
-            Ok(adapter) => adapter,
-            Err(error) => {
-                run_manifests.push(DiscoveryRunManifest {
-                    scenario_name: valid.scenario.name.clone(),
-                    scenario_path: display_path(&valid.path),
-                    result_dir: display_path(&result_dir),
-                    status: "harness_error".to_string(),
-                    run_id: None,
-                    outcome: None,
-                    judge_score: None,
-                    judge_passed: None,
-                    error_count: 0,
-                    failed_call_count: 0,
-                    error: Some(format!("{error:#}")),
-                });
-                continue;
-            }
-        };
-        let result = run::run_single_scenario_with_adapter(
-            run::ScenarioRunRequest {
-                scenario: &valid.scenario,
-                scenario_path: &valid.path,
-                tool: request.run_tool,
-                model: request.run_model,
-                dry_run: false,
-                no_cache: true,
-                timeout_secs: request.timeout_secs,
-                no_judge: false,
-                judge_model: request.judge_model,
-                judge_tool: request.judge_tool,
-                results_db: request.results_db,
-                cache: request.cache,
-                results_dir_override: Some(result_dir.clone()),
-            },
-            &adapter,
-        );
-
-        match result {
-            Ok(record) => {
-                usage.add_record(&record);
-                run_manifests.push(DiscoveryRunManifest {
-                    scenario_name: valid.scenario.name.clone(),
-                    scenario_path: display_path(&valid.path),
-                    result_dir: display_path(&result_dir),
-                    status: "completed".to_string(),
-                    run_id: Some(record.id),
-                    outcome: Some(record.outcome),
-                    judge_score: record.judge_score,
-                    judge_passed: record.metrics.judge_passed,
-                    error_count: record.metrics.efficiency.error_count,
-                    failed_call_count: record.metrics.efficiency.error_count,
-                    error: None,
-                });
-            }
-            Err(error) => {
-                run_manifests.push(DiscoveryRunManifest {
-                    scenario_name: valid.scenario.name.clone(),
-                    scenario_path: display_path(&valid.path),
-                    result_dir: display_path(&result_dir),
-                    status: "harness_error".to_string(),
-                    run_id: None,
-                    outcome: None,
-                    judge_score: None,
-                    judge_passed: None,
-                    error_count: 0,
-                    failed_call_count: 0,
-                    error: Some(format!("{error:#}")),
-                });
-            }
-        }
-    }
-
-    (run_manifests, usage)
-}
-
-fn validate_generated_scenarios(
-    scenarios_dir: &Path,
-) -> Result<(Vec<GeneratedScenarioManifest>, Vec<ValidScenario>)> {
-    let mut paths = Vec::new();
-    collect_scenario_yaml_paths(scenarios_dir, &mut paths)?;
-    paths.sort();
-
-    let mut manifests = Vec::new();
-    let mut valid_scenarios = Vec::new();
-
-    for path in paths {
-        let mut diagnostics = Vec::new();
-        match scenario::load(&path) {
-            Ok(mut scenario) => {
-                diagnostics.extend(scenario::discovery::apply_discovery_contract(
-                    &path,
-                    &mut scenario,
-                ));
-                let valid = diagnostics.is_empty();
-                manifests.push(GeneratedScenarioManifest {
-                    path: display_path(&path),
-                    valid,
-                    name: Some(scenario.name.clone()),
-                    diagnostics,
-                });
-                if valid {
-                    valid_scenarios.push(ValidScenario { path, scenario });
-                }
-            }
-            Err(error) => {
-                manifests.push(GeneratedScenarioManifest {
-                    path: display_path(&path),
-                    valid: false,
-                    name: None,
-                    diagnostics: vec![format!("{error:#}")],
-                });
-            }
-        }
-    }
-
-    Ok((manifests, valid_scenarios))
-}
-
 fn write_stage_output(root_dir: &Path, stage: &str, output: &ToolRunOutput) -> Result<()> {
     let stage_dir = root_dir.join("stages").join(stage);
     fs::create_dir_all(&stage_dir)?;
@@ -489,173 +359,9 @@ fn check_target_available(target: &str) -> Result<()> {
     }
 }
 
-fn collect_scenario_yaml_paths(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-    if !dir.exists() {
-        return Ok(());
-    }
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path.file_name().and_then(|name| name.to_str());
-            if matches!(name, Some("rubrics" | "templates")) {
-                continue;
-            }
-            collect_scenario_yaml_paths(&path, paths)?;
-        } else if path
-            .extension()
-            .is_some_and(|ext| ext == "yaml" || ext == "yml")
-        {
-            paths.push(path);
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn validates_discovery_scenario_contract_and_normalizes_paths() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let scenarios = dir.path().join("scenarios");
-        fs::create_dir_all(scenarios.join("templates/goal")).expect("template dir");
-        fs::create_dir_all(scenarios.join("rubrics")).expect("rubrics dir");
-        fs::write(
-            scenarios.join("rubrics/goal.yaml"),
-            r#"
-criteria:
-  - id: quality
-    weight: 1.0
-    description: "Quality"
-output:
-  format: json
-  require_fields: [scores, weighted_score, confidence, issues, highlights]
-"#,
-        )
-        .expect("rubric");
-        fs::write(
-            scenarios.join("goal.yaml"),
-            r#"
-name: goal
-description: "Goal"
-template_folder: templates/goal
-target:
-  binary: qipu
-task:
-  prompt: "Use qipu well"
-evaluation:
-  gates: []
-  judge:
-    enabled: true
-    rubric: rubrics/goal.yaml
-    pass_threshold: 0.70
-"#,
-        )
-        .expect("scenario");
-
-        let (manifests, valid) =
-            validate_generated_scenarios(&scenarios).expect("validate scenarios");
-
-        assert_eq!(manifests.len(), 1);
-        assert!(manifests[0].valid);
-        assert_eq!(valid.len(), 1);
-        assert!(Path::new(&valid[0].scenario.template_folder).is_absolute());
-        assert!(Path::new(
-            valid[0]
-                .scenario
-                .evaluation
-                .judge
-                .as_ref()
-                .expect("judge")
-                .rubric
-                .as_ref()
-                .expect("rubric")
-        )
-        .is_absolute());
-    }
-
-    #[test]
-    fn validates_discovery_scenario_with_default_judge_rubric() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let scenarios = dir.path().join("scenarios");
-        fs::create_dir_all(scenarios.join("templates/goal")).expect("template dir");
-        fs::write(
-            scenarios.join("goal.yaml"),
-            r#"
-name: goal
-description: "Goal"
-template_folder: templates/goal
-target:
-  binary: qipu
-task:
-  prompt: "Use qipu well"
-evaluation:
-  gates: []
-  judge:
-    enabled: true
-    pass_threshold: 0.70
-"#,
-        )
-        .expect("scenario");
-
-        let (manifests, valid) =
-            validate_generated_scenarios(&scenarios).expect("validate scenarios");
-
-        assert_eq!(manifests.len(), 1);
-        assert!(manifests[0].valid);
-        assert_eq!(valid.len(), 1);
-        assert!(Path::new(&valid[0].scenario.template_folder).is_absolute());
-        assert_eq!(
-            valid[0]
-                .scenario
-                .evaluation
-                .judge
-                .as_ref()
-                .expect("judge")
-                .rubric,
-            None
-        );
-    }
-
-    #[test]
-    fn discovery_contract_rejects_gated_or_unjudged_scenarios() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let scenarios = dir.path().join("scenarios");
-        fs::create_dir_all(&scenarios).expect("scenarios dir");
-        fs::write(
-            scenarios.join("bad.yaml"),
-            r#"
-name: bad
-description: "Bad"
-template_folder: qipu
-target:
-  binary: qipu
-task:
-  prompt: "Use qipu"
-evaluation:
-  gates:
-    - type: command_succeeds
-      command: "true"
-"#,
-        )
-        .expect("scenario");
-
-        let (manifests, valid) =
-            validate_generated_scenarios(&scenarios).expect("validate scenarios");
-
-        assert!(valid.is_empty());
-        assert!(!manifests[0].valid);
-        assert!(manifests[0]
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.contains("must not include deterministic gates")));
-        assert!(manifests[0]
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.contains("must include an enabled judge")));
-    }
 
     #[test]
     fn usage_summary_separates_overhead_and_scenario_runs() {

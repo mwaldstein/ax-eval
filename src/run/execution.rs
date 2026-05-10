@@ -3,6 +3,7 @@ use crate::evaluation::{EvaluationInput, EvaluationMetrics};
 use crate::fixture::TestEnv;
 use crate::interaction_profile::AdapterEvidenceCapability;
 use crate::run::artifacts::RunArtifacts;
+use crate::run::status;
 use crate::scenario::Scenario;
 use crate::target_env::TargetEnvironment;
 use crate::transcript::TranscriptWriter;
@@ -179,23 +180,7 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
 }
 
 pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
-    if metrics.gates_passed < metrics.gates_total {
-        format!(
-            "Fail: {}/{} gates passed",
-            metrics.gates_passed, metrics.gates_total
-        )
-    } else if let Some(judge_passed) = metrics.judge_passed {
-        if !judge_passed {
-            format!(
-                "Fail: judge score {:.2} below threshold",
-                metrics.judge_score.unwrap_or(0.0)
-            )
-        } else {
-            "Pass".to_string()
-        }
-    } else {
-        "Pass".to_string()
-    }
+    status::determine_outcome(metrics)
 }
 
 #[cfg(test)]

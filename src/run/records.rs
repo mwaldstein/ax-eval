@@ -2,6 +2,7 @@ use crate::adapter::TokenUsage as AdapterTokenUsage;
 use crate::evaluation::EvaluationMetrics;
 use crate::output;
 use crate::results::{Cache, CacheKey, EvaluationMetricsRecord, ResultRecord, ResultsDB};
+use crate::run::status::RunStatus;
 use crate::scenario::Scenario;
 use std::path::Path;
 
@@ -21,8 +22,7 @@ pub struct ResultRecordInput<'a> {
 impl ResultRecordInput<'_> {
     pub fn build(self) -> ResultRecord {
         let metrics = self.metrics;
-        let gates_passed =
-            metrics.gates_passed >= metrics.gates_total && metrics.judge_passed.unwrap_or(true);
+        let gates_passed = RunStatus::from_metrics(&metrics).legacy_gates_passed();
         let judge_score = metrics.judge_score;
         let metrics_record = EvaluationMetricsRecord::from(metrics);
 
