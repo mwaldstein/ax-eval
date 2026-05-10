@@ -48,8 +48,65 @@ evaluation:
 
     assert!(judge.enabled);
     assert_eq!(judge.tool.as_deref(), Some("codex"));
-    assert_eq!(judge.rubric, "rubrics/test.yaml");
+    assert_eq!(judge.rubric.as_deref(), Some("rubrics/test.yaml"));
     assert_eq!(judge.pass_threshold, 0.75);
+}
+
+#[test]
+fn test_judge_config_without_rubric_uses_defaults() {
+    let yaml = r#"
+name: test
+description: "Test"
+template_folder: fixture
+target:
+  binary: tool
+task:
+  prompt: "Test prompt"
+evaluation:
+  gates: []
+  judge:
+    enabled: true
+    pass_threshold: 0.75
+"#;
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
+    let judge = scenario.evaluation.judge.expect("judge config");
+
+    assert!(judge.enabled);
+    assert_eq!(judge.rubric, None);
+    assert!(judge.criteria.is_empty());
+    assert_eq!(judge.pass_threshold, 0.75);
+}
+
+#[test]
+fn test_judge_config_with_inline_criteria() {
+    let yaml = r#"
+name: test
+description: "Test"
+template_folder: fixture
+target:
+  binary: tool
+task:
+  prompt: "Test prompt"
+evaluation:
+  gates: []
+  judge:
+    enabled: true
+    criteria:
+      - id: task_completion
+        weight: 0.70
+        description: "The agent achieved the user's requested goal"
+      - id: tool_usage_correctness
+        weight: 0.30
+        description: "The agent used the CLI correctly"
+    pass_threshold: 0.75
+"#;
+    let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
+    let judge = scenario.evaluation.judge.expect("judge config");
+
+    assert_eq!(judge.rubric, None);
+    assert_eq!(judge.criteria.len(), 2);
+    assert_eq!(judge.criteria[0].id, "task_completion");
+    assert_eq!(judge.criteria[0].weight, 0.70);
 }
 
 #[test]

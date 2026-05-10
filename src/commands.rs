@@ -407,7 +407,6 @@ evaluation:
       timeout_secs: 30
   judge:
     enabled: false
-    rubric: rubrics/workflow.yaml
     pass_threshold: 0.70
 
 tool_matrix:

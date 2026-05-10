@@ -6,6 +6,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::judge::Criterion;
+
 /// A test scenario defining a complete LLM tool evaluation case.
 ///
 /// Scenarios are loaded from YAML files and specify:
@@ -148,8 +150,12 @@ pub struct JudgeConfig {
     /// Optional CLI tool to use for judge evaluation
     #[serde(default)]
     pub tool: Option<String>,
-    /// Path to the rubric YAML file
-    pub rubric: String,
+    /// Optional path to the rubric YAML file
+    #[serde(default)]
+    pub rubric: Option<String>,
+    /// Optional inline criteria. Used when rubric is not provided.
+    #[serde(default)]
+    pub criteria: Vec<Criterion>,
     /// Minimum score threshold to pass (0.0-1.0)
     pub pass_threshold: f64,
 }

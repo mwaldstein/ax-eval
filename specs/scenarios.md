@@ -193,7 +193,11 @@ evaluation:
   judge:                         # optional LLM-as-judge configuration
     enabled: bool
     tool: string                  # optional judge CLI tool: opencode, codex, claude, claude-code (default: opencode)
-    rubric: string               # Path to rubric YAML
+    rubric: string               # optional path to rubric YAML; defaults apply when omitted
+    criteria:                    # optional inline criteria; used when rubric is omitted
+      - id: string
+        weight: float            # weights must sum to 1.0
+        description: string
     pass_threshold: float        # 0.0-1.0
 
 tool_matrix:                     # optional
@@ -263,7 +267,16 @@ evaluation:
   judge:
     enabled: true
     tool: opencode
-    rubric: rubrics/task_organization_v1.yaml
+    criteria:
+      - id: task_completion
+        weight: 0.50
+        description: "The agent achieved the user's requested goal and produced the intended outcome"
+      - id: tool_usage_correctness
+        weight: 0.30
+        description: "The agent used the CLI tool correctly"
+      - id: efficiency
+        weight: 0.20
+        description: "The agent completed the task without unnecessary commands or avoidable confusion"
     pass_threshold: 0.70
 
 tool_matrix:

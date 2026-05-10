@@ -403,12 +403,18 @@ By default, the judge only runs **if all gates pass**. This prevents wasting an 
 
 ### Scenario Configuration
 
+Rubrics are optional. If `rubric` and inline `criteria` are both omitted, the
+judge uses the default criteria: goal-oriented task completion (0.50), tool
+usage correctness (0.30), and efficiency (0.20). The default task completion
+criterion assesses whether the agent achieved the user's requested goal and
+produced the intended outcome, not whether it followed a specific sequence of
+steps.
+
 ```yaml
 evaluation:
   judge:
     enabled: true
     tool: opencode
-    rubric: rubrics/capture_v1.yaml
     pass_threshold: 0.70
 ```
 

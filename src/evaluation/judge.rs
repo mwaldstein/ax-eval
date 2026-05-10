@@ -1,4 +1,4 @@
-use crate::judge::{load_rubric, JudgeResponse};
+use crate::judge::{load_rubric, Criterion, JudgeResponse, OutputFormat, Rubric};
 use crate::scenario::{JudgeConfig, Scenario};
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -89,9 +89,7 @@ fn run_judge_evaluation(
 ) -> Result<JudgeExecutionResult> {
     println!("Running LLM-as-judge evaluation...");
     let tool = resolve_judge_tool(judge_config, judge_tool);
-    let rubric_path = crate::utils::resolve_fixtures_path(&judge_config.rubric);
-    let rubric = load_rubric(&rubric_path)
-        .with_context(|| format!("Failed to load rubric from {}", rubric_path.display()))?;
+    let rubric = resolve_judge_rubric(judge_config)?;
 
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(
@@ -127,6 +125,75 @@ fn run_judge_evaluation(
     }
 
     Ok(JudgeExecutionResult::from_response(response))
+}
+
+fn resolve_judge_rubric(judge_config: &JudgeConfig) -> Result<Rubric> {
+    if let Some(rubric) = &judge_config.rubric {
+        let rubric_path = crate::utils::resolve_fixtures_path(rubric);
+        return load_rubric(&rubric_path)
+            .with_context(|| format!("Failed to load rubric from {}", rubric_path.display()));
+    }
+
+    if !judge_config.criteria.is_empty() {
+        let rubric = Rubric {
+            criteria: judge_config.criteria.clone(),
+            output: default_output_format(),
+        };
+        validate_rubric_weights(&rubric)?;
+        return Ok(rubric);
+    }
+
+    Ok(default_judge_rubric())
+}
+
+fn default_judge_rubric() -> Rubric {
+    Rubric {
+        criteria: vec![
+            Criterion {
+                id: "task_completion".to_string(),
+                weight: 0.50,
+                description: "The agent achieved the user's requested goal and produced the intended outcome, regardless of the exact command sequence used".to_string(),
+            },
+            Criterion {
+                id: "tool_usage_correctness".to_string(),
+                weight: 0.30,
+                description: "The agent used the CLI tool correctly with valid commands, appropriate arguments, and suitable verification".to_string(),
+            },
+            Criterion {
+                id: "efficiency".to_string(),
+                weight: 0.20,
+                description:
+                    "The agent completed the task without unnecessary commands, repeated dead ends, or avoidable confusion"
+                        .to_string(),
+            },
+        ],
+        output: default_output_format(),
+    }
+}
+
+fn default_output_format() -> OutputFormat {
+    OutputFormat {
+        format: "json".to_string(),
+        require_fields: vec![
+            "scores".to_string(),
+            "weighted_score".to_string(),
+            "confidence".to_string(),
+            "issues".to_string(),
+            "highlights".to_string(),
+            "rationale".to_string(),
+        ],
+    }
+}
+
+fn validate_rubric_weights(rubric: &Rubric) -> Result<()> {
+    let total_weight: f64 = rubric.criteria.iter().map(|c| c.weight).sum();
+    if (total_weight - 1.0).abs() > 0.01 {
+        anyhow::bail!(
+            "Rubric criterion weights must sum to 1.0, got {}",
+            total_weight
+        );
+    }
+    Ok(())
 }
 
 fn parse_judge_response(output: &str) -> Result<JudgeResponse> {
@@ -216,7 +283,8 @@ mod tests {
         let mut judge_config = JudgeConfig {
             enabled: true,
             tool: Some("codex".to_string()),
-            rubric: "rubrics/test.yaml".to_string(),
+            rubric: Some("rubrics/test.yaml".to_string()),
+            criteria: vec![],
             pass_threshold: 0.7,
         };
 
@@ -260,6 +328,58 @@ mod tests {
                 .map(|response| response.rationale.as_str()),
             Some("solid")
         );
+    }
+
+    #[test]
+    fn judge_rubric_defaults_to_goal_oriented_criteria() {
+        let judge_config = JudgeConfig {
+            enabled: true,
+            tool: None,
+            rubric: None,
+            criteria: vec![],
+            pass_threshold: 0.7,
+        };
+
+        let rubric = resolve_judge_rubric(&judge_config).expect("default rubric");
+
+        assert_eq!(rubric.criteria.len(), 3);
+        assert_eq!(rubric.criteria[0].id, "task_completion");
+        assert!(rubric.criteria[0]
+            .description
+            .contains("achieved the user's requested goal"));
+        assert!(!rubric.criteria[0].description.contains("required steps"));
+    }
+
+    #[test]
+    fn judge_rubric_uses_inline_criteria_when_no_rubric_path_is_set() {
+        let judge_config = JudgeConfig {
+            enabled: true,
+            tool: None,
+            rubric: None,
+            criteria: vec![
+                Criterion {
+                    id: "goal".to_string(),
+                    weight: 0.60,
+                    description: "Goal achievement".to_string(),
+                },
+                Criterion {
+                    id: "quality".to_string(),
+                    weight: 0.40,
+                    description: "Quality".to_string(),
+                },
+            ],
+            pass_threshold: 0.7,
+        };
+
+        let rubric = resolve_judge_rubric(&judge_config).expect("inline rubric");
+
+        assert_eq!(rubric.criteria.len(), 2);
+        assert_eq!(rubric.criteria[0].id, "goal");
+        assert_eq!(rubric.output.format, "json");
+        assert!(rubric
+            .output
+            .require_fields
+            .contains(&"rationale".to_string()));
     }
 
     #[test]

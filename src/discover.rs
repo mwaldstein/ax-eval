@@ -564,11 +564,13 @@ fn normalize_discovery_paths(path: &Path, scenario: &mut Scenario) {
         }
     }
     if let Some(judge) = &mut scenario.evaluation.judge {
-        let rubric = Path::new(&judge.rubric);
-        if !rubric.is_absolute() {
-            let local = parent.join(rubric);
-            if local.exists() {
-                judge.rubric = display_path(&local);
+        if let Some(rubric) = &mut judge.rubric {
+            let rubric_path = Path::new(rubric);
+            if !rubric_path.is_absolute() {
+                let local = parent.join(rubric_path);
+                if local.exists() {
+                    *rubric = display_path(&local);
+                }
             }
         }
     }
@@ -680,13 +682,14 @@ complex, goal-oriented llm-tool-test scenarios under ./scenarios/.
 Hard requirements:
 - Write complete runnable YAML scenario files under ./scenarios/.
 - Create any required template directories beside the YAML files.
-- Create any required judge rubrics beside the YAML files.
 - Each scenario must use target.binary: "{target}".
 - Each scenario must have evaluation.gates: [].
 - Each scenario must include evaluation.judge.enabled: true.
-- Each judge rubric should assess subjective LLM tool usage quality, goal
-  completion, appropriate workflow choice, recovery from confusion, and
-  efficient use of the target tool.
+- Omit evaluation.judge.rubric unless the scenario needs custom criteria. The
+  default judge rubric assesses goal achievement, CLI usage quality, and
+  efficiency.
+- If custom criteria are needed, prefer inline evaluation.judge.criteria. Use a
+  separate rubric file only when the criteria need a reusable output contract.
 - Use pass_threshold as a general rubric reference, not as the main discovery
   value. 0.70 is a reasonable default.
 - Prefer goal-based tasks over command-prescriptive tasks. The prompt should
@@ -710,13 +713,12 @@ evaluation:
   gates: []
   judge:
     enabled: true
-    rubric: rubrics/discover_example_goal.yaml
     pass_threshold: 0.70
 tags:
   - discovery
 
-Use relative template and rubric paths beside each scenario file. The harness
-will resolve them relative to the generated YAML."#,
+Use relative template paths beside each scenario file. If you create a custom
+rubric path, keep it relative to the generated YAML; the harness will resolve it."#,
         understanding_path.display()
     )
 }
@@ -967,15 +969,60 @@ evaluation:
         assert_eq!(valid.len(), 1);
         assert!(Path::new(&valid[0].scenario.template_folder).is_absolute());
         assert!(Path::new(
-            &valid[0]
+            valid[0]
                 .scenario
                 .evaluation
                 .judge
                 .as_ref()
                 .expect("judge")
                 .rubric
+                .as_ref()
+                .expect("rubric")
         )
         .is_absolute());
+    }
+
+    #[test]
+    fn validates_discovery_scenario_with_default_judge_rubric() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let scenarios = dir.path().join("scenarios");
+        fs::create_dir_all(scenarios.join("templates/goal")).expect("template dir");
+        fs::write(
+            scenarios.join("goal.yaml"),
+            r#"
+name: goal
+description: "Goal"
+template_folder: templates/goal
+target:
+  binary: qipu
+task:
+  prompt: "Use qipu well"
+evaluation:
+  gates: []
+  judge:
+    enabled: true
+    pass_threshold: 0.70
+"#,
+        )
+        .expect("scenario");
+
+        let (manifests, valid) =
+            validate_generated_scenarios(&scenarios).expect("validate scenarios");
+
+        assert_eq!(manifests.len(), 1);
+        assert!(manifests[0].valid);
+        assert_eq!(valid.len(), 1);
+        assert!(Path::new(&valid[0].scenario.template_folder).is_absolute());
+        assert_eq!(
+            valid[0]
+                .scenario
+                .evaluation
+                .judge
+                .as_ref()
+                .expect("judge")
+                .rubric,
+            None
+        );
     }
 
     #[test]
