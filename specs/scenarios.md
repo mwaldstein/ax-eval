@@ -397,9 +397,9 @@ Each run produces a results directory:
 
 ```
 llm-tool-test-results/<timestamp>-<agent>-<model>-<scenario>/
-├── metrics.json            # Evaluation metrics (gate results, scores, cost)
-├── evaluation.md           # Human-readable evaluation report
-├── report.md               # Execution details, gate results, efficiency metrics
+├── metrics.json            # Machine-readable evaluation profile
+├── evaluation.md           # Human-readable evaluation profile
+├── report.md               # Execution details, guardrail results, efficiency metrics
 ├── artifacts/
 │   ├── transcript.raw.txt  # Complete output from the LLM agent session
 │   ├── events.jsonl        # Structured event log
@@ -492,7 +492,7 @@ llm-tool-test run --all --tags guidance-test --tier 1
 
 ### Comparing
 
-Compare `metrics.json` across variants. The primary signal is **interaction metrics** (Layer 1), not gate pass rate:
+Compare `metrics.json` across variants. The primary signal is **interaction metrics** (Layer 1) and any configured qualitative judge results, not gate pass rate:
 
 | Metric | What it tells you |
 |--------|-------------------|
@@ -501,11 +501,11 @@ Compare `metrics.json` across variants. The primary signal is **interaction metr
 | **Help-seeking** | Lower with better docs. High help-seeking means the AGENTS.md lacks upfront information. |
 | **First-try success** | Higher with better docs. Measures how often the LLM gets commands right the first time. |
 | **Command count** | Lower with better docs (for the same outcome). Measures efficiency. |
-| **Gate pass rate** | Should be similar across variants if the task is achievable. Differences here indicate the task itself is too hard or too easy, not the docs. |
+| **Gate pass rate** | Guardrail only. It should be similar across variants if the task is achievable. Differences here indicate the task itself may be too hard or too easy, not that one interaction was automatically better. |
 
 The `evaluation.md` reports are human-readable and can be compared side by side.
 
-**Important**: Keep gates minimal for guidance evaluation. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). Gates are fail-fast, not the primary evaluation signal. See `specs/evaluation.md` for gate design philosophy.
+**Important**: Keep gates minimal for guidance evaluation. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). Gates are guardrails, not the primary evaluation signal. See `specs/evaluation.md` for gate design philosophy.
 
 ### What to Vary
 

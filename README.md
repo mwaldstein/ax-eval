@@ -6,7 +6,7 @@ Evaluate how coding agents use your CLI.
 
 CLIs built for humans often frustrate AI agents — vague errors, complex setup, confusing subcommands — leading to retries and wasted tokens.
 
-`llm-tool-test` runs coding agents against your CLI in reproducible scenarios and measures success, friction, and cost: pass/fail gates, scalar metrics, and optional rubric-based scores. Use it to drive a tight feedback loop on your CLI ergonomics, `--help` text, and `AGENTS.md` guidance.
+`llm-tool-test` runs coding agents against your CLI in reproducible scenarios and produces an evaluation profile: quantitative interaction metrics, cost and token data, optional qualitative rubric scores, and supporting guardrail checks. Use it to drive a tight feedback loop on your CLI ergonomics, `--help` text, and `AGENTS.md` guidance.
 
 Built primarily for CLI authors. Also useful for technical writers iterating on `AGENTS.md` and agent developers comparing models on a specific workflow.
 
@@ -14,9 +14,9 @@ Built primarily for CLI authors. Also useful for technical writers iterating on 
 
 Unit tests verify that your CLI works. `llm-tool-test` verifies that an agent can *discover and use* it.
 
-Traditional tests are deterministic. Agents are not. `llm-tool-test` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective gates.
+Traditional tests are deterministic. Agents are not. `llm-tool-test` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails.
 
-Repeatability here is about benchmarking changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable signal on the quality of the interaction, not just a binary pass/fail.
+Repeatability here is about benchmarking changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable qualitative signal on the quality of the interaction. Pass/fail gates are supporting checks for catastrophic failures, not the main result.
 
 ## How It Works
 
@@ -99,16 +99,19 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
 
 ## What You Get
 
-Every run measures two dimensions:
-1. **Outcome**: Did the agent complete the task?
-2. **Efficiency**: How much friction (retries, errors, tokens) did it encounter?
+Every run produces a dimensional profile:
+
+1. **Interaction quality**: how many commands, retries, errors, help invocations, and first-try successes occurred.
+2. **Qualitative quality**: optional judge and human review signals about whether the agent used the tool well.
+3. **Guardrail outcome**: whether deterministic gates caught a catastrophic task failure.
+4. **Cost and runtime**: duration, token usage, and cost when adapters report them.
 
 ### Artifacts
 Each run appends a record to `llm-tool-test-results/results.jsonl` and generates a run directory containing:
 
 - `evaluation.md`: A human-readable evaluation profile and summary.
-- `report.md`: Execution details, gate results, and efficiency metrics.
-- `metrics.json`: Machine-readable evaluation metrics (gates, interaction evidence, efficiency, composite score, and evaluator results).
+- `report.md`: Execution details, guardrail results, and efficiency metrics.
+- `metrics.json`: Machine-readable evaluation metrics (interaction evidence, efficiency, gate guardrails, composite score, and evaluator results).
 - `artifacts/transcript.raw.txt`: The full agent transcript for debugging.
 - `artifacts/events.jsonl`: Structured event log of the entire interaction.
 - `artifacts/tool-output.raw.txt`: Raw adapter output when available.
@@ -144,7 +147,7 @@ Judge, composite, and custom evaluator fields are included only when configured 
 
 ## Scenario Format
 
-Scenarios are YAML files defining the agent task, the environment, and post-run assertions. The minimal form:
+Scenarios are YAML files defining the agent task, the environment, and post-run evaluation. The minimal form uses gates as outcome guardrails:
 
 ```yaml
 name: example_basic

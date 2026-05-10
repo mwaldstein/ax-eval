@@ -20,7 +20,7 @@ The primary output is not a Pass/Fail stamp. It is an **evaluation profile**: a 
 - Does claude-code achieve higher first-try success than opencode?
 - Has a tool version change degraded the interaction profile?
 
-Gates (binary pass/fail assertions) exist as a **fail-fast mechanism**: they catch catastrophic failures early so you don't waste an expensive judge call on a run that produced no output. Gates are necessary but they are not the point. The point is the profile.
+Gates (binary pass/fail assertions) exist as **supporting guardrails**: they catch catastrophic failures, record whether the basic outcome was achieved, and can optionally prevent wasting an expensive judge call on a run that produced no usable output. Gates are necessary but they are not the point. The point is the profile.
 
 That said, binary gates are a perfectly valid use of the framework in CI/CD contexts — for example, a token-limit gate that fails if a model or harness change causes token usage to exceed a budget, or a cost gate that catches regressions. Used this way, the framework acts as a guardrail: "this change broke an assumption, it needs attention." The evaluation profile then tells you *what* changed and *how much*, which a binary gate alone cannot.
 
@@ -43,7 +43,7 @@ The framework measures quality along two axes:
 There are few universally applicable, objective measures of "did the LLM use this tool well." Rather than invent domain-specific metrics, the framework measures quality in three layers, ordered from cheapest to most expensive. Each layer answers a different question:
 
 1. **Interaction quality** — Did the LLM use the tool efficiently? **(quantitative, evidence-derived, always available)** — the primary comparative signal
-2. **Outcome assertions (gates)** — Did the task produce the right results? **(binary, fail-fast, scenario-author-defined)** — necessary but not the point
+2. **Outcome assertions (gates)** — Did the task produce the right results? **(binary, supporting, scenario-author-defined)** — necessary but not the point
 3. **LLM-as-judge** — Was the tool used as intended? **(qualitative, rubric-driven, optional)** — encodes intrinsic knowledge of how the tool should be used
 
 ---
@@ -101,7 +101,7 @@ commands, error rate, etc.) are available.
 | **Help-seeking** | Count of `--help` invocations | Documentation clarity |
 | **First-try success rate** | Commands that succeeded on first attempt / total commands | Combined doc + UX quality |
 | **Iteration ratio** | unique commands / total commands | Efficiency; high = less repetition |
-| **Completion** | Did the agent complete the task vs give up or time out | Basic pass/fail signal |
+| **Completion** | Did the agent complete the task vs give up or time out | Basic run-status signal |
 | **Command count** | Total target-tool commands executed | Efficiency (fewer is better, given completion) |
 
 ### Data Source
@@ -156,9 +156,9 @@ pub struct InteractionMetrics {
 
 Gates are deterministic, scenario-author-defined checks. They answer: "did the task produce correct results?" Gates are domain-specific by nature, but expressed through generic primitives.
 
-**Gates are a fail-fast mechanism, not the primary evaluation output.** Their role is to catch catastrophic failures early — when the agent didn't produce any output, created the wrong files, or failed the core task entirely. This prevents wasting an expensive judge call on a fundamentally broken run.
+**Gates are supporting guardrails, not the primary evaluation output.** Their role is to catch catastrophic failures — when the agent didn't produce any output, created the wrong files, or failed the core task entirely. Implementations may use them to skip expensive judge calls on fundamentally broken runs, but the gate result itself is still only one dimension of the profile.
 
-The real evaluation value is in Layer 1 (quantitative metrics) and Layer 3 (qualitative assessment). Gates are the safety net.
+The real evaluation value is in Layer 1 (quantitative metrics) and Layer 3 (qualitative assessment). Gates are the safety net and a quick filter.
 
 ### Gate Types
 
@@ -234,7 +234,7 @@ pub enum Gate {
 
 Gates verify **outcomes**, not **process**. A scenario should ask "did the task get done?" not "did the LLM follow my expected steps without deviation?"
 
-More importantly: gates are **fail-fast**, not **evaluation**. The framework's primary output is the evaluation profile (scalar measurements across all three layers), not a binary pass/fail stamp. Gates catch catastrophic failures; the profile captures nuance.
+More importantly: gates are **guardrails**, not the whole evaluation. The framework's primary output is the evaluation profile (scalar measurements across all three layers), not a binary pass/fail stamp. Gates catch catastrophic failures; the profile captures nuance.
 
 #### Outcome vs Process
 
@@ -271,7 +271,7 @@ In discovery scenarios, errors are diagnostic data (Layer 1 interaction metrics)
 
 #### Minimal Gates for Guidance Testing
 
-When comparing AGENTS.md versions, the primary signal is Layer 1 interaction metrics (error rate, retry rate, help-seeking, first-try success). Gates should be a minimal sanity check that the task was completed:
+When comparing AGENTS.md versions, the primary signal is Layer 1 interaction metrics (error rate, retry rate, help-seeking, first-try success). Gates should be a minimal guardrail check that the task was completed:
 
 ```yaml
 evaluation:
@@ -395,11 +395,11 @@ The `rationale` field is required — a 2–4 sentence explanation of the overal
 
 ### Pass Threshold
 
-The scenario configures a `pass_threshold` (0.0–1.0). The judge layer passes if `weighted_score >= pass_threshold`. This threshold **must be enforced** — if the weighted score falls below the threshold, the judge layer fails and the overall outcome is Fail.
+The scenario configures a `pass_threshold` (0.0–1.0). The judge layer passes if `weighted_score >= pass_threshold`. Treat this as a guardrail threshold and interpretation aid: it can mark the run outcome as failed, but the score, rationale, confidence, issues, and highlights are the qualitative evaluation result.
 
 ### Execution Guard
 
-The judge only runs **if all gates pass**. This prevents wasting an expensive LLM call on a run that fundamentally failed to produce output. If any gate fails, the judge is skipped and `judge_score` is `None`.
+By default, the judge only runs **if all gates pass**. This prevents wasting an expensive LLM call on a run that fundamentally failed to produce output. If any gate fails, the judge is skipped and `judge_score` is `None`. This is a cost guard, not a statement that failed-gate runs lack qualitative value; users should still inspect the transcript and interaction metrics, and future implementations may make judge-on-gate-failure configurable.
 
 ### Scenario Configuration
 
@@ -423,7 +423,7 @@ A single composite number obscures the dimensions that matter for comparative ev
 The default behavior should be:
 
 1. **Report each layer independently.** The evaluation output shows interaction metrics, gate results, and judge score as separate dimensions — because they answer different questions and are compared independently.
-2. **Each layer has its own pass/fail (for fail-fast only).** Gates pass if all gates pass. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail). These exist for fail-fast, not as the primary evaluation output.
+2. **Each layer can have a guardrail status.** Gates pass if all gates pass. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail). These statuses are filters and triage aids, not the primary evaluation output.
 3. **The evaluation profile is the primary output.** The set of scalar measurements across all layers is what enables comparisons across models, harnesses, and documentation variants.
 4. **Overall outcome** is determined by gates and (if enabled) judge, but serves as a quick filter, not as the evaluation conclusion.
 
@@ -448,7 +448,7 @@ Outcome = Pass    if all gates pass AND (judge disabled OR judge passes threshol
 Outcome = Fail    if any gate fails OR (judge enabled AND judge weighted_score < pass_threshold)
 ```
 
-Interaction metrics do not affect the outcome. They are diagnostic.
+Interaction metrics do not affect the outcome. They are diagnostic and comparative. The outcome is a quick filter over the run, not the evaluation conclusion.
 
 ### Rust Representation
 
@@ -489,7 +489,7 @@ The secondary audience for llm-tool-test is guidance/skills authors who are test
 
 ### Primary Signal: Quantitative Interaction Metrics
 
-For guidance authors, Layer 1 metrics are the most important signal. Gates tell you whether the task was completed (fail-fast); interaction metrics tell you *how efficiently the LLM got there* and *how much friction it experienced*. This is the quantitative backbone of guidance evaluation.
+For guidance authors, Layer 1 metrics are the most important signal. Gates tell you whether the basic task outcome was achieved; interaction metrics tell you *how efficiently the LLM got there* and *how much friction it experienced*. This is the quantitative backbone of guidance evaluation.
 
 **Do not** use `no_transcript_errors` as a gate in guidance scenarios, or as a
 unit-test-style substitute for outcome assertions. Errors during discovery are

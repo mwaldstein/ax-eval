@@ -15,7 +15,7 @@ llm-tool-test answers: _"How well did it go?"_ — a scalar question measured ac
 - **Quantitative**: token usage, command count, error rate, first-try success rate, cost, duration, retry rate
 - **Qualitative**: did the agent use the tool as intended? Did it follow documented conventions? Was its approach efficient or circuitous?
 
-Gates (binary pass/fail assertions) exist as a **fail-fast mechanism** — they catch catastrophic failures early so you don't waste an expensive judge call on a run that didn't produce any output. But gates are not the primary output of the framework. The primary output is the **evaluation profile**: a set of scalar measurements that can be compared across models, harnesses, documentation variants, and tool versions.
+Gates (binary pass/fail assertions) exist as **supporting guardrails** — they catch catastrophic failures, record whether the basic outcome was achieved, and can optionally avoid wasting an expensive judge call on a run that didn't produce usable output. But gates are not the primary output of the framework. The primary output is the **evaluation profile**: a set of quantitative and qualitative measurements that can be compared across models, harnesses, documentation variants, and tool versions.
 
 That said, binary gates are a valid use of the framework in CI/CD — for example, a token-limit gate that fails if a model or harness change exceeds a budget, or a cost gate that catches regressions. The framework can serve as both a guardrail (binary) and a diagnostic (scalar). The profile tells you what changed and how much; the gate tells you whether that change is acceptable.
 
@@ -100,7 +100,7 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 2. **Target Tool Configuration** — declares what CLI tool is being tested, including its commands and how to inspect its state.
 3. **LLM Agent Adapters** — invoke LLM coding agents (opencode, claude-code, or codex) that then use the target tool.
 4. **Transcript Capture** — records the full agent interaction via PTY.
-5. **Evaluator** — three-layer evaluation producing a dimensional profile. Gates provide fail-fast; interaction metrics and judge provide the real value. See [specs/evaluation.md](evaluation.md).
+5. **Evaluator** — three-layer evaluation producing a dimensional profile. Gates provide guardrails; interaction metrics and judge provide the main value. See [specs/evaluation.md](evaluation.md).
 6. **Results & Artifacts** — structured output for analysis and review.
 
 ### Discovery Workflow
@@ -328,11 +328,11 @@ See [specs/scripts.md](scripts.md) for details.
 
 The evaluator produces a dimensional evaluation profile:
 - **Interaction quality metrics**: quantitative measures — command error rate, first-try success rate, retry rate, help-seeking, command count, token usage, cost, duration (always runs)
-- **Gates**: binary fail-fast assertions — catch catastrophic failures early so expensive judge calls aren't wasted on dead runs. All gates run regardless of earlier failures so the full picture is available.
+- **Gates**: binary guardrail assertions — catch catastrophic failures and record whether the basic outcome was achieved. All gates run regardless of earlier failures so the full picture is available.
 - **Custom evaluators**: scripts that produce additional scalar metrics/scores (see [specs/scripts.md](scripts.md))
 - **LLM-as-judge**: qualitative assessment — rubric-based scoring that encodes the tool author's intent about how the tool should be used (optional, if enabled and gates pass)
 
-**The evaluation profile is the primary output.** Gates gate nothing beyond fail-fast; the scalar measurements across all layers are what enable comparisons across models, harnesses, and documentation variants.
+**The evaluation profile is the primary output.** Gate status is a filter and safety check; the quantitative and qualitative measurements across all layers are what enable comparisons across models, harnesses, and documentation variants.
 
 See [specs/evaluation.md](evaluation.md) for details.
 

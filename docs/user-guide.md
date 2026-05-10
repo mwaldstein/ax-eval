@@ -207,7 +207,7 @@ evaluation:
 
 Good scenarios evaluate outcomes, not the exact process an agent used. Because LLMs are nondeterministic, prefer checks like "was the summary created?" over "did the agent run these exact commands in this exact order?"
 
-Use gates as fail-fast sanity checks. The richer evaluation signal comes from the metrics, transcript, and optional judge rubric.
+Use gates as guardrails for catastrophic outcome failures. The richer evaluation signal comes from the interaction metrics, transcript, custom evaluator results, and optional judge rubric.
 
 For the complete scenario schema, see the [scenario spec](../specs/scenarios.md).
 
@@ -305,7 +305,7 @@ and discoverability.
 
 ## Gate Types
 
-Gates are binary assertions evaluated after the agent completes the task. They catch catastrophic failures before you spend time on deeper analysis.
+Gates are binary assertions evaluated after the agent completes the task. They catch catastrophic failures and give you a quick guardrail status alongside the richer profile.
 
 - `command_succeeds`: shell command exits successfully
 - `command_output_contains`: command stdout contains an expected substring
@@ -385,16 +385,17 @@ Copy `llm-tool-test-config.example.toml` as a starting point.
 
 Each run generates `evaluation.md`, `report.md`, and `metrics.json`.
 
-`evaluation.md` includes:
+`evaluation.md` is the human-readable profile. It includes:
 
-- Summary: scenario name, tool, model, and outcome
+- Summary: scenario name, tool, model, and guardrail outcome
 - Top-level metrics: gates passed, duration, cost, and composite score when present
-- Qualitative scoring: judge score and judge issues/highlights when a rubric is configured
+- Qualitative scoring: judge score, rationale, issues, highlights, and criteria scores when a rubric is configured
 - Custom evaluator summaries and errors
 - Human review section: space for manual scoring
 
-`report.md` includes execution details, gate results, and efficiency metrics.
-Use `metrics.json` when comparing repeated runs programmatically.
+`report.md` includes execution details, guardrail results, and efficiency metrics.
+Use `metrics.json` when comparing repeated runs programmatically; it is the
+canonical machine-readable profile for interaction quality.
 Use `results.jsonl` in the results directory for run-level metadata such as
 tool, model, token usage, and cost when adapters report those fields.
 
@@ -445,7 +446,7 @@ agent execution.
 
 **Scenario not found**: check that the scenario exists in `fixtures/`, then run `llm-tool-test scenarios`.
 
-**Gate failures**: inspect `evaluation.md`, `metrics.json`, and `artifacts/transcript.raw.txt`.
+**Gate failures**: treat these as guardrail failures, then inspect `evaluation.md`, `metrics.json`, and `artifacts/transcript.raw.txt` to understand the full interaction profile.
 
 **Interaction evidence failures**: a structured-capable adapter returned
 fallback evidence or no usable target-tool events. Inspect `metrics.json`,
@@ -456,7 +457,7 @@ adapter's raw-output parser no longer matches the CLI output schema.
 
 **Cache issues**: disable caching with `--no-cache` or run `llm-tool-test clean`.
 
-**Composite score low**: review which gates failed and whether judge scoring found qualitative issues.
+**Composite score low**: review the interaction metrics, guardrail failures, and judge rationale to understand which dimension regressed.
 
 **Tool not supported**: use one of the runtime adapters: `claude-code`, `opencode`, or `codex`.
 
