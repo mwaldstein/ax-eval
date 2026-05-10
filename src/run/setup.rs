@@ -393,6 +393,61 @@ evaluation:
     }
 
     #[test]
+    fn prepared_run_context_expands_target_env_paths_to_absolute_when_results_dir_is_relative() {
+        let dir = tempdir().expect("create temp dir");
+        let scenario_path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &scenario_path,
+            r#"
+name: prepared-context-relative-results-test
+description: Test target env path expansion with relative results dir
+template_folder: example_basic
+target:
+  binary: taskmgr
+  env:
+    TARGET_ROOT: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    TARGET_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/export.json"
+task:
+  prompt: "Create a task"
+evaluation:
+  gates: []
+"#,
+        )
+        .expect("write scenario");
+        let scenario: Scenario =
+            yaml_serde::from_str(&std::fs::read_to_string(&scenario_path).expect("read scenario"))
+                .expect("parse scenario");
+        let relative_results_dir = std::path::PathBuf::from(format!(
+            "target/prepared-context-relative-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+
+        let context = PreparedRunContext::new(&scenario, &scenario_path, &relative_results_dir)
+            .expect("context");
+        let expected_fixture = std::env::current_dir()
+            .expect("current dir")
+            .join(relative_results_dir.join("fixture"));
+        let expected_results = std::env::current_dir()
+            .expect("current dir")
+            .join(&relative_results_dir);
+
+        assert_eq!(
+            context.target_env.as_map().get("TARGET_ROOT"),
+            Some(&expected_fixture.to_string_lossy().to_string())
+        );
+        assert_eq!(
+            context.target_env.as_map().get("TARGET_EXPORT"),
+            Some(&format!(
+                "{}/export.json",
+                expected_results.to_string_lossy()
+            ))
+        );
+    }
+
+    #[test]
     fn health_check_runs_in_fixture_dir_with_target_env_vars() {
         let dir = tempdir().expect("create temp dir");
         let env = TestEnv::new(dir.path().join("fixture")).expect("create test env");
