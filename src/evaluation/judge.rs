@@ -1,5 +1,7 @@
+use crate::adapter::{ToolAdapter, ToolRunOutput};
 use crate::judge::{load_rubric, Criterion, JudgeResponse, OutputFormat, Rubric};
-use crate::scenario::{JudgeConfig, Scenario};
+use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
+use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -107,7 +109,6 @@ fn run_judge_evaluation(
     println!("Running LLM-as-judge evaluation...");
     let tool = resolve_judge_tool(judge_config, judge_tool);
     let rubric = resolve_judge_rubric(judge_config)?;
-
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(
         &scenario.target.binary,
@@ -116,19 +117,40 @@ fn run_judge_evaluation(
         &rubric,
     );
 
-    let runner = crate::session::SessionRunner::new();
-    let command = build_judge_command(tool, judge_model, &prompt)?;
-    let args = command.args.iter().map(String::as_str).collect::<Vec<_>>();
+    let mut adapter_registry = crate::adapter::registry::AdapterRegistry::new();
+    let adapter = adapter_registry.resolve_checked(tool)?;
+    let judge_scenario = judge_scenario(scenario, prompt);
+    run_judge_evaluation_with_adapter(
+        adapter.adapter(),
+        judge_model,
+        &judge_scenario,
+        env_root,
+    )
+}
 
-    let (output, exit_code) = runner
-        .run_command(&command.binary, &args, env_root, 300)
-        .context("Judge execution failed")?;
+fn run_judge_evaluation_with_adapter(
+    adapter: &dyn ToolAdapter,
+    judge_model: Option<&str>,
+    judge_scenario: &Scenario,
+    env_root: &Path,
+) -> Result<JudgeExecutionResult> {
+    let output = adapter.run(
+        judge_scenario,
+        env_root,
+        judge_model,
+        300,
+        &TargetEnvironment::default(),
+    )?;
 
-    if exit_code != 0 {
-        anyhow::bail!("Judge exited with code {}: {}", exit_code, output);
+    if output.exit_code != 0 {
+        anyhow::bail!(
+            "Judge exited with code {}: {}",
+            output.exit_code,
+            judge_output_text(&output)
+        );
     }
 
-    let response = parse_judge_response(&output)?;
+    let response = parse_judge_response(&judge_output_text(&output))?;
 
     println!(
         "Judge score: {:.2} (confidence: {:.2})",
@@ -142,6 +164,42 @@ fn run_judge_evaluation(
     }
 
     Ok(JudgeExecutionResult::from_response(response))
+}
+
+fn judge_scenario(source: &Scenario, prompt: String) -> Scenario {
+    Scenario {
+        name: format!("{}_judge", source.name),
+        description: format!("Judge evaluation for {}", source.name),
+        template_folder: ".".to_string(),
+        target: TargetConfig {
+            binary: source.target.binary.clone(),
+            command_pattern: None,
+            health_check: None,
+            env: None,
+        },
+        task: Task { prompt },
+        evaluation: Evaluation {
+            gates: vec![],
+            judge: None,
+            composite: None,
+        },
+        tier: source.tier,
+        tool_matrix: None,
+        setup: None,
+        tags: vec!["judge".to_string()],
+        run: None,
+        scripts: None,
+        interaction: Default::default(),
+    }
+}
+
+fn judge_output_text(output: &ToolRunOutput) -> String {
+    output
+        .raw_output
+        .as_ref()
+        .filter(|raw| !raw.trim().is_empty())
+        .unwrap_or(&output.transcript)
+        .to_string()
 }
 
 fn resolve_judge_rubric(judge_config: &JudgeConfig) -> Result<Rubric> {
@@ -249,51 +307,80 @@ fn resolve_judge_tool<'a>(judge_config: &'a JudgeConfig, judge_tool: Option<&'a 
         .unwrap_or("opencode")
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct JudgeCommand {
-    binary: String,
-    args: Vec<String>,
-}
-
-fn build_judge_command(
-    tool: &str,
-    judge_model: Option<&str>,
-    prompt: &str,
-) -> Result<JudgeCommand> {
-    let mut command = match tool {
-        "opencode" => JudgeCommand {
-            binary: "opencode".to_string(),
-            args: vec!["run".to_string()],
-        },
-        "codex" => JudgeCommand {
-            binary: "codex".to_string(),
-            args: vec![
-                "exec".to_string(),
-                "--full-auto".to_string(),
-                "--skip-git-repo-check".to_string(),
-            ],
-        },
-        "claude" | "claude-code" => JudgeCommand {
-            binary: "claude".to_string(),
-            args: vec!["run".to_string()],
-        },
-        _ => anyhow::bail!("Unsupported judge tool: {}", tool),
-    };
-
-    if let Some(model) = judge_model {
-        if tool != "codex" || model != "default" {
-            command.args.push("--model".to_string());
-            command.args.push(model.to_string());
-        }
-    }
-
-    command.args.push(prompt.to_string());
-    Ok(command)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::{AdapterError, ToolStatus};
+    use crate::transcript::InteractionInput;
+
+    struct JudgeOutputAdapter {
+        output: ToolRunOutput,
+    }
+
+    impl ToolAdapter for JudgeOutputAdapter {
+        fn is_available(&self) -> Result<ToolStatus, AdapterError> {
+            Ok(ToolStatus {
+                available: true,
+                authenticated: true,
+            })
+        }
+
+        fn run(
+            &self,
+            scenario: &Scenario,
+            _cwd: &Path,
+            model: Option<&str>,
+            timeout_secs: u64,
+            _target_env: &TargetEnvironment,
+        ) -> anyhow::Result<ToolRunOutput> {
+            assert!(scenario.name.ends_with("_judge"));
+            assert!(scenario.task.prompt.contains("Return only valid JSON"));
+            assert_eq!(model, Some("judge-model"));
+            assert_eq!(timeout_secs, 300);
+            Ok(self.output.clone())
+        }
+    }
+
+    fn scenario() -> Scenario {
+        Scenario {
+            name: "judge-source".to_string(),
+            description: "Scenario judged by adapter".to_string(),
+            template_folder: "fixture".to_string(),
+            target: TargetConfig {
+                binary: "notes".to_string(),
+                command_pattern: None,
+                health_check: None,
+                env: None,
+            },
+            task: Task {
+                prompt: "Create a useful note".to_string(),
+            },
+            evaluation: Evaluation {
+                gates: vec![],
+                judge: None,
+                composite: None,
+            },
+            tier: 0,
+            tool_matrix: None,
+            setup: None,
+            tags: vec![],
+            run: None,
+            scripts: None,
+            interaction: Default::default(),
+        }
+    }
+
+    fn judge_json(score: f64) -> String {
+        serde_json::json!({
+            "scores": {"task_completion": score},
+            "weighted_score": score,
+            "confidence": 0.9,
+            "issues": [],
+            "highlights": ["Adapter returned judge output"],
+            "rationale": "The adapter output was parsed."
+        })
+        .to_string()
+    }
 
     #[test]
     fn judge_tool_resolution_prefers_cli_then_config_then_default() {
@@ -481,68 +568,67 @@ This is not JSON.
     }
 
     #[test]
-    fn judge_command_uses_tool_specific_invocation() {
-        assert_eq!(
-            build_judge_command("opencode", Some("gpt-4o-mini"), "judge prompt").unwrap(),
-            JudgeCommand {
-                binary: "opencode".to_string(),
-                args: vec![
-                    "run".to_string(),
-                    "--model".to_string(),
-                    "gpt-4o-mini".to_string(),
-                    "judge prompt".to_string(),
-                ],
-            }
-        );
+    fn judge_scenario_carries_source_task_and_target_context() {
+        let source = scenario();
+        let scenario = judge_scenario(&source, "judge prompt".to_string());
 
-        assert_eq!(
-            build_judge_command("codex", Some("gpt-5.1"), "judge prompt").unwrap(),
-            JudgeCommand {
-                binary: "codex".to_string(),
-                args: vec![
-                    "exec".to_string(),
-                    "--full-auto".to_string(),
-                    "--skip-git-repo-check".to_string(),
-                    "--model".to_string(),
-                    "gpt-5.1".to_string(),
-                    "judge prompt".to_string(),
-                ],
-            }
-        );
-
-        assert_eq!(
-            build_judge_command("claude-code", Some("claude-haiku"), "judge prompt").unwrap(),
-            JudgeCommand {
-                binary: "claude".to_string(),
-                args: vec![
-                    "run".to_string(),
-                    "--model".to_string(),
-                    "claude-haiku".to_string(),
-                    "judge prompt".to_string(),
-                ],
-            }
-        );
+        assert_eq!(scenario.name, "judge-source_judge");
+        assert_eq!(scenario.target.binary, "notes");
+        assert_eq!(scenario.task.prompt, "judge prompt");
+        assert_eq!(scenario.evaluation.gates.len(), 0);
+        assert!(scenario.evaluation.judge.is_none());
+        assert_eq!(scenario.tags, vec!["judge".to_string()]);
     }
 
     #[test]
-    fn judge_command_skips_default_codex_model() {
-        assert_eq!(
-            build_judge_command("codex", Some("default"), "judge prompt").unwrap(),
-            JudgeCommand {
-                binary: "codex".to_string(),
-                args: vec![
-                    "exec".to_string(),
-                    "--full-auto".to_string(),
-                    "--skip-git-repo-check".to_string(),
-                    "judge prompt".to_string(),
-                ],
-            }
-        );
+    fn judge_evaluation_runs_through_adapter_and_parses_raw_output() {
+        let source = scenario();
+        let judge_scenario = judge_scenario(&source, "Return only valid JSON".to_string());
+        let adapter = JudgeOutputAdapter {
+            output: ToolRunOutput {
+                transcript: "transcript without judge json".to_string(),
+                raw_output: Some(judge_json(0.84)),
+                exit_code: 0,
+                cost_usd: None,
+                token_usage: None,
+                interaction_input: InteractionInput::TranscriptRegex,
+            },
+        };
+
+        let result = run_judge_evaluation_with_adapter(
+            &adapter,
+            Some("judge-model"),
+            &judge_scenario,
+            Path::new("."),
+        )
+        .expect("judge evaluation");
+
+        assert_eq!(result.score, Some(0.84));
     }
 
     #[test]
-    fn judge_command_rejects_unknown_tool() {
-        let error = build_judge_command("unknown", None, "judge prompt").unwrap_err();
-        assert!(error.to_string().contains("Unsupported judge tool"));
+    fn judge_evaluation_falls_back_to_transcript_when_raw_output_is_absent() {
+        let source = scenario();
+        let judge_scenario = judge_scenario(&source, "Return only valid JSON".to_string());
+        let adapter = JudgeOutputAdapter {
+            output: ToolRunOutput {
+                transcript: judge_json(0.73),
+                raw_output: None,
+                exit_code: 0,
+                cost_usd: None,
+                token_usage: None,
+                interaction_input: InteractionInput::TranscriptRegex,
+            },
+        };
+
+        let result = run_judge_evaluation_with_adapter(
+            &adapter,
+            Some("judge-model"),
+            &judge_scenario,
+            Path::new("."),
+        )
+        .expect("judge evaluation");
+
+        assert_eq!(result.score, Some(0.73));
     }
 }
