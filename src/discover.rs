@@ -2,12 +2,16 @@ mod batch;
 mod manifest;
 mod prompts;
 mod scenarios;
+mod stages;
+mod understanding;
 
 use self::manifest::{
     build_manifest, create_discovery_dir, usage_summary, write_manifest, write_partial_manifest,
 };
 use self::prompts::{author_prompt, inspect_prompt, summary_prompt, understanding_repair_prompt};
 use self::scenarios::validate_generated_scenarios;
+use self::stages::{stage_transcript_path, write_stage_output, write_understanding_diagnostics};
+use self::understanding::validate_understanding_artifact;
 use crate::adapter::registry::AdapterRegistry;
 use crate::adapter::ToolRunOutput;
 use crate::results::{Cache, ResultsDB};
@@ -20,17 +24,6 @@ use std::path::{Path, PathBuf};
 pub use self::manifest::UsageTotals;
 
 const DEFAULT_SCENARIO_COUNT: usize = 5;
-const UNDERSTANDING_HEADINGS: &[&str] = &[
-    "## What the Tool Appears to Be For",
-    "## Core Concepts and Mental Model",
-    "## Primary Workflows",
-    "## Useful Goal Areas",
-    "## Evidence Consulted",
-    "## Self-Description Quality",
-    "## Ambiguities or Missing Information",
-    "## Five Candidate Scenario Ideas",
-];
-
 pub struct DiscoverRequest<'a> {
     pub target: &'a str,
     pub run_tool: &'a str,
@@ -231,10 +224,7 @@ fn ensure_understanding_artifact(
         request.timeout_secs,
         &understanding_repair_prompt(
             request.target,
-            &root_dir
-                .join("stages")
-                .join("inspect")
-                .join("transcript.raw.txt"),
+            &stage_transcript_path(root_dir, "inspect"),
             understanding_path,
         ),
     )
@@ -249,97 +239,6 @@ fn ensure_understanding_artifact(
             diagnostics.join("; ")
         )
     })
-}
-
-fn validate_understanding_artifact(path: &Path) -> std::result::Result<(), Vec<String>> {
-    let content = fs::read_to_string(path).map_err(|error| {
-        vec![format!(
-            "understanding.md is missing or unreadable: {error}"
-        )]
-    })?;
-    diagnose_understanding_content(&content)
-}
-
-fn diagnose_understanding_content(content: &str) -> std::result::Result<(), Vec<String>> {
-    let trimmed = content.trim();
-    let mut diagnostics = Vec::new();
-
-    if trimmed.is_empty() {
-        diagnostics.push("understanding.md is empty".to_string());
-    }
-
-    let first_nonempty = content.lines().find(|line| !line.trim().is_empty());
-    let shell_prompt_lines = content
-        .lines()
-        .filter(|line| line.trim_start().starts_with("$ "))
-        .count();
-    let exit_code_lines = content
-        .lines()
-        .filter(|line| line.trim_start().starts_with("exit code:"))
-        .count();
-    if first_nonempty.is_some_and(|line| line.trim_start().starts_with("$ "))
-        || shell_prompt_lines >= 3
-        || exit_code_lines >= 3
-    {
-        diagnostics.push(
-            "understanding.md appears to be a command transcript rather than synthesized Markdown"
-                .to_string(),
-        );
-    }
-
-    let lowercase_content = content.to_lowercase();
-    for heading in UNDERSTANDING_HEADINGS {
-        if !lowercase_content.contains(&heading.to_lowercase()) {
-            diagnostics.push(format!(
-                "understanding.md is missing required heading: {heading}"
-            ));
-        }
-    }
-
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
-fn write_understanding_diagnostics(
-    root_dir: &Path,
-    stage: &str,
-    diagnostics: &[String],
-) -> Result<()> {
-    let stage_dir = root_dir.join("stages").join(stage);
-    fs::create_dir_all(&stage_dir)?;
-    fs::write(
-        stage_dir.join("understanding-diagnostics.txt"),
-        diagnostics.join("\n"),
-    )?;
-    Ok(())
-}
-
-fn write_stage_output(root_dir: &Path, stage: &str, output: &ToolRunOutput) -> Result<()> {
-    let stage_dir = root_dir.join("stages").join(stage);
-    fs::create_dir_all(&stage_dir)?;
-    fs::write(stage_dir.join("transcript.raw.txt"), &output.transcript)?;
-    if let Some(raw) = &output.raw_output {
-        fs::write(stage_dir.join("tool-output.raw.txt"), raw)?;
-    }
-    if output.token_usage.is_some() || output.cost_usd.is_some() {
-        let (input, out_tokens) = output
-            .token_usage
-            .as_ref()
-            .map(|tokens| (tokens.input, tokens.output))
-            .unwrap_or((0, 0));
-        fs::write(
-            stage_dir.join("usage.json"),
-            serde_json::to_string_pretty(&serde_json::json!({
-                "input_tokens": input,
-                "output_tokens": out_tokens,
-                "cost_usd": output.cost_usd,
-            }))?,
-        )?;
-    }
-    Ok(())
 }
 
 fn check_target_available(target: &str) -> Result<()> {
@@ -383,44 +282,5 @@ mod tests {
         assert_eq!(usage.combined.input_tokens, 17);
         assert_eq!(usage.combined.output_tokens, 8);
         assert_eq!(usage.combined.cost_usd, Some(0.75));
-    }
-
-    #[test]
-    fn understanding_validation_rejects_transcript_fallback() {
-        let content = r#"
-$ qipu --help
-Knowledge graph CLI designed for scripts and agents
-
-exit code: 0
-
-$ qipu create --help
-Create a new note
-
-exit code: 0
-"#;
-
-        let diagnostics =
-            diagnose_understanding_content(content).expect_err("transcript should be rejected");
-
-        assert!(diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.contains("appears to be a command transcript")));
-        assert!(diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.contains("## What the Tool Appears to Be For")));
-    }
-
-    #[test]
-    fn understanding_validation_accepts_required_sections() {
-        let content = format!(
-            "# Discovery Understanding\n\n{}\n",
-            UNDERSTANDING_HEADINGS
-                .iter()
-                .map(|heading| format!("{heading}\n\nSynthesis for this section."))
-                .collect::<Vec<_>>()
-                .join("\n\n")
-        );
-
-        diagnose_understanding_content(&content).expect("valid understanding");
     }
 }
