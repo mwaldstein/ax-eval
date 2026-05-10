@@ -8,15 +8,9 @@ mod understanding;
 use self::manifest::{
     build_manifest, create_discovery_dir, usage_summary, write_manifest, write_partial_manifest,
 };
-use self::prompts::{author_prompt, inspect_prompt, summary_prompt, understanding_repair_prompt};
-use self::scenarios::validate_generated_scenarios;
-use self::stages::{stage_transcript_path, write_stage_output, write_understanding_diagnostics};
-use self::understanding::validate_understanding_artifact;
+use self::stages::DiscoveryStageRunner;
 use crate::adapter::registry::AdapterRegistry;
-use crate::adapter::ToolRunOutput;
 use crate::results::{Cache, ResultsDB};
-use crate::scenario::{Evaluation, Scenario, TargetConfig, Task};
-use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -52,193 +46,75 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
 
     let mut overhead_usage = UsageTotals::default();
     let mut adapter_registry = AdapterRegistry::new();
-    let inspect_output = run_agent_stage(
-        &mut adapter_registry,
-        request.discover_tool,
-        request.discover_model,
-        request.target,
-        &root_dir,
-        request.timeout_secs,
-        &inspect_prompt(request.target),
-    )
-    .context("discovery inspect stage failed")?;
-    overhead_usage.add_tool_output(&inspect_output);
-    write_stage_output(&root_dir, "inspect", &inspect_output)?;
-
-    let understanding_path = root_dir.join("understanding.md");
-    ensure_understanding_artifact(
-        &request,
-        &mut adapter_registry,
-        &root_dir,
-        &understanding_path,
-        &mut overhead_usage,
-    )?;
+    let understanding_path = {
+        let mut stage_runner = DiscoveryStageRunner::new(
+            &request,
+            &mut adapter_registry,
+            &root_dir,
+            &mut overhead_usage,
+        );
+        stage_runner.run_inspect()?
+    };
 
     println!("Authoring generated scenarios...");
-    let author_output = run_agent_stage(
-        &mut adapter_registry,
-        request.discover_tool,
-        request.discover_model,
-        request.target,
-        &root_dir,
-        request.timeout_secs,
-        &author_prompt(request.target, DEFAULT_SCENARIO_COUNT, &understanding_path),
-    )
-    .context("discovery fixture authoring stage failed")?;
-    overhead_usage.add_tool_output(&author_output);
-    write_stage_output(&root_dir, "author", &author_output)?;
-
-    let (scenario_manifests, valid_scenarios) = validate_generated_scenarios(&scenarios_dir)
-        .context("generated scenario validation failed")?;
-    if valid_scenarios.is_empty() {
-        write_partial_manifest(&request, &root_dir, scenario_manifests)?;
+    let author_result = {
+        let mut stage_runner = DiscoveryStageRunner::new(
+            &request,
+            &mut adapter_registry,
+            &root_dir,
+            &mut overhead_usage,
+        );
+        stage_runner.run_author(&understanding_path)?
+    };
+    if author_result.valid_scenarios.is_empty() {
+        write_partial_manifest(&request, &root_dir, author_result.scenario_manifests)?;
         anyhow::bail!("Discovery generated zero valid scenarios");
     }
 
     println!(
         "Running {} valid generated scenario(s) as one discovery batch...",
-        valid_scenarios.len()
+        author_result.valid_scenarios.len()
     );
     let (run_manifests, run_usage) = batch::run_generated_scenarios(
         &request,
         &mut adapter_registry,
         &runs_dir,
-        &valid_scenarios,
+        &author_result.valid_scenarios,
     );
 
     let manifest_path = root_dir.join("discovery.json");
-    let summary_path = root_dir.join("discovery-summary.md");
     let usage = usage_summary(overhead_usage, run_usage);
     let manifest = build_manifest(
         &request,
         &root_dir,
-        &scenario_manifests,
+        &author_result.scenario_manifests,
         &run_manifests,
         usage,
     );
     write_manifest(&manifest_path, &manifest)?;
 
     println!("Summarizing discovery results...");
-    let summary_output = run_agent_stage(
-        &mut adapter_registry,
-        request.discover_tool,
-        request.discover_model,
-        request.target,
-        &root_dir,
-        request.timeout_secs,
-        &summary_prompt(&understanding_path, &manifest_path),
-    )
-    .context("discovery summary stage failed")?;
-    write_stage_output(&root_dir, "summary", &summary_output)?;
-    if !summary_path.exists() {
-        fs::write(&summary_path, summary_output.transcript.trim())?;
+    {
+        let mut stage_runner = DiscoveryStageRunner::new(
+            &request,
+            &mut adapter_registry,
+            &root_dir,
+            &mut overhead_usage,
+        );
+        stage_runner.run_summary(&understanding_path, &manifest_path)?;
     }
 
-    let mut final_manifest = manifest;
-    final_manifest
-        .usage
-        .discovery_overhead
-        .add_tool_output(&summary_output);
-    final_manifest
-        .usage
-        .combined
-        .add_tool_output(&summary_output);
+    let final_manifest = build_manifest(
+        &request,
+        &root_dir,
+        &author_result.scenario_manifests,
+        &run_manifests,
+        usage_summary(overhead_usage, run_usage),
+    );
     write_manifest(&manifest_path, &final_manifest)?;
 
     println!("Discovery complete: {}", root_dir.display());
     Ok(root_dir)
-}
-
-fn run_agent_stage(
-    adapter_registry: &mut AdapterRegistry,
-    tool: &str,
-    model: &str,
-    target: &str,
-    cwd: &Path,
-    timeout_secs: u64,
-    prompt: &str,
-) -> Result<ToolRunOutput> {
-    let adapter = adapter_registry.resolve_checked(tool)?;
-    let scenario = Scenario {
-        name: "discovery_stage".to_string(),
-        description: "Discovery workflow agent stage".to_string(),
-        template_folder: ".".to_string(),
-        target: TargetConfig {
-            binary: target.to_string(),
-            command_pattern: None,
-            health_check: None,
-            env: None,
-        },
-        task: Task {
-            prompt: prompt.to_string(),
-        },
-        evaluation: Evaluation {
-            gates: vec![],
-            judge: None,
-            composite: None,
-        },
-        tier: 0,
-        tool_matrix: None,
-        setup: None,
-        tags: vec!["discovery".to_string()],
-        run: None,
-        scripts: None,
-        interaction: Default::default(),
-    };
-    let output = adapter.adapter().run(
-        &scenario,
-        cwd,
-        Some(model).filter(|m| *m != "default"),
-        timeout_secs,
-        &TargetEnvironment::default(),
-    )?;
-    if output.exit_code != 0 {
-        anyhow::bail!("{} exited with code {}", tool, output.exit_code);
-    }
-    Ok(output)
-}
-
-fn ensure_understanding_artifact(
-    request: &DiscoverRequest<'_>,
-    adapter_registry: &mut AdapterRegistry,
-    root_dir: &Path,
-    understanding_path: &Path,
-    overhead_usage: &mut UsageTotals,
-) -> Result<()> {
-    if validate_understanding_artifact(understanding_path).is_ok() {
-        return Ok(());
-    }
-
-    let initial_diagnostics = validate_understanding_artifact(understanding_path)
-        .err()
-        .unwrap_or_else(|| vec!["unknown understanding artifact issue".to_string()]);
-    write_understanding_diagnostics(root_dir, "inspect", &initial_diagnostics)?;
-    println!("Inspect stage did not produce a usable understanding.md; retrying synthesis...");
-
-    let repair_output = run_agent_stage(
-        adapter_registry,
-        request.discover_tool,
-        request.discover_model,
-        request.target,
-        root_dir,
-        request.timeout_secs,
-        &understanding_repair_prompt(
-            request.target,
-            &stage_transcript_path(root_dir, "inspect"),
-            understanding_path,
-        ),
-    )
-    .context("discovery understanding repair stage failed")?;
-    overhead_usage.add_tool_output(&repair_output);
-    write_stage_output(root_dir, "inspect-repair", &repair_output)?;
-
-    validate_understanding_artifact(understanding_path).map_err(|diagnostics| {
-        let _ = write_understanding_diagnostics(root_dir, "inspect-repair", &diagnostics);
-        anyhow::anyhow!(
-            "Discovery inspect stage did not produce a usable understanding.md: {}",
-            diagnostics.join("; ")
-        )
-    })
 }
 
 fn check_target_available(target: &str) -> Result<()> {
