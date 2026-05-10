@@ -1,5 +1,6 @@
+use crate::interaction_evidence::CommandEvent;
 use crate::transcript::redact::redact_sensitive;
-use crate::transcript::types::{CommandEvent, EvaluationReport, RunMetadata, RunReport};
+use crate::transcript::types::{EvaluationReport, RunMetadata, RunReport};
 use serde_json::json;
 use std::fs;
 use std::io::Write;

@@ -1,7 +1,7 @@
+use crate::interaction_evidence::{CommandEvent, InteractionInput};
 use crate::interaction_profile::{
     AdapterEvidenceCapability, InteractionEvidenceSource, TargetInteractionSpec,
 };
-use crate::transcript::{CommandEvent, InteractionInput};
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 

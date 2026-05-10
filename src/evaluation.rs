@@ -67,7 +67,7 @@ pub struct EvaluationInput<'a> {
     pub script_runner: Option<&'a ScriptRunner>,
     pub judge_model: Option<&'a str>,
     pub judge_tool: Option<&'a str>,
-    pub interaction_input: &'a crate::transcript::InteractionInput,
+    pub interaction_input: &'a crate::interaction_evidence::InteractionInput,
     pub adapter_capability: AdapterEvidenceCapability,
     pub transcript_path: PathBuf,
     pub completed: bool,
@@ -130,8 +130,8 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interaction_evidence::{CommandEvent, InteractionInput};
     use crate::scenario::{Evaluation, Scenario, TargetConfig, Task};
-    use crate::transcript::{CommandEvent, InteractionInput};
 
     fn scenario() -> Scenario {
         Scenario {

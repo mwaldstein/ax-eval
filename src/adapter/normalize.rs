@@ -1,5 +1,5 @@
 use crate::adapter::{TokenUsage, ToolRunOutput};
-use crate::transcript::{CommandEvent, InteractionInput};
+use crate::interaction_evidence::{CommandEvent, InteractionInput};
 
 pub(crate) fn json_lines(output: &str) -> impl Iterator<Item = &str> {
     output

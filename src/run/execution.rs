@@ -187,8 +187,8 @@ pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
 mod tests {
     use super::*;
     use crate::fixture::TestEnv;
+    use crate::interaction_evidence::{CommandEvent, InteractionInput};
     use crate::scenario::{Evaluation, Scenario, ScriptEntry, ScriptsConfig, TargetConfig, Task};
-    use crate::transcript::{CommandEvent, InteractionInput};
 
     fn scenario_with_scripts(scripts: Option<ScriptsConfig>) -> Scenario {
         Scenario {

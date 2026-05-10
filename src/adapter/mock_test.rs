@@ -2,9 +2,9 @@
 mod tests {
     use crate::adapter::mock::MockAdapter;
     use crate::adapter::ToolAdapter;
+    use crate::interaction_evidence::InteractionInput;
     use crate::scenario::Scenario;
     use crate::target_env::TargetEnvironment;
-    use crate::transcript::InteractionInput;
 
     #[test]
     fn test_mock_adapter_is_available() {

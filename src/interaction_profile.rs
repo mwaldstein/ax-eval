@@ -2,63 +2,21 @@ mod evidence;
 mod target;
 
 use self::evidence::{extract_target_interaction_evidence, InteractionEvidenceInput};
+pub use crate::interaction_evidence::{
+    AdapterEvidenceCapability, InteractionEvidenceSource, TargetInteractionSpec,
+};
+use crate::interaction_evidence::{CommandEvent, InteractionInput};
 use crate::scenario::TargetCommandPolicy;
-use crate::transcript::{CommandEvent, EfficiencyMetrics, InteractionInput};
+use crate::transcript::EfficiencyMetrics;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum InteractionEvidenceSource {
-    StructuredToolCalls,
-    TranscriptRegexFallback,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InteractionProfile {
     pub metrics: EfficiencyMetrics,
     pub evidence_source: InteractionEvidenceSource,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AdapterEvidenceCapability {
-    StructuredToolCalls,
-    TranscriptRegexFallback,
-}
-
-impl AdapterEvidenceCapability {
-    pub fn from_supports_structured_tool_calls(supports_structured_tool_calls: bool) -> Self {
-        if supports_structured_tool_calls {
-            Self::StructuredToolCalls
-        } else {
-            Self::TranscriptRegexFallback
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TargetInteractionSpec {
-    binary: String,
-    command_pattern: Option<String>,
-}
-
-impl TargetInteractionSpec {
-    pub fn new(binary: impl Into<String>, command_pattern: Option<String>) -> Self {
-        Self {
-            binary: binary.into(),
-            command_pattern,
-        }
-    }
-
-    pub fn binary(&self) -> &str {
-        &self.binary
-    }
-
-    pub fn command_pattern(&self) -> Option<&str> {
-        self.command_pattern.as_deref()
-    }
 }
 
 pub struct InteractionProfileInput<'a> {
@@ -166,8 +124,8 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interaction_evidence::CommandEvent;
     use crate::scenario::types::TargetCommandPolicy;
-    use crate::transcript::CommandEvent;
 
     fn target() -> TargetInteractionSpec {
         TargetInteractionSpec::new("notes", None)

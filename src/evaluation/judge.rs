@@ -306,7 +306,7 @@ fn resolve_judge_tool<'a>(judge_config: &'a JudgeConfig, judge_tool: Option<&'a 
 mod tests {
     use super::*;
     use crate::adapter::{AdapterError, ToolStatus};
-    use crate::transcript::InteractionInput;
+    use crate::interaction_evidence::InteractionInput;
 
     struct JudgeOutputAdapter {
         output: ToolRunOutput,

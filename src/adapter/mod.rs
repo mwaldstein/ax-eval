@@ -8,9 +8,9 @@ pub mod registry;
 #[cfg(test)]
 mod mock_test;
 
+use crate::interaction_evidence::{CommandEvent, InteractionInput};
 use crate::scenario::Scenario;
 use crate::target_env::TargetEnvironment;
-use crate::transcript::{CommandEvent, InteractionInput};
 use std::path::Path;
 
 /// Error type for adapter operations.

@@ -1,5 +1,6 @@
+use crate::interaction_evidence::CommandEvent;
 use crate::interaction_profile::TargetInteractionSpec;
-use crate::transcript::{CommandEvent, TranscriptAnalyzer};
+use crate::transcript::TranscriptAnalyzer;
 use std::path::Path;
 
 pub(crate) fn structured_target_events(

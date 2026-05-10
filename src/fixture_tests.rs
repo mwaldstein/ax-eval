@@ -110,7 +110,7 @@ mod tests {
             target_env: target_env.as_map().clone(),
         });
 
-        let interaction_input = crate::transcript::InteractionInput::TranscriptRegex;
+        let interaction_input = crate::interaction_evidence::InteractionInput::TranscriptRegex;
         let metrics = evaluation::evaluate(evaluation::EvaluationInput {
             scenario: &scenario,
             env_root: &env.root,

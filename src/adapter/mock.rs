@@ -1,7 +1,7 @@
 use super::{ToolAdapter, ToolRunOutput};
+use crate::interaction_evidence::{CommandEvent, InteractionInput};
 use crate::scenario::Scenario;
 use crate::target_env::TargetEnvironment;
-use crate::transcript::{CommandEvent, InteractionInput};
 use std::path::Path;
 
 pub struct MockAdapter;

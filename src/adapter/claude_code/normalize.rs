@@ -1,6 +1,6 @@
 use crate::adapter::normalize::{output_from_parts, transcript_from_command_events};
 use crate::adapter::ToolRunOutput;
-use crate::transcript::CommandEvent;
+use crate::interaction_evidence::CommandEvent;
 use regex::Regex;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};

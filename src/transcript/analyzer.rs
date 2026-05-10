@@ -1,4 +1,4 @@
-use crate::transcript::types::CommandEvent;
+use crate::interaction_evidence::CommandEvent;
 use regex::Regex;
 
 pub struct TranscriptAnalyzer;

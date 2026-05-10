@@ -1,6 +1,6 @@
 use crate::adapter::normalize::{json_lines, output_from_parts};
 use crate::adapter::{TokenUsage, ToolRunOutput};
-use crate::transcript::CommandEvent;
+use crate::interaction_evidence::CommandEvent;
 use serde_json::Value;
 
 pub(crate) fn normalize(output: String, exit_code: i32) -> ToolRunOutput {

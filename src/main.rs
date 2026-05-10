@@ -16,6 +16,7 @@ mod fixture;
 #[cfg(test)]
 mod fixture_tests;
 mod guidance;
+mod interaction_evidence;
 mod interaction_profile;
 mod judge;
 mod output;

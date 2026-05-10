@@ -79,7 +79,7 @@ pub struct EvaluationReport {
     pub cost_usd: Option<f64>,
     pub composite_score: Option<f64>,
     pub efficiency: EfficiencyReport,
-    pub interaction_evidence_source: crate::interaction_profile::InteractionEvidenceSource,
+    pub interaction_evidence_source: crate::interaction_evidence::InteractionEvidenceSource,
     pub judge_feedback: Vec<String>,
     pub evaluator_results: Vec<EvaluatorResultSummary>,
 }
@@ -102,16 +102,4 @@ pub struct EfficiencyMetrics {
     pub first_try_success_rate: f64,
     pub iteration_ratio: f64,
     pub completed: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommandEvent {
-    pub command: String,
-    pub exit_code: Option<i32>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InteractionInput {
-    StructuredToolCalls(Vec<CommandEvent>),
-    TranscriptRegex,
 }
