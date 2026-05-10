@@ -14,6 +14,7 @@ mod evaluation;
 mod fixture;
 #[cfg(test)]
 mod fixture_tests;
+mod guidance;
 mod interaction_profile;
 mod judge;
 mod output;
@@ -201,6 +202,9 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Clean { older_than } => {
             commands::handle_clean_command(&cache, older_than, &base_dir)?;
+        }
+        Commands::Guidance { command } => {
+            commands::handle_guidance_command(command)?;
         }
         Commands::Template { kind } => {
             commands::handle_template_command(*kind);

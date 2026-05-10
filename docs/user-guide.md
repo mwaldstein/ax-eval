@@ -226,6 +226,32 @@ Templates are examples, not generated project scaffolds. After printing one,
 rename placeholders such as `mytool`, `example_cli_workflow`, and paths to match
 your fixture.
 
+## Guidance Topics
+
+Use `guidance` when you want help authoring a CLI and fixture guidance that LLM
+agents can use reliably:
+
+```bash
+llm-tool-test guidance list
+llm-tool-test guidance start
+llm-tool-test guidance test-usage
+llm-tool-test guidance workflow-commands typed-errors
+```
+
+`guidance start` prints a short capsule index of the highest-priority
+topics. Other topics cover LLM-first CLI design, help output, stdout/stderr
+contracts, structured output, typed errors, recovery guidance, workflow
+commands, state inspection, bounded autonomy, long-running work, agent
+authentication, scenario authoring, usage-quality testing, and evaluation
+signals. Each topic includes related-topic suggestions so agents can traverse
+the guidance without loading every topic at once.
+
+`guidance test-usage` describes the role `llm-tool-test` should play:
+evaluate whether agents can discover and use a tool well from realistic goals,
+not command recipes. Gates are guardrails for catastrophic correctness failures;
+the evaluation profile is the main signal for usage quality, guidance quality,
+and discoverability.
+
 ## Gate Types
 
 Gates are binary assertions evaluated after the agent completes the task. They catch catastrophic failures before you spend time on deeper analysis.

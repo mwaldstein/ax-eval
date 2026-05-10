@@ -107,6 +107,77 @@ fn test_template_script_gate_outputs_json_contract() {
 }
 
 #[test]
+fn test_guidance_list_outputs_topics() {
+    llm_tool_test()
+        .args(["guidance", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("start"))
+        .stdout(predicate::str::contains("typed-errors"))
+        .stdout(predicate::str::contains("Related:"));
+}
+
+#[test]
+fn test_guidance_topic_shortcut_outputs_topic_body() {
+    llm_tool_test()
+        .args(["guidance", "start"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Start Here"))
+        .stdout(predicate::str::contains("Related topics:"));
+}
+
+#[test]
+fn test_guidance_commands_take_priority_over_topic_shortcut() {
+    llm_tool_test()
+        .args(["guidance", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Available guidance topics"))
+        .stdout(predicate::str::contains("# Start Here").not());
+}
+
+#[test]
+fn test_guidance_show_start_outputs_capsule_index() {
+    llm_tool_test()
+        .args(["guidance", "show", "start"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Start Here"))
+        .stdout(predicate::str::contains("test-usage"))
+        .stdout(predicate::str::contains("workflow-commands"))
+        .stdout(predicate::str::contains("structured-output"))
+        .stdout(predicate::str::contains("Related topics:"));
+}
+
+#[test]
+fn test_guidance_show_test_usage_outputs_usage_quality_principle() {
+    llm_tool_test()
+        .args(["guidance", "show", "test-usage"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Test Usage Quality"))
+        .stdout(predicate::str::contains(
+            "give the agent a goal, not a command recipe",
+        ))
+        .stdout(predicate::str::contains("discoverability"))
+        .stdout(predicate::str::contains(
+            "Use gates as fail-fast guardrails",
+        ));
+}
+
+#[test]
+fn test_guidance_show_outputs_topic_body() {
+    llm_tool_test()
+        .args(["guidance", "show", "agent-instructions"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Agent Instructions"))
+        .stdout(predicate::str::contains("AGENTS.md"))
+        .stdout(predicate::str::contains("Related topics:"));
+}
+
+#[test]
 fn test_cli_version() {
     llm_tool_test()
         .arg("--version")

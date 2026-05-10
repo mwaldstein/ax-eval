@@ -1,6 +1,7 @@
-use crate::cli::TemplateKind;
+use crate::cli::{GuidanceCommand, TemplateKind};
 use crate::config::Config;
 use crate::evaluation::ScoreTier;
+use crate::guidance;
 use crate::output;
 use crate::results::{Cache, ResultsDB};
 use crate::run;
@@ -252,6 +253,22 @@ pub fn handle_clean_command(
         );
     } else {
         println!("Cleaned {} transcript(s)", removed_count);
+    }
+
+    Ok(())
+}
+
+pub fn handle_guidance_command(command: &GuidanceCommand) -> anyhow::Result<()> {
+    match command {
+        GuidanceCommand::List => {
+            print!("{}", guidance::render_topic_list());
+        }
+        GuidanceCommand::Show { topics } => {
+            print!("{}", guidance::render_topics(topics)?);
+        }
+        GuidanceCommand::Topics(topics) => {
+            print!("{}", guidance::render_topics(topics)?);
+        }
     }
 
     Ok(())

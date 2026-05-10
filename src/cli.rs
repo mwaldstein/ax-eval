@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     version,
     arg_required_else_help = true,
     about = "Evaluate how coding agents use CLI tools",
-    long_about = "llm-tool-test runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>\n\nUse `llm-tool-test template <kind>` for copyable schema examples.",
-    after_help = "Common commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test template config > llm-tool-test-config.toml\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>"
+    long_about = "llm-tool-test runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test guidance list\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>\n\nUse `llm-tool-test template <kind>` for copyable schema examples.",
+    after_help = "Common commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test template config > llm-tool-test-config.toml\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -108,12 +108,32 @@ pub enum Commands {
         #[arg(long)]
         older_than: Option<String>,
     },
+    /// Show guidance for building LLM-usable tools and docs
+    Guidance {
+        #[command(subcommand)]
+        command: GuidanceCommand,
+    },
     /// Print copyable scenario, config, and script templates
     Template {
         /// Template to print
         #[arg(value_enum)]
         kind: TemplateKind,
     },
+}
+
+#[derive(Subcommand)]
+pub enum GuidanceCommand {
+    /// List available guidance topics
+    List,
+    /// Show one or more guidance topics
+    Show {
+        /// Topic slug(s) to display
+        #[arg(required = true)]
+        topics: Vec<String>,
+    },
+    /// Show one or more topic slugs directly, e.g. `guidance start`
+    #[command(external_subcommand)]
+    Topics(Vec<String>),
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
