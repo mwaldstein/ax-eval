@@ -45,25 +45,6 @@ struct PostScriptRunInput<'a> {
     target_env: &'a TargetEnvironment,
 }
 
-pub fn create_adapter_and_check(tool: &str) -> anyhow::Result<Box<dyn ToolAdapter>> {
-    use crate::adapter::{
-        claude_code::ClaudeCodeAdapter, codex::CodexAdapter, mock::MockAdapter,
-        opencode::OpenCodeAdapter,
-    };
-    let adapter: Box<dyn ToolAdapter> = match tool {
-        "claude" | "claude-code" => Box::new(ClaudeCodeAdapter),
-        "codex" => Box::new(CodexAdapter),
-        "mock" => Box::new(MockAdapter),
-        "opencode" => Box::new(OpenCodeAdapter),
-        _ => anyhow::bail!("Unknown tool: {}", tool),
-    };
-
-    println!("Checking availability for tool: {}", tool);
-    adapter.check_availability()?;
-
-    Ok(adapter)
-}
-
 fn persist_execution_transcript(input: ExecutionTranscriptInput<'_>) -> anyhow::Result<()> {
     let output = &input.run_output.transcript;
 

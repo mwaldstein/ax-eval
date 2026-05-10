@@ -1,4 +1,5 @@
 use super::*;
+use crate::adapter::registry::AdapterRegistry;
 use crate::results::test_helpers::create_test_record;
 use crate::scenario::Scenario;
 use std::path::{Path, PathBuf};
@@ -487,6 +488,109 @@ evaluation:
         .load_all()
         .expect("load result records")
         .is_empty());
+}
+
+#[test]
+fn scenario_run_lifecycle_accepts_prechecked_adapter() {
+    let scenario_yaml = r#"
+name: lifecycle_prechecked_adapter_test
+description: Test lifecycle can reuse an adapter checked by an orchestrator
+template_folder: example_basic
+target:
+  binary: taskmgr
+task:
+  prompt: "Create a task"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scenario_path = write_temp_scenario(
+        dir.path(),
+        "lifecycle_prechecked_adapter_test",
+        scenario_yaml,
+    );
+    let results_db = ResultsDB::new(dir.path());
+    let cache = Cache::new(dir.path());
+    let mut registry = AdapterRegistry::new();
+    let adapter = registry.resolve_checked("mock").expect("checked adapter");
+
+    let record = run_single_scenario_with_adapter(
+        ScenarioRunRequest {
+            scenario: &scenario,
+            scenario_path: &scenario_path,
+            tool: "mock",
+            model: "mock",
+            dry_run: false,
+            no_cache: true,
+            timeout_secs: 300,
+            no_judge: true,
+            judge_model: None,
+            judge_tool: None,
+            results_db: &results_db,
+            cache: &cache,
+            results_dir_override: None,
+        },
+        &adapter,
+    )
+    .expect("run with prechecked adapter");
+
+    assert_eq!(record.outcome, "Pass");
+    assert_eq!(results_db.load_all().expect("load result records").len(), 1);
+}
+
+#[test]
+fn scenario_run_lifecycle_rejects_mismatched_prechecked_adapter() {
+    let scenario_yaml = r#"
+name: lifecycle_prechecked_adapter_mismatch_test
+description: Test lifecycle rejects an adapter for a different tool
+template_folder: example_basic
+target:
+  binary: taskmgr
+task:
+  prompt: "Create a task"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let scenario_path = write_temp_scenario(
+        dir.path(),
+        "lifecycle_prechecked_adapter_mismatch_test",
+        scenario_yaml,
+    );
+    let results_db = ResultsDB::new(dir.path());
+    let cache = Cache::new(dir.path());
+    let mut registry = AdapterRegistry::new();
+    let adapter = registry.resolve_checked("mock").expect("checked adapter");
+
+    let result = run_single_scenario_with_adapter(
+        ScenarioRunRequest {
+            scenario: &scenario,
+            scenario_path: &scenario_path,
+            tool: "opencode",
+            model: "mock",
+            dry_run: false,
+            no_cache: true,
+            timeout_secs: 300,
+            no_judge: true,
+            judge_model: None,
+            judge_tool: None,
+            results_db: &results_db,
+            cache: &cache,
+            results_dir_override: None,
+        },
+        &adapter,
+    );
+
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Prechecked adapter tool mismatch"));
 }
 
 #[test]

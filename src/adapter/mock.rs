@@ -41,10 +41,6 @@ impl ToolAdapter for MockAdapter {
         })
     }
 
-    fn check_availability(&self) -> anyhow::Result<()> {
-        Ok(())
-    }
-
     fn run(
         &self,
         scenario: &Scenario,

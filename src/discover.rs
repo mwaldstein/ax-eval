@@ -1,7 +1,7 @@
+use crate::adapter::registry::AdapterRegistry;
 use crate::adapter::ToolRunOutput;
 use crate::results::{Cache, ResultRecord, ResultsDB};
 use crate::run;
-use crate::run::execution::create_adapter_and_check;
 use crate::scenario::{self, Evaluation, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
@@ -158,7 +158,9 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
     println!("Inspecting target: {}", request.target);
 
     let mut overhead_usage = UsageTotals::default();
+    let mut adapter_registry = AdapterRegistry::new();
     let inspect_output = run_agent_stage(
+        &mut adapter_registry,
         request.discover_tool,
         request.discover_model,
         request.target,
@@ -173,6 +175,7 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
     let understanding_path = root_dir.join("understanding.md");
     ensure_understanding_artifact(
         &request,
+        &mut adapter_registry,
         &root_dir,
         &understanding_path,
         &mut overhead_usage,
@@ -180,6 +183,7 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
 
     println!("Authoring generated scenarios...");
     let author_output = run_agent_stage(
+        &mut adapter_registry,
         request.discover_tool,
         request.discover_model,
         request.target,
@@ -202,7 +206,8 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
         "Running {} valid generated scenario(s) as one discovery batch...",
         valid_scenarios.len()
     );
-    let (run_manifests, run_usage) = run_generated_scenarios(&request, &runs_dir, &valid_scenarios);
+    let (run_manifests, run_usage) =
+        run_generated_scenarios(&request, &mut adapter_registry, &runs_dir, &valid_scenarios);
 
     let manifest_path = root_dir.join("discovery.json");
     let summary_path = root_dir.join("discovery-summary.md");
@@ -218,6 +223,7 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
 
     println!("Summarizing discovery results...");
     let summary_output = run_agent_stage(
+        &mut adapter_registry,
         request.discover_tool,
         request.discover_model,
         request.target,
@@ -247,6 +253,7 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
 }
 
 fn run_agent_stage(
+    adapter_registry: &mut AdapterRegistry,
     tool: &str,
     model: &str,
     target: &str,
@@ -254,7 +261,7 @@ fn run_agent_stage(
     timeout_secs: u64,
     prompt: &str,
 ) -> Result<ToolRunOutput> {
-    let adapter = create_adapter_and_check(tool)?;
+    let adapter = adapter_registry.resolve_checked(tool)?;
     let scenario = Scenario {
         name: "discovery_stage".to_string(),
         description: "Discovery workflow agent stage".to_string(),
@@ -281,7 +288,7 @@ fn run_agent_stage(
         scripts: None,
         interaction: Default::default(),
     };
-    let output = adapter.run(
+    let output = adapter.adapter().run(
         &scenario,
         cwd,
         Some(model).filter(|m| *m != "default"),
@@ -296,6 +303,7 @@ fn run_agent_stage(
 
 fn ensure_understanding_artifact(
     request: &DiscoverRequest<'_>,
+    adapter_registry: &mut AdapterRegistry,
     root_dir: &Path,
     understanding_path: &Path,
     overhead_usage: &mut UsageTotals,
@@ -311,6 +319,7 @@ fn ensure_understanding_artifact(
     println!("Inspect stage did not produce a usable understanding.md; retrying synthesis...");
 
     let repair_output = run_agent_stage(
+        adapter_registry,
         request.discover_tool,
         request.discover_model,
         request.target,
@@ -406,6 +415,7 @@ fn write_understanding_diagnostics(
 
 fn run_generated_scenarios(
     request: &DiscoverRequest<'_>,
+    adapter_registry: &mut AdapterRegistry,
     runs_dir: &Path,
     valid_scenarios: &[ValidScenario],
 ) -> (Vec<DiscoveryRunManifest>, UsageTotals) {
@@ -414,21 +424,43 @@ fn run_generated_scenarios(
 
     for valid in valid_scenarios {
         let result_dir = runs_dir.join(safe_segment(&valid.scenario.name));
-        let result = run::run_single_scenario(run::ScenarioRunRequest {
-            scenario: &valid.scenario,
-            scenario_path: &valid.path,
-            tool: request.run_tool,
-            model: request.run_model,
-            dry_run: false,
-            no_cache: true,
-            timeout_secs: request.timeout_secs,
-            no_judge: false,
-            judge_model: request.judge_model,
-            judge_tool: request.judge_tool,
-            results_db: request.results_db,
-            cache: request.cache,
-            results_dir_override: Some(result_dir.clone()),
-        });
+        let adapter = match adapter_registry.resolve_checked(request.run_tool) {
+            Ok(adapter) => adapter,
+            Err(error) => {
+                run_manifests.push(DiscoveryRunManifest {
+                    scenario_name: valid.scenario.name.clone(),
+                    scenario_path: display_path(&valid.path),
+                    result_dir: display_path(&result_dir),
+                    status: "harness_error".to_string(),
+                    run_id: None,
+                    outcome: None,
+                    judge_score: None,
+                    judge_passed: None,
+                    error_count: 0,
+                    failed_call_count: 0,
+                    error: Some(format!("{error:#}")),
+                });
+                continue;
+            }
+        };
+        let result = run::run_single_scenario_with_adapter(
+            run::ScenarioRunRequest {
+                scenario: &valid.scenario,
+                scenario_path: &valid.path,
+                tool: request.run_tool,
+                model: request.run_model,
+                dry_run: false,
+                no_cache: true,
+                timeout_secs: request.timeout_secs,
+                no_judge: false,
+                judge_model: request.judge_model,
+                judge_tool: request.judge_tool,
+                results_db: request.results_db,
+                cache: request.cache,
+                results_dir_override: Some(result_dir.clone()),
+            },
+            &adapter,
+        );
 
         match result {
             Ok(record) => {

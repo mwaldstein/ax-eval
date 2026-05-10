@@ -7,6 +7,7 @@ pub mod setup;
 pub mod transcript;
 pub mod utils;
 
+use crate::adapter::registry::CheckedAdapter;
 use crate::results::{Cache, CacheKey, ResultRecord, ResultsDB};
 use crate::scenario::Scenario;
 use std::path::{Path, PathBuf};
@@ -70,6 +71,13 @@ impl ScenarioRunRequest<'_> {
 
 pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<ResultRecord> {
     lifecycle::ScenarioRunLifecycle::new(request).run()
+}
+
+pub fn run_single_scenario_with_adapter(
+    request: ScenarioRunRequest<'_>,
+    adapter: &CheckedAdapter,
+) -> anyhow::Result<ResultRecord> {
+    lifecycle::ScenarioRunLifecycle::new_with_adapter(request, adapter).run()
 }
 
 #[cfg(test)]

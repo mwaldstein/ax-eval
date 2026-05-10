@@ -27,14 +27,6 @@ impl ToolAdapter for OpenCodeAdapter {
         }
     }
 
-    fn check_availability(&self) -> anyhow::Result<()> {
-        let runner = SessionRunner::new();
-        match runner.run_command("opencode", &["--version"], Path::new("."), 10) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(anyhow::anyhow!("OpenCode tool not found: {}", e)),
-        }
-    }
-
     fn run(
         &self,
         scenario: &Scenario,

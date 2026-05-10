@@ -3,6 +3,7 @@ pub mod codex;
 pub mod mock;
 pub(crate) mod normalize;
 pub mod opencode;
+pub mod registry;
 
 #[cfg(test)]
 mod mock_test;

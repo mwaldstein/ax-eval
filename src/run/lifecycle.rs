@@ -1,8 +1,7 @@
+use crate::adapter::registry::{AdapterRegistry, CheckedAdapter};
 use crate::output;
 use crate::results::{CacheKey, ResultRecord};
-use crate::run::execution::{
-    create_adapter_and_check, determine_outcome, run_evaluation_flow, EvaluationFlowInput,
-};
+use crate::run::execution::{determine_outcome, run_evaluation_flow, EvaluationFlowInput};
 use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
 use crate::run::setup::{prepare_writer_and_setup, PreparedRunContext, PreparedScenarioRun};
 use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
@@ -11,12 +10,26 @@ use crate::run::{ScenarioRunPlan, ScenarioRunRequest};
 pub struct ScenarioRunLifecycle<'a> {
     request: ScenarioRunRequest<'a>,
     plan: ScenarioRunPlan,
+    adapter: Option<&'a CheckedAdapter>,
 }
 
 impl<'a> ScenarioRunLifecycle<'a> {
     pub fn new(request: ScenarioRunRequest<'a>) -> Self {
         let plan = request.plan();
-        Self { request, plan }
+        Self {
+            request,
+            plan,
+            adapter: None,
+        }
+    }
+
+    pub fn new_with_adapter(request: ScenarioRunRequest<'a>, adapter: &'a CheckedAdapter) -> Self {
+        let plan = request.plan();
+        Self {
+            request,
+            plan,
+            adapter: Some(adapter),
+        }
     }
 
     pub fn run(self) -> anyhow::Result<ResultRecord> {
@@ -61,12 +74,27 @@ impl<'a> ScenarioRunLifecycle<'a> {
         context: PreparedRunContext,
         cache_key: CacheKey,
     ) -> anyhow::Result<ResultRecord> {
-        let adapter = create_adapter_and_check(self.request.tool)?;
+        let owned_adapter;
+        let mut adapter_registry;
+        let checked_adapter = if let Some(adapter) = self.adapter {
+            if adapter.tool() != self.request.tool {
+                anyhow::bail!(
+                    "Prechecked adapter tool mismatch: request uses {}, adapter is {}",
+                    self.request.tool,
+                    adapter.tool()
+                );
+            }
+            adapter
+        } else {
+            adapter_registry = AdapterRegistry::new();
+            owned_adapter = adapter_registry.resolve_checked(self.request.tool)?;
+            &owned_adapter
+        };
         let prepared =
             prepare_writer_and_setup(&context, self.request.scenario, self.plan.effective_timeout)?;
 
         let evaluation = run_evaluation_flow(EvaluationFlowInput {
-            adapter: adapter.as_ref(),
+            adapter: checked_adapter.adapter(),
             scenario: self.request.scenario,
             env: &context.workspace.env,
             tool: self.request.tool,
