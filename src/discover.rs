@@ -1,14 +1,22 @@
+mod manifest;
+mod prompts;
+
+use self::manifest::{
+    build_manifest, create_discovery_dir, display_path, safe_segment, usage_summary,
+    write_manifest, write_partial_manifest, DiscoveryRunManifest, GeneratedScenarioManifest,
+};
+use self::prompts::{author_prompt, inspect_prompt, summary_prompt, understanding_repair_prompt};
 use crate::adapter::registry::AdapterRegistry;
 use crate::adapter::ToolRunOutput;
-use crate::results::{Cache, ResultRecord, ResultsDB};
+use crate::results::{Cache, ResultsDB};
 use crate::run;
 use crate::scenario::{self, Evaluation, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
-use chrono::Utc;
-use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+pub use self::manifest::UsageTotals;
 
 const DEFAULT_SCENARIO_COUNT: usize = 5;
 const UNDERSTANDING_HEADINGS: &[&str] = &[
@@ -34,110 +42,6 @@ pub struct DiscoverRequest<'a> {
     pub results_base_dir: &'a Path,
     pub results_db: &'a ResultsDB,
     pub cache: &'a Cache,
-}
-
-#[derive(Debug, Default, Clone, Copy, Serialize)]
-pub struct UsageTotals {
-    pub input_tokens: usize,
-    pub output_tokens: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cost_usd: Option<f64>,
-}
-
-impl UsageTotals {
-    fn add_tool_output(&mut self, output: &ToolRunOutput) {
-        if let Some(tokens) = &output.token_usage {
-            self.input_tokens += tokens.input;
-            self.output_tokens += tokens.output;
-        }
-        self.add_cost(output.cost_usd);
-    }
-
-    fn add_record(&mut self, record: &ResultRecord) {
-        if let Some(tokens) = &record.token_usage {
-            self.input_tokens += tokens.input;
-            self.output_tokens += tokens.output;
-        }
-        self.add_cost(record.cost_usd);
-    }
-
-    fn add_cost(&mut self, cost: Option<f64>) {
-        if let Some(cost) = cost {
-            self.cost_usd = Some(self.cost_usd.unwrap_or(0.0) + cost);
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct DiscoveryManifest {
-    target: String,
-    scenario_count_requested: usize,
-    run_agent: AgentConfig,
-    discovery_agent: AgentConfig,
-    judge: JudgeSelection,
-    artifacts: DiscoveryArtifacts,
-    generated_scenarios: Vec<GeneratedScenarioManifest>,
-    run_results: Vec<DiscoveryRunManifest>,
-    usage: DiscoveryUsage,
-}
-
-#[derive(Debug, Serialize)]
-struct AgentConfig {
-    tool: String,
-    model: String,
-}
-
-#[derive(Debug, Serialize)]
-struct JudgeSelection {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    model: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct DiscoveryArtifacts {
-    root_dir: String,
-    understanding_md: String,
-    scenarios_dir: String,
-    runs_dir: String,
-    summary_md: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct GeneratedScenarioManifest {
-    path: String,
-    valid: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    diagnostics: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct DiscoveryRunManifest {
-    scenario_name: String,
-    scenario_path: String,
-    result_dir: String,
-    status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    run_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    outcome: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    judge_score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    judge_passed: Option<bool>,
-    error_count: usize,
-    failed_call_count: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct DiscoveryUsage {
-    discovery_overhead: UsageTotals,
-    scenario_runs: UsageTotals,
-    combined: UsageTotals,
 }
 
 struct ValidScenario {
@@ -543,258 +447,6 @@ fn validate_generated_scenarios(
     Ok((manifests, valid_scenarios))
 }
 
-fn inspect_prompt(target: &str) -> String {
-    format!(
-        r#"You are inspecting a CLI tool for llm-tool-test discovery.
-
-Target executable: {target}
-
-Work only from the executable command surface. Use the target command's help,
-subcommand help, examples, errors, and any files the command itself points you
-to. Do not rely on external documentation unless the command explicitly opens
-or names it.
-
-Create a Markdown file at ./understanding.md. Do this before attempting any
-destructive or permission-sensitive experiments. Keep all scratch work inside
-the current directory; do not use /tmp, parent directories, or other external
-paths.
-
-Focus on why the tool exists and how an LLM agent should think about using it.
-Use exactly these section headings:
-
-# Discovery Understanding
-
-## What the Tool Appears to Be For
-
-## Core Concepts and Mental Model
-
-## Primary Workflows
-
-## Useful Goal Areas
-
-## Evidence Consulted
-
-## Self-Description Quality
-
-## Ambiguities or Missing Information
-
-## Five Candidate Scenario Ideas
-
-The final file must be a synthesized Markdown report, not a command transcript.
-If an exploratory command is denied or fails, still write ./understanding.md
-from the evidence already collected and mention the limitation under
-Ambiguities or Missing Information.
-
-Keep the artifact useful to the tool author as evidence of how self-describing
-the executable is."#
-    )
-}
-
-fn understanding_repair_prompt(
-    target: &str,
-    transcript_path: &Path,
-    understanding_path: &Path,
-) -> String {
-    format!(
-        r#"You are repairing the inspect artifact for llm-tool-test discovery.
-
-Target executable: {target}
-Inspect transcript: {}
-Required output file: {}
-
-Read the inspect transcript and synthesize the required Markdown understanding
-artifact. Work only from the transcript and any command-surface evidence named
-inside it. Do not run more experiments unless absolutely necessary, and keep any
-scratch files inside the current directory.
-
-Overwrite the required output file with a synthesized Markdown report using
-exactly these section headings:
-
-# Discovery Understanding
-
-## What the Tool Appears to Be For
-
-## Core Concepts and Mental Model
-
-## Primary Workflows
-
-## Useful Goal Areas
-
-## Evidence Consulted
-
-## Self-Description Quality
-
-## Ambiguities or Missing Information
-
-## Five Candidate Scenario Ideas
-
-The output must not be a command transcript. Include concise evidence references
-instead of pasting command output."#,
-        transcript_path.display(),
-        understanding_path.display()
-    )
-}
-
-fn author_prompt(target: &str, count: usize, understanding_path: &Path) -> String {
-    format!(
-        r#"You are authoring llm-tool-test discovery fixtures.
-
-Target executable: {target}
-Understanding document: {}
-Required scenario count: {count}
-
-Read the understanding document, then create a coordinated set of {count}
-complex, goal-oriented llm-tool-test scenarios under ./scenarios/.
-
-Hard requirements:
-- Write complete runnable YAML scenario files under ./scenarios/.
-- Create any required template directories beside the YAML files.
-- Each scenario must use target.binary: "{target}".
-- Each scenario must have evaluation.gates: [].
-- Each scenario must include evaluation.judge.enabled: true.
-- Omit evaluation.judge.rubric unless the scenario needs custom criteria. The
-  default judge rubric assesses goal achievement, CLI usage quality, and
-  efficiency.
-- If custom criteria are needed, prefer inline evaluation.judge.criteria. Use a
-  separate rubric file only when the criteria need a reusable output contract.
-- Use pass_threshold as a general rubric reference, not as the main discovery
-  value. 0.70 is a reasonable default.
-- Prefer goal-based tasks over command-prescriptive tasks. The prompt should
-  ask for an outcome that requires understanding the tool's role, not a fixed
-  command sequence.
-- Avoid near-duplicate scenarios; cover different useful goal areas.
-- If extra notes would help the tool author, write ./scenarios/README.md.
-
-Useful scenario shape:
-
-name: discover_example_goal
-description: "Goal-oriented discovery scenario"
-template_folder: templates/discover_example_goal
-target:
-  binary: "{target}"
-task:
-  prompt: |
-    Achieve a realistic user goal with the target tool. Decide which commands
-    are appropriate and verify your work.
-evaluation:
-  gates: []
-  judge:
-    enabled: true
-    pass_threshold: 0.70
-tags:
-  - discovery
-
-Use relative template paths beside each scenario file. If you create a custom
-rubric path, keep it relative to the generated YAML; the harness will resolve it."#,
-        understanding_path.display()
-    )
-}
-
-fn summary_prompt(understanding_path: &Path, manifest_path: &Path) -> String {
-    format!(
-        r#"You are summarizing an llm-tool-test discovery run for the target tool author.
-
-Read:
-- Understanding: {}
-- Discovery manifest: {}
-- Scenario run reports and evaluations under ./runs/
-
-Write ./discovery-summary.md as a concise but useful Markdown report. Focus on:
-- What the inspecting agent understood about why the tool exists
-- How self-describing the tool appeared to be
-- Quality and diversity of the generated goal-oriented scenarios
-- How well the evaluated agent used the target tool, emphasizing judge scores,
-  judge rationales, confidence, issues, highlights, failed calls, retries, and
-  help-seeking rather than only pass/fail
-- Which failures are fixture-authoring problems, tool self-description
-  problems, agent usage problems, or harness problems
-- High-impact recommendations for improving the tool's LLM usability"#,
-        understanding_path.display(),
-        manifest_path.display()
-    )
-}
-
-fn create_discovery_dir(request: &DiscoverRequest<'_>) -> Result<PathBuf> {
-    let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
-    let dir_name = format!(
-        "{}-discover-{}-{}-{}",
-        timestamp,
-        safe_segment(request.target),
-        safe_segment(request.run_tool),
-        safe_segment(request.run_model)
-    );
-    let dir = request.results_base_dir.join(dir_name);
-    fs::create_dir_all(&dir)?;
-    Ok(dir)
-}
-
-fn build_manifest(
-    request: &DiscoverRequest<'_>,
-    root_dir: &Path,
-    scenarios: &[GeneratedScenarioManifest],
-    run_results: &[DiscoveryRunManifest],
-    usage: DiscoveryUsage,
-) -> DiscoveryManifest {
-    DiscoveryManifest {
-        target: request.target.to_string(),
-        scenario_count_requested: DEFAULT_SCENARIO_COUNT,
-        run_agent: AgentConfig {
-            tool: request.run_tool.to_string(),
-            model: request.run_model.to_string(),
-        },
-        discovery_agent: AgentConfig {
-            tool: request.discover_tool.to_string(),
-            model: request.discover_model.to_string(),
-        },
-        judge: JudgeSelection {
-            tool: request.judge_tool.map(str::to_string),
-            model: request.judge_model.map(str::to_string),
-        },
-        artifacts: DiscoveryArtifacts {
-            root_dir: display_path(root_dir),
-            understanding_md: display_path(&root_dir.join("understanding.md")),
-            scenarios_dir: display_path(&root_dir.join("scenarios")),
-            runs_dir: display_path(&root_dir.join("runs")),
-            summary_md: display_path(&root_dir.join("discovery-summary.md")),
-        },
-        generated_scenarios: scenarios.to_vec(),
-        run_results: run_results.to_vec(),
-        usage,
-    }
-}
-
-fn usage_summary(overhead: UsageTotals, scenario_runs: UsageTotals) -> DiscoveryUsage {
-    let mut combined = overhead;
-    combined.input_tokens += scenario_runs.input_tokens;
-    combined.output_tokens += scenario_runs.output_tokens;
-    combined.add_cost(scenario_runs.cost_usd);
-    DiscoveryUsage {
-        discovery_overhead: overhead,
-        scenario_runs,
-        combined,
-    }
-}
-
-fn write_partial_manifest(
-    request: &DiscoverRequest<'_>,
-    root_dir: &Path,
-    scenario_manifests: Vec<GeneratedScenarioManifest>,
-) -> Result<()> {
-    let manifest = build_manifest(
-        request,
-        root_dir,
-        &scenario_manifests,
-        &[],
-        usage_summary(UsageTotals::default(), UsageTotals::default()),
-    );
-    write_manifest(&root_dir.join("discovery.json"), &manifest)
-}
-
-fn write_manifest(path: &Path, manifest: &DiscoveryManifest) -> Result<()> {
-    fs::write(path, serde_json::to_string_pretty(manifest)?)?;
-    Ok(())
-}
-
 fn write_stage_output(root_dir: &Path, stage: &str, output: &ToolRunOutput) -> Result<()> {
     let stage_dir = root_dir.join("stages").join(stage);
     fs::create_dir_all(&stage_dir)?;
@@ -858,31 +510,6 @@ fn collect_scenario_yaml_paths(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<(
         }
     }
     Ok(())
-}
-
-fn safe_segment(value: &str) -> String {
-    let mut safe = value
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    if safe.len() > 80 {
-        safe.truncate(80);
-    }
-    if safe.is_empty() {
-        "unknown".to_string()
-    } else {
-        safe
-    }
-}
-
-fn display_path(path: &Path) -> String {
-    path.to_string_lossy().to_string()
 }
 
 #[cfg(test)]

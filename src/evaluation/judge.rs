@@ -120,12 +120,7 @@ fn run_judge_evaluation(
     let mut adapter_registry = crate::adapter::registry::AdapterRegistry::new();
     let adapter = adapter_registry.resolve_checked(tool)?;
     let judge_scenario = judge_scenario(scenario, prompt);
-    run_judge_evaluation_with_adapter(
-        adapter.adapter(),
-        judge_model,
-        &judge_scenario,
-        env_root,
-    )
+    run_judge_evaluation_with_adapter(adapter.adapter(), judge_model, &judge_scenario, env_root)
 }
 
 fn run_judge_evaluation_with_adapter(

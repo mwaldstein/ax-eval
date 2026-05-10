@@ -97,11 +97,13 @@ mod tests {
     fn discovery_contract_accepts_ungated_judged_scenario_and_normalizes_paths() {
         let dir = tempfile::tempdir().expect("tempdir");
         let scenario_path = dir.path().join("goal.yaml");
-        std::fs::create_dir_all(dir.path().join("templates/generated_goal"))
-            .expect("template dir");
+        std::fs::create_dir_all(dir.path().join("templates/generated_goal")).expect("template dir");
         std::fs::create_dir_all(dir.path().join("rubrics")).expect("rubrics dir");
-        std::fs::write(dir.path().join("rubrics/generated_goal.yaml"), "criteria: []")
-            .expect("rubric");
+        std::fs::write(
+            dir.path().join("rubrics/generated_goal.yaml"),
+            "criteria: []",
+        )
+        .expect("rubric");
         let mut scenario = discovery_scenario();
 
         let diagnostics = apply_discovery_contract(&scenario_path, &mut scenario);
@@ -124,9 +126,12 @@ mod tests {
     #[test]
     fn discovery_contract_rejects_gated_or_unjudged_scenarios() {
         let mut scenario = discovery_scenario();
-        scenario.evaluation.gates.push(crate::scenario::Gate::CommandSucceeds {
-            command: "true".to_string(),
-        });
+        scenario
+            .evaluation
+            .gates
+            .push(crate::scenario::Gate::CommandSucceeds {
+                command: "true".to_string(),
+            });
         scenario.evaluation.judge = None;
 
         let diagnostics = apply_discovery_contract(Path::new("goal.yaml"), &mut scenario);
