@@ -68,6 +68,9 @@ pub struct EvaluationMetricsRecord {
     /// Whether the judge threshold was met (None if judge was not run)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub judge_passed: Option<bool>,
+    /// Judge pass threshold used for this scenario (None if judge was not configured)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge_threshold: Option<f64>,
     /// Efficiency metrics
     pub efficiency: EfficiencyMetricsRecord,
     /// Source used to build interaction metrics

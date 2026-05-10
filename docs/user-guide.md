@@ -387,13 +387,16 @@ Each run generates `evaluation.md`, `report.md`, and `metrics.json`.
 
 `evaluation.md` is the human-readable profile. It includes:
 
-- Summary: scenario name, tool, model, and guardrail outcome
-- Top-level metrics: gates passed, duration, cost, and composite score when present
+- Summary: scenario name, tool, model, and run status
+- Quality signals: judge score with target threshold and delta, composite score when present, and custom evaluator count
+- Interaction metrics: command count, errors, retries, help invocations, first-try success, and evidence source
+- Run metrics: duration and cost when adapters report it
 - Qualitative scoring: judge score, rationale, issues, highlights, and criteria scores when a rubric is configured
 - Custom evaluator summaries and errors
+- Guardrails: gate counts and details
 - Human review section: space for manual scoring
 
-`report.md` includes execution details, guardrail results, and efficiency metrics.
+`report.md` includes execution details, scores, interaction metrics, and guardrail details.
 Use `metrics.json` when comparing repeated runs programmatically; it is the
 canonical machine-readable profile for interaction quality.
 Use `results.jsonl` in the results directory for run-level metadata such as

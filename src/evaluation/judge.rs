@@ -8,6 +8,7 @@ pub struct JudgeEvaluationResult {
     pub score: Option<f64>,
     pub response: Option<JudgeResponse>,
     pub passed: Option<bool>,
+    pub threshold: Option<f64>,
 }
 
 impl JudgeEvaluationResult {
@@ -16,6 +17,14 @@ impl JudgeEvaluationResult {
             score: None,
             response: None,
             passed: None,
+            threshold: None,
+        }
+    }
+
+    pub fn skipped_with_threshold(threshold: f64) -> Self {
+        Self {
+            threshold: Some(threshold),
+            ..Self::skipped()
         }
     }
 }
@@ -45,14 +54,21 @@ pub fn maybe_run_judge(
     judge_tool: Option<&str>,
 ) -> Result<JudgeEvaluationResult> {
     if let Some(judge_config) = &scenario.evaluation.judge {
-        if judge_config.enabled && !no_judge {
+        if judge_config.enabled {
+            if no_judge {
+                return Ok(JudgeEvaluationResult::skipped_with_threshold(
+                    judge_config.pass_threshold,
+                ));
+            }
             if gates_passed < gates_total {
                 println!(
                     "Skipping judge: {}/{} gates failed",
                     gates_total - gates_passed,
                     gates_total
                 );
-                return Ok(JudgeEvaluationResult::skipped());
+                return Ok(JudgeEvaluationResult::skipped_with_threshold(
+                    judge_config.pass_threshold,
+                ));
             }
             let execution =
                 run_judge_evaluation(judge_config, judge_model, judge_tool, scenario, env_root)?;
@@ -74,6 +90,7 @@ pub fn maybe_run_judge(
                 score: execution.score,
                 response: execution.response,
                 passed,
+                threshold: Some(judge_config.pass_threshold),
             });
         }
     }

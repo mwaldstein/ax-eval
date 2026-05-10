@@ -125,9 +125,9 @@ llm-tool-test-results/<timestamp>-discover-<target>-<agent>-<model>/
 
 Generated scenarios are intentionally ungated and must include enabled
 LLM-as-judge evaluation. In discovery, command errors, failed calls, low judge
-scores, and scenario-level pass/fail outcomes are findings. The main signal is
-the subjective usage evaluation: numeric judge scores, rationales, confidence,
-issues, highlights, and interaction metrics. The `discover` command exits
+scores, and run statuses are findings. The main signal is the subjective usage
+evaluation: numeric judge scores, rationales, confidence, issues, highlights,
+and interaction metrics. The `discover` command exits
 non-zero only when the workflow itself cannot complete, such as when the target
 is unavailable, the agent cannot run, no generated scenarios are valid, or final
 artifacts cannot be written.

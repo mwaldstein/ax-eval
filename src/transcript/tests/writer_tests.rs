@@ -15,17 +15,22 @@ fn test_write_report_basic() {
         duration_secs: 45.3,
         cost_usd: Some(0.0234),
         token_usage: None,
-        outcome: "Pass".to_string(),
         gates_passed: 3,
         gates_total: 3,
+        judge_score: Some(0.8),
+        judge_passed: Some(true),
+        judge_threshold: Some(0.7),
         composite_score: Some(0.82),
         gate_details: vec![],
         efficiency: EfficiencyReport {
             total_commands: 10,
             unique_commands: 5,
             error_count: 0,
+            retry_count: 1,
+            help_invocations: 2,
             first_try_success_rate: 0.9,
             iteration_ratio: 2.0,
+            completed: true,
         },
         setup_success: true,
         setup_commands: vec![],
@@ -43,7 +48,9 @@ fn test_write_report_basic() {
     assert!(content.contains("claude-3-5-sonnet"));
     assert!(content.contains("45.30s"));
     assert!(content.contains("$0.0234"));
-    assert!(content.contains("Pass"));
+    assert!(content.contains("completed; judge threshold met"));
+    assert!(content.contains("## Interaction Metrics"));
+    assert!(content.contains("## Guardrails"));
 }
 
 #[test]
@@ -55,13 +62,26 @@ fn test_write_evaluation_basic() {
         scenario_id: "test_scenario".to_string(),
         tool: "opencode".to_string(),
         model: "gpt-4o".to_string(),
-        outcome: "Pass".to_string(),
-        judge_score_1_to_5: Some(4.0),
+        judge_score: Some(0.8),
+        judge_passed: Some(true),
+        judge_threshold: Some(0.7),
         gates_passed: 2,
         gates_total: 3,
         duration_secs: 30.0,
         cost_usd: Some(0.015),
         composite_score: Some(0.82),
+        efficiency: EfficiencyReport {
+            total_commands: 8,
+            unique_commands: 6,
+            error_count: 1,
+            retry_count: 1,
+            help_invocations: 2,
+            first_try_success_rate: 0.75,
+            iteration_ratio: 1.33,
+            completed: true,
+        },
+        interaction_evidence_source:
+            crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
         judge_feedback: vec![
             "**Issues:**\nMinor formatting issue".to_string(),
             "**Highlights:**\nGood structure".to_string(),
@@ -80,8 +100,11 @@ fn test_write_evaluation_basic() {
     assert!(content.contains("test_scenario"));
     assert!(content.contains("opencode"));
     assert!(content.contains("gpt-4o"));
-    assert!(content.contains("**4** / 5"));
+    assert!(content.contains("0.80 (0.70) +0.10"));
     assert!(content.contains("2/3"));
+    assert!(content.contains("## Quality Signals"));
+    assert!(content.contains("## Interaction Metrics"));
+    assert!(content.contains("## Guardrails"));
     assert!(content.contains("30.00s"));
     assert!(content.contains("$0.0150"));
     assert!(content.contains("0.82"));
@@ -110,13 +133,26 @@ fn test_write_evaluation_without_judge_score() {
         scenario_id: "test_scenario".to_string(),
         tool: "claude-code".to_string(),
         model: "claude-3-5-sonnet".to_string(),
-        outcome: "Pass".to_string(),
-        judge_score_1_to_5: None,
+        judge_score: None,
+        judge_passed: None,
+        judge_threshold: Some(0.7),
         gates_passed: 1,
         gates_total: 2,
         duration_secs: 20.0,
         cost_usd: Some(0.01),
         composite_score: Some(0.75),
+        efficiency: EfficiencyReport {
+            total_commands: 3,
+            unique_commands: 3,
+            error_count: 0,
+            retry_count: 0,
+            help_invocations: 1,
+            first_try_success_rate: 1.0,
+            iteration_ratio: 1.0,
+            completed: true,
+        },
+        interaction_evidence_source:
+            crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
         judge_feedback: vec![],
         evaluator_results: vec![],
     };
@@ -125,6 +161,6 @@ fn test_write_evaluation_without_judge_score() {
 
     let eval_path = dir.path().join("evaluation.md");
     let content = fs::read_to_string(&eval_path).unwrap();
-    assert!(!content.contains("Judge Score"));
+    assert!(content.contains("- **Judge Score**: Not run (0.70)"));
     assert!(!content.contains("## Judge Feedback"));
 }

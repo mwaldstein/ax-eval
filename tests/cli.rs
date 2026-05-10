@@ -971,9 +971,10 @@ evaluation:
         .env("LLM_TOOL_TEST_ENABLED", "1")
         .assert()
         .failure()
-        .stdout(predicate::str::contains("Matrix Summary"))
+        .stdout(predicate::str::contains("Evaluation Profile Summary"))
+        .stdout(predicate::str::contains("Judge"))
         .stdout(predicate::str::contains(
-            "Error: target health check failed",
+            "run error: target health check failed",
         ))
         .stderr(predicate::str::contains("2 scenario run(s) failed"));
 }

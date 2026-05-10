@@ -54,6 +54,7 @@ impl ResultRecordInput<'_> {
                     })
                     .collect(),
                 judge_passed: metrics.judge_passed,
+                judge_threshold: metrics.judge_threshold,
                 efficiency: EfficiencyMetricsRecord {
                     total_commands: metrics.efficiency.total_commands,
                     unique_commands: metrics.efficiency.unique_commands,
@@ -112,6 +113,7 @@ pub fn handle_dry_run(
             gates_total: 0,
             details: vec![],
             judge_passed: None,
+            judge_threshold: None,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 0,
                 unique_commands: 0,
@@ -206,6 +208,7 @@ mod tests {
             judge_score: Some(0.9),
             judge_response: None,
             judge_passed: Some(true),
+            judge_threshold: Some(0.7),
             efficiency: EfficiencyMetrics {
                 total_commands: 1,
                 unique_commands: 1,

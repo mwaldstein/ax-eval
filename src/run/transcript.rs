@@ -12,7 +12,6 @@ pub struct TranscriptFilesInput<'a> {
     pub model: &'a str,
     pub cache_key: &'a CacheKey,
     pub evaluation: &'a EvaluationFlowResult,
-    pub outcome: &'a str,
     pub setup_success: bool,
     pub setup_commands: Vec<SetupCommandReport>,
 }
@@ -53,9 +52,11 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
                     output: t.output,
                 }
             }),
-            outcome: input.outcome.to_string(),
             gates_passed: metrics.gates_passed,
             gates_total: metrics.gates_total,
+            judge_score: metrics.judge_score,
+            judge_passed: metrics.judge_passed,
+            judge_threshold: metrics.judge_threshold,
             composite_score: metrics.composite_score,
             gate_details: metrics
                 .details
@@ -70,8 +71,11 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
                 total_commands: metrics.efficiency.total_commands,
                 unique_commands: metrics.efficiency.unique_commands,
                 error_count: metrics.efficiency.error_count,
+                retry_count: metrics.efficiency.retry_count,
+                help_invocations: metrics.efficiency.help_invocations,
                 first_try_success_rate: metrics.efficiency.first_try_success_rate,
                 iteration_ratio: metrics.efficiency.iteration_ratio,
+                completed: metrics.efficiency.completed,
             },
             setup_success: input.setup_success,
             setup_commands: input
@@ -86,7 +90,6 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
         };
     input.writer.write_report(&report)?;
 
-    let judge_score_1_to_5 = metrics.judge_score.map(|score| (score * 5.0).round());
     let judge_feedback = if let Some(ref response) = metrics.judge_response {
         let mut feedback = Vec::new();
         if !response.rationale.is_empty() {
@@ -129,13 +132,25 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
         scenario_id: input.scenario.name.clone(),
         tool: input.tool.to_string(),
         model: input.model.to_string(),
-        outcome: input.outcome.to_string(),
-        judge_score_1_to_5,
+        judge_score: metrics.judge_score,
+        judge_passed: metrics.judge_passed,
+        judge_threshold: metrics.judge_threshold,
         gates_passed: metrics.gates_passed,
         gates_total: metrics.gates_total,
         duration_secs: input.evaluation.duration.as_secs_f64(),
         cost_usd: input.evaluation.cost,
         composite_score: metrics.composite_score,
+        efficiency: crate::transcript::types::EfficiencyReport {
+            total_commands: metrics.efficiency.total_commands,
+            unique_commands: metrics.efficiency.unique_commands,
+            error_count: metrics.efficiency.error_count,
+            retry_count: metrics.efficiency.retry_count,
+            help_invocations: metrics.efficiency.help_invocations,
+            first_try_success_rate: metrics.efficiency.first_try_success_rate,
+            iteration_ratio: metrics.efficiency.iteration_ratio,
+            completed: metrics.efficiency.completed,
+        },
+        interaction_evidence_source: metrics.interaction_evidence_source,
         judge_feedback,
         evaluator_results,
     };

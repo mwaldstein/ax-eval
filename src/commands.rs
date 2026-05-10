@@ -1,6 +1,5 @@
 use crate::cli::{GuidanceCommand, TemplateKind};
 use crate::config::Config;
-use crate::evaluation::ScoreTier;
 use crate::guidance;
 use crate::output;
 use crate::results::{Cache, ResultsDB};
@@ -190,30 +189,8 @@ pub fn handle_show_command(name: &str, results_db: &ResultsDB) -> anyhow::Result
     let record = results_db.load_by_id(name)?;
     match record {
         Some(r) => {
-            println!("Run ID: {}", r.id);
-            println!("Scenario: {}", r.scenario_id);
-            println!("Tool: {}", r.tool);
             println!("Timestamp: {}", r.timestamp);
-            println!("Duration: {:.2}s", r.duration_secs);
-            if let Some(cost) = r.cost_usd {
-                println!("Cost: ${:.4}", cost);
-            }
-            println!("Outcome: {}", r.outcome);
-            println!(
-                "Gates: {}/{}",
-                r.metrics.gates_passed, r.metrics.gates_total
-            );
-            if let Some(score) = r.judge_score {
-                let tier = ScoreTier::from_score(score);
-                println!("Judge Score: {:.2} ({})", score, tier);
-            }
-            if let Some(composite_score) = r.metrics.composite_score {
-                let composite_tier = ScoreTier::from_score(composite_score);
-                println!(
-                    "Composite Score: {:.2} ({})",
-                    composite_score, composite_tier
-                );
-            }
+            output::print_result_summary(&r);
             println!("Transcript: {}", r.transcript_path);
         }
         None => println!("Run not found: {}", name),

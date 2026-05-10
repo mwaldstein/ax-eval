@@ -27,9 +27,11 @@ pub struct RunReport {
     pub duration_secs: f64,
     pub cost_usd: Option<f64>,
     pub token_usage: Option<TokenUsage>,
-    pub outcome: String,
     pub gates_passed: usize,
     pub gates_total: usize,
+    pub judge_score: Option<f64>,
+    pub judge_passed: Option<bool>,
+    pub judge_threshold: Option<f64>,
     pub composite_score: Option<f64>,
     pub gate_details: Vec<GateDetail>,
     pub efficiency: EfficiencyReport,
@@ -52,12 +54,15 @@ pub struct SetupCommandResult {
 }
 
 #[derive(Debug)]
-pub(crate) struct EfficiencyReport {
+pub struct EfficiencyReport {
     pub total_commands: usize,
     pub unique_commands: usize,
     pub error_count: usize,
+    pub retry_count: usize,
+    pub help_invocations: usize,
     pub first_try_success_rate: f64,
     pub iteration_ratio: f64,
+    pub completed: bool,
 }
 
 #[derive(Debug)]
@@ -65,13 +70,16 @@ pub struct EvaluationReport {
     pub scenario_id: String,
     pub tool: String,
     pub model: String,
-    pub outcome: String,
-    pub judge_score_1_to_5: Option<f64>,
+    pub judge_score: Option<f64>,
+    pub judge_passed: Option<bool>,
+    pub judge_threshold: Option<f64>,
     pub gates_passed: usize,
     pub gates_total: usize,
     pub duration_secs: f64,
     pub cost_usd: Option<f64>,
     pub composite_score: Option<f64>,
+    pub efficiency: EfficiencyReport,
+    pub interaction_evidence_source: crate::interaction_profile::InteractionEvidenceSource,
     pub judge_feedback: Vec<String>,
     pub evaluator_results: Vec<EvaluatorResultSummary>,
 }

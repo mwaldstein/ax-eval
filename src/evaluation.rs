@@ -60,6 +60,7 @@ pub struct EvaluationMetrics {
     pub judge_score: Option<f64>,
     pub judge_response: Option<JudgeResponse>,
     pub judge_passed: Option<bool>,
+    pub judge_threshold: Option<f64>,
     pub efficiency: crate::transcript::EfficiencyMetrics,
     pub interaction_evidence_source: crate::interaction_profile::InteractionEvidenceSource,
     /// Composite score is only computed if scenario configures composite weights
@@ -103,6 +104,7 @@ struct MetricsBuildInput<'a> {
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
+    judge_threshold: Option<f64>,
     interaction_profile: InteractionProfile,
 }
 
@@ -129,6 +131,7 @@ fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
         judge_score,
         judge_response: input.judge_response,
         judge_passed: input.judge_passed,
+        judge_threshold: input.judge_threshold,
         efficiency,
         interaction_evidence_source: evidence_source,
         composite_score,
@@ -193,6 +196,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         judge_score: judge_result.score,
         judge_response: judge_result.response,
         judge_passed: judge_result.passed,
+        judge_threshold: judge_result.threshold,
         interaction_profile,
     });
 
@@ -292,6 +296,7 @@ mod tests {
             judge_score: None,
             judge_response: None,
             judge_passed: None,
+            judge_threshold: None,
             interaction_profile,
         });
 

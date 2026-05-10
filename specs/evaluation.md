@@ -431,7 +431,7 @@ The default behavior should be:
 1. **Report each layer independently.** The evaluation output shows interaction metrics, gate results, and judge score as separate dimensions — because they answer different questions and are compared independently.
 2. **Each layer can have a guardrail status.** Gates pass if all gates pass. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail). These statuses are filters and triage aids, not the primary evaluation output.
 3. **The evaluation profile is the primary output.** The set of scalar measurements across all layers is what enables comparisons across models, harnesses, and documentation variants.
-4. **Overall outcome** is determined by gates and (if enabled) judge, but serves as a quick filter, not as the evaluation conclusion.
+4. **Run status** is a triage label derived from execution completion, guardrails, and judge threshold state. It is not the evaluation conclusion.
 
 ### Optional Composite Scoring
 
@@ -447,14 +447,23 @@ evaluation:
 
 When `composite` is present, a composite score is computed. When absent, no composite score is reported.
 
-### Outcome Determination
+### Run Status
 
-```
-Outcome = Pass    if all gates pass AND (judge disabled OR judge passes threshold)
-Outcome = Fail    if any gate fails OR (judge enabled AND judge weighted_score < pass_threshold)
-```
+The human-facing aggregate output reports the judge column as
+`score (target) +/-delta`, for example `0.74 (0.80) -0.06`. It also reports a
+run status, not an absolute pass/fail outcome. Status labels should explain
+what needs attention:
 
-Interaction metrics do not affect the outcome. They are diagnostic and comparative. The outcome is a quick filter over the run, not the evaluation conclusion.
+- `completed; judge threshold met`
+- `completed; judge not run`
+- `guardrail attention: N/M gates`
+- `judge threshold attention`
+- `agent did not complete`
+- `run error: ...`
+
+Interaction metrics do not make a run pass or fail. They are diagnostic and
+comparative. Gate and judge threshold states are quick filters over the run,
+not the evaluation conclusion.
 
 ### Rust Representation
 
@@ -475,17 +484,22 @@ pub struct EvaluationResult {
     // Composite (optional)
     pub composite_score: Option<f64>,
 
-    // Final
-    pub outcome: Outcome,
+    // Triage aid
+    pub status: RunStatus,
 }
 
-pub enum Outcome {
-    Pass,
-    Fail { reason: String },
+pub enum RunStatus {
+    CompletedJudgeThresholdMet,
+    CompletedJudgeNotRun,
+    GuardrailAttention { gates_passed: usize, gates_total: usize },
+    JudgeThresholdAttention,
+    AgentDidNotComplete,
+    RunError { reason: String },
 }
 ```
 
-Drop `ReviewRequired` — a run either passes or fails. Human review is a workflow concern, not an evaluation outcome.
+Human review is a workflow concern layered on top of the profile, not a
+replacement for the dimensional evaluation data.
 
 ---
 

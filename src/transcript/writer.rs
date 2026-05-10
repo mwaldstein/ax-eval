@@ -5,6 +5,41 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+fn report_status(
+    completed: bool,
+    gates_passed: usize,
+    gates_total: usize,
+    judge_passed: Option<bool>,
+) -> String {
+    if !completed {
+        return "agent did not complete".to_string();
+    }
+    if gates_passed < gates_total {
+        return format!(
+            "guardrail attention: {}/{} gates",
+            gates_passed, gates_total
+        );
+    }
+    if let Some(false) = judge_passed {
+        return "judge threshold attention".to_string();
+    }
+    if judge_passed.is_none() {
+        return "completed; judge not run".to_string();
+    }
+    "completed; judge threshold met".to_string()
+}
+
+fn judge_score_text(score: Option<f64>, threshold: Option<f64>) -> String {
+    match (score, threshold) {
+        (Some(score), Some(threshold)) => {
+            format!("{:.2} ({:.2}) {:+.2}", score, threshold, score - threshold)
+        }
+        (Some(score), None) => format!("{:.2} (target n/a)", score),
+        (None, Some(threshold)) => format!("Not run ({:.2})", threshold),
+        (None, None) => "Not run".to_string(),
+    }
+}
+
 pub struct TranscriptWriter {
     pub base_dir: PathBuf,
     pub results_dir: PathBuf,
@@ -190,20 +225,46 @@ impl TranscriptWriter {
                 usage.input, usage.output
             ));
         }
-        content.push_str(&format!("- **Outcome**: {}\n\n", report.outcome));
+        content.push_str(&format!(
+            "- **Run Status**: {}\n\n",
+            report_status(
+                report.efficiency.completed,
+                report.gates_passed,
+                report.gates_total,
+                report.judge_passed
+            )
+        ));
     }
 
     fn write_evaluation_section(&self, report: &RunReport, content: &mut String) {
-        content.push_str("## Evaluation Metrics\n\n");
+        content.push_str("## Scores\n\n");
         content.push_str(&format!(
-            "- **Gates Passed**: {}/{}\n",
-            report.gates_passed, report.gates_total
+            "- **Judge Score**: {}\n",
+            judge_score_text(report.judge_score, report.judge_threshold)
         ));
         if let Some(score) = report.composite_score {
             content.push_str(&format!("- **Composite Score**: {:.2}\n", score));
+        } else {
+            content.push_str("- **Composite Score**: Not configured\n");
         }
+        content.push_str(&format!(
+            "- **Run Status**: {}\n",
+            report_status(
+                report.efficiency.completed,
+                report.gates_passed,
+                report.gates_total,
+                report.judge_passed
+            )
+        ));
         content.push('\n');
+    }
 
+    fn write_guardrails_section(&self, report: &RunReport, content: &mut String) {
+        content.push_str("## Guardrails\n\n");
+        content.push_str(&format!(
+            "- **Gates Passed**: {}/{}\n\n",
+            report.gates_passed, report.gates_total
+        ));
         if !report.gate_details.is_empty() {
             content.push_str("### Gate Details\n\n");
             for detail in &report.gate_details {
@@ -219,7 +280,7 @@ impl TranscriptWriter {
     }
 
     fn write_efficiency_section(&self, report: &RunReport, content: &mut String) {
-        content.push_str("## Efficiency\n\n");
+        content.push_str("## Interaction Metrics\n\n");
         content.push_str(&format!(
             "- **Total Commands**: {}\n",
             report.efficiency.total_commands
@@ -231,6 +292,14 @@ impl TranscriptWriter {
         content.push_str(&format!(
             "- **Error Count**: {}\n",
             report.efficiency.error_count
+        ));
+        content.push_str(&format!(
+            "- **Retry Count**: {}\n",
+            report.efficiency.retry_count
+        ));
+        content.push_str(&format!(
+            "- **Help Invocations**: {}\n",
+            report.efficiency.help_invocations
         ));
         content.push_str(&format!(
             "- **First Try Success Rate**: {:.1}%\n",
@@ -248,6 +317,7 @@ impl TranscriptWriter {
         self.write_execution_section(report, &mut content);
         self.write_evaluation_section(report, &mut content);
         self.write_efficiency_section(report, &mut content);
+        self.write_guardrails_section(report, &mut content);
 
         fs::write(self.results_dir.join("report.md"), content)?;
         Ok(())
@@ -262,18 +332,67 @@ impl TranscriptWriter {
         content.push_str(&format!("- **Scenario**: {}\n", evaluation.scenario_id));
         content.push_str(&format!("- **Tool**: {}\n", evaluation.tool));
         content.push_str(&format!("- **Model**: {}\n", evaluation.model));
-        content.push_str(&format!("- **Outcome**: {}\n\n", evaluation.outcome));
-
-        if let Some(judge_score) = evaluation.judge_score_1_to_5 {
-            content.push_str("## Judge Score\n\n");
-            content.push_str(&format!("**{}** / 5\n\n", judge_score));
-        }
-
-        content.push_str("## Metrics\n\n");
         content.push_str(&format!(
-            "- **Gates Passed**: {}/{}\n",
-            evaluation.gates_passed, evaluation.gates_total
+            "- **Run Status**: {}\n\n",
+            report_status(
+                evaluation.efficiency.completed,
+                evaluation.gates_passed,
+                evaluation.gates_total,
+                evaluation.judge_passed
+            )
         ));
+
+        content.push_str("## Quality Signals\n\n");
+        if let Some(composite_score) = evaluation.composite_score {
+            content.push_str(&format!("- **Composite Score**: {:.2}\n", composite_score));
+        } else {
+            content.push_str("- **Composite Score**: Not configured\n");
+        }
+        content.push_str(&format!(
+            "- **Judge Score**: {}\n",
+            judge_score_text(evaluation.judge_score, evaluation.judge_threshold)
+        ));
+        content.push_str(&format!(
+            "- **Custom Evaluators**: {}\n",
+            evaluation.evaluator_results.len()
+        ));
+        content.push('\n');
+
+        content.push_str("## Interaction Metrics\n\n");
+        content.push_str(&format!(
+            "- **Total Commands**: {}\n",
+            evaluation.efficiency.total_commands
+        ));
+        content.push_str(&format!(
+            "- **Unique Commands**: {}\n",
+            evaluation.efficiency.unique_commands
+        ));
+        content.push_str(&format!(
+            "- **Error Count**: {}\n",
+            evaluation.efficiency.error_count
+        ));
+        content.push_str(&format!(
+            "- **Retry Count**: {}\n",
+            evaluation.efficiency.retry_count
+        ));
+        content.push_str(&format!(
+            "- **Help Invocations**: {}\n",
+            evaluation.efficiency.help_invocations
+        ));
+        content.push_str(&format!(
+            "- **First Try Success Rate**: {:.1}%\n",
+            evaluation.efficiency.first_try_success_rate * 100.0
+        ));
+        content.push_str(&format!(
+            "- **Iteration Ratio**: {:.2}\n",
+            evaluation.efficiency.iteration_ratio
+        ));
+        content.push_str(&format!(
+            "- **Evidence Source**: {:?}\n\n",
+            evaluation.interaction_evidence_source
+        ));
+
+        content.push_str("## Run Metrics\n\n");
         content.push_str(&format!(
             "- **Duration**: {:.2}s\n",
             evaluation.duration_secs
@@ -281,12 +400,7 @@ impl TranscriptWriter {
         if let Some(cost) = evaluation.cost_usd {
             content.push_str(&format!("- **Cost**: ${:.4}\n", cost));
         }
-        if let Some(composite_score) = evaluation.composite_score {
-            content.push_str(&format!(
-                "- **Composite Score**: {:.2}\n\n",
-                composite_score
-            ));
-        }
+        content.push('\n');
 
         if !evaluation.judge_feedback.is_empty() {
             content.push_str("## Judge Feedback\n\n");
@@ -319,6 +433,12 @@ impl TranscriptWriter {
                 }
             }
         }
+
+        content.push_str("## Guardrails\n\n");
+        content.push_str(&format!(
+            "- **Gates Passed**: {}/{}\n\n",
+            evaluation.gates_passed, evaluation.gates_total
+        ));
 
         content.push_str("## Human Review\n\n");
         content.push_str("<!--\n");

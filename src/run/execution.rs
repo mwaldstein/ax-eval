@@ -163,7 +163,12 @@ pub fn run_evaluation_flow(input: EvaluationFlowInput<'_>) -> anyhow::Result<Eva
         completed,
         target_env: input.target_env,
     })?;
-    println!("Evaluation metrics: {:?}", metrics);
+    println!(
+        "Evaluation profile built: {} commands, {:.0}% first-try success, {} errors",
+        metrics.efficiency.total_commands,
+        metrics.efficiency.first_try_success_rate * 100.0,
+        metrics.efficiency.error_count
+    );
 
     Ok(EvaluationFlowResult {
         cost,

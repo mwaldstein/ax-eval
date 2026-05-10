@@ -126,7 +126,6 @@ impl<'a> ScenarioRunLifecycle<'a> {
             model: self.request.model,
             cache_key: &cache_key,
             evaluation: &evaluation,
-            outcome: &outcome,
             setup_success: prepared.setup_success,
             setup_commands: prepared.setup_commands,
         })?;

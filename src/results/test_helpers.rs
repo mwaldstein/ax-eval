@@ -48,6 +48,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
             gates_total: 2,
             details: vec![],
             judge_passed: Some(true),
+            judge_threshold: Some(0.8),
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 3,
                 unique_commands: 2,
