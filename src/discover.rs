@@ -11,6 +11,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_SCENARIO_COUNT: usize = 5;
+const UNDERSTANDING_HEADINGS: &[&str] = &[
+    "## What the Tool Appears to Be For",
+    "## Core Concepts and Mental Model",
+    "## Primary Workflows",
+    "## Useful Goal Areas",
+    "## Evidence Consulted",
+    "## Self-Description Quality",
+    "## Ambiguities or Missing Information",
+    "## Five Candidate Scenario Ideas",
+];
 
 pub struct DiscoverRequest<'a> {
     pub target: &'a str,
@@ -161,9 +171,12 @@ pub fn run_discovery(request: DiscoverRequest<'_>) -> Result<PathBuf> {
     write_stage_output(&root_dir, "inspect", &inspect_output)?;
 
     let understanding_path = root_dir.join("understanding.md");
-    if !understanding_path.exists() {
-        fs::write(&understanding_path, inspect_output.transcript.trim())?;
-    }
+    ensure_understanding_artifact(
+        &request,
+        &root_dir,
+        &understanding_path,
+        &mut overhead_usage,
+    )?;
 
     println!("Authoring generated scenarios...");
     let author_output = run_agent_stage(
@@ -279,6 +292,116 @@ fn run_agent_stage(
         anyhow::bail!("{} exited with code {}", tool, output.exit_code);
     }
     Ok(output)
+}
+
+fn ensure_understanding_artifact(
+    request: &DiscoverRequest<'_>,
+    root_dir: &Path,
+    understanding_path: &Path,
+    overhead_usage: &mut UsageTotals,
+) -> Result<()> {
+    if validate_understanding_artifact(understanding_path).is_ok() {
+        return Ok(());
+    }
+
+    let initial_diagnostics = validate_understanding_artifact(understanding_path)
+        .err()
+        .unwrap_or_else(|| vec!["unknown understanding artifact issue".to_string()]);
+    write_understanding_diagnostics(root_dir, "inspect", &initial_diagnostics)?;
+    println!("Inspect stage did not produce a usable understanding.md; retrying synthesis...");
+
+    let repair_output = run_agent_stage(
+        request.discover_tool,
+        request.discover_model,
+        request.target,
+        root_dir,
+        request.timeout_secs,
+        &understanding_repair_prompt(
+            request.target,
+            &root_dir
+                .join("stages")
+                .join("inspect")
+                .join("transcript.raw.txt"),
+            understanding_path,
+        ),
+    )
+    .context("discovery understanding repair stage failed")?;
+    overhead_usage.add_tool_output(&repair_output);
+    write_stage_output(root_dir, "inspect-repair", &repair_output)?;
+
+    validate_understanding_artifact(understanding_path).map_err(|diagnostics| {
+        let _ = write_understanding_diagnostics(root_dir, "inspect-repair", &diagnostics);
+        anyhow::anyhow!(
+            "Discovery inspect stage did not produce a usable understanding.md: {}",
+            diagnostics.join("; ")
+        )
+    })
+}
+
+fn validate_understanding_artifact(path: &Path) -> std::result::Result<(), Vec<String>> {
+    let content = fs::read_to_string(path).map_err(|error| {
+        vec![format!(
+            "understanding.md is missing or unreadable: {error}"
+        )]
+    })?;
+    diagnose_understanding_content(&content)
+}
+
+fn diagnose_understanding_content(content: &str) -> std::result::Result<(), Vec<String>> {
+    let trimmed = content.trim();
+    let mut diagnostics = Vec::new();
+
+    if trimmed.is_empty() {
+        diagnostics.push("understanding.md is empty".to_string());
+    }
+
+    let first_nonempty = content.lines().find(|line| !line.trim().is_empty());
+    let shell_prompt_lines = content
+        .lines()
+        .filter(|line| line.trim_start().starts_with("$ "))
+        .count();
+    let exit_code_lines = content
+        .lines()
+        .filter(|line| line.trim_start().starts_with("exit code:"))
+        .count();
+    if first_nonempty.is_some_and(|line| line.trim_start().starts_with("$ "))
+        || shell_prompt_lines >= 3
+        || exit_code_lines >= 3
+    {
+        diagnostics.push(
+            "understanding.md appears to be a command transcript rather than synthesized Markdown"
+                .to_string(),
+        );
+    }
+
+    let lowercase_content = content.to_lowercase();
+    for heading in UNDERSTANDING_HEADINGS {
+        if !lowercase_content.contains(&heading.to_lowercase()) {
+            diagnostics.push(format!(
+                "understanding.md is missing required heading: {heading}"
+            ));
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn write_understanding_diagnostics(
+    root_dir: &Path,
+    stage: &str,
+    diagnostics: &[String],
+) -> Result<()> {
+    let stage_dir = root_dir.join("stages").join(stage);
+    fs::create_dir_all(&stage_dir)?;
+    fs::write(
+        stage_dir.join("understanding-diagnostics.txt"),
+        diagnostics.join("\n"),
+    )?;
+    Ok(())
 }
 
 fn run_generated_scenarios(
@@ -430,19 +553,84 @@ subcommand help, examples, errors, and any files the command itself points you
 to. Do not rely on external documentation unless the command explicitly opens
 or names it.
 
-Create a Markdown file at ./understanding.md. Focus on why the tool exists and
-how an LLM agent should think about using it. Include:
-- What the tool appears to be for
-- Core concepts and mental model
-- Primary workflows
-- Scenarios where it would be useful
-- Evidence you consulted
-- Self-description quality
-- Ambiguities or missing information
-- Five candidate complex, goal-oriented scenario ideas
+Create a Markdown file at ./understanding.md. Do this before attempting any
+destructive or permission-sensitive experiments. Keep all scratch work inside
+the current directory; do not use /tmp, parent directories, or other external
+paths.
+
+Focus on why the tool exists and how an LLM agent should think about using it.
+Use exactly these section headings:
+
+# Discovery Understanding
+
+## What the Tool Appears to Be For
+
+## Core Concepts and Mental Model
+
+## Primary Workflows
+
+## Useful Goal Areas
+
+## Evidence Consulted
+
+## Self-Description Quality
+
+## Ambiguities or Missing Information
+
+## Five Candidate Scenario Ideas
+
+The final file must be a synthesized Markdown report, not a command transcript.
+If an exploratory command is denied or fails, still write ./understanding.md
+from the evidence already collected and mention the limitation under
+Ambiguities or Missing Information.
 
 Keep the artifact useful to the tool author as evidence of how self-describing
 the executable is."#
+    )
+}
+
+fn understanding_repair_prompt(
+    target: &str,
+    transcript_path: &Path,
+    understanding_path: &Path,
+) -> String {
+    format!(
+        r#"You are repairing the inspect artifact for llm-tool-test discovery.
+
+Target executable: {target}
+Inspect transcript: {}
+Required output file: {}
+
+Read the inspect transcript and synthesize the required Markdown understanding
+artifact. Work only from the transcript and any command-surface evidence named
+inside it. Do not run more experiments unless absolutely necessary, and keep any
+scratch files inside the current directory.
+
+Overwrite the required output file with a synthesized Markdown report using
+exactly these section headings:
+
+# Discovery Understanding
+
+## What the Tool Appears to Be For
+
+## Core Concepts and Mental Model
+
+## Primary Workflows
+
+## Useful Goal Areas
+
+## Evidence Consulted
+
+## Self-Description Quality
+
+## Ambiguities or Missing Information
+
+## Five Candidate Scenario Ideas
+
+The output must not be a command transcript. Include concise evidence references
+instead of pasting command output."#,
+        transcript_path.display(),
+        understanding_path.display()
     )
 }
 
@@ -816,5 +1004,44 @@ evaluation:
         assert_eq!(usage.combined.input_tokens, 17);
         assert_eq!(usage.combined.output_tokens, 8);
         assert_eq!(usage.combined.cost_usd, Some(0.75));
+    }
+
+    #[test]
+    fn understanding_validation_rejects_transcript_fallback() {
+        let content = r#"
+$ qipu --help
+Knowledge graph CLI designed for scripts and agents
+
+exit code: 0
+
+$ qipu create --help
+Create a new note
+
+exit code: 0
+"#;
+
+        let diagnostics =
+            diagnose_understanding_content(content).expect_err("transcript should be rejected");
+
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.contains("appears to be a command transcript")));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.contains("## What the Tool Appears to Be For")));
+    }
+
+    #[test]
+    fn understanding_validation_accepts_required_sections() {
+        let content = format!(
+            "# Discovery Understanding\n\n{}\n",
+            UNDERSTANDING_HEADINGS
+                .iter()
+                .map(|heading| format!("{heading}\n\nSynthesis for this section."))
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        );
+
+        diagnose_understanding_content(&content).expect("valid understanding");
     }
 }
