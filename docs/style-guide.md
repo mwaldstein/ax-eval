@@ -14,8 +14,22 @@ Bad: Users should run ax-eval scenarios.
 ```
 
 Exceptions:
+- **Value proposition / positioning**: third-person declarative ("ax-eval measures how agents discover, learn, and use your CLI.")
 - **Reference/glossary**: third-person declarative (`CONTEXT.md` defines terms)
 - **ADRs**: first-person plural is acceptable ("We chose this because...")
+
+## Framing
+
+State what the tool does, not what it is not. Use positive declarative framing for the value proposition.
+
+```
+Good: ## Measure Agent Experience
+Good: ax-eval measures how agents discover, learn, and use your CLI.
+Bad: ## Why Not Just Tests?
+Bad: Unit tests verify that your CLI works. ax-eval verifies that an agent can discover and use it.
+```
+
+Avoid question-based openings in section headers. State the concept directly.
 
 ## Tone
 
@@ -112,9 +126,18 @@ Bad: Never use no_transcript_errors.
 
 Do not use emoji in documentation.
 
+## Section Identity
+
+Each document section has one purpose. When content exists elsewhere, link to it rather than repeat it. The README is an overview and quickstart; the user guide covers workflows; the reference covers flags. Overlap between them is a bug.
+
+```
+Good: See the [CLI reference](docs/reference/cli-commands.md) for all commands and flags.
+Bad: [Repeating all command examples in the README that already exist in the reference]
+```
+
 ## What to Avoid
 
 - **Passive voice**: "scenarios are run" → "run scenarios"
 - **Weasel words**: "very", "quite", "simply", "just"
 - **Nested conditionals in prose**: split into steps or a table
-- **Redundant sections**: each doc has one identity; link to others rather than repeat
+- **Question-based section headers**: state the concept directly
