@@ -2,7 +2,7 @@
 
 This guide covers day-to-day usage of `ax-eval`: running scenarios, authoring scenario files, reading results, configuring matrix runs, and troubleshooting.
 
-For the high-level value proposition, start with the [README](../README.md). For complete schema details, see the specs in [`specs/`](../specs/).
+For the high-level value proposition, start with the [README](../README.md). For the complete CLI flag reference, see [CLI commands](../docs/reference/cli-commands.md). For complete schema details, see the specs in [`specs/`](../specs/).
 
 ## Safety Flag
 
@@ -33,72 +33,38 @@ The selected tool must be installed and authenticated before you run a scenario.
 
 The `mock` adapter is internal test support for adapter plumbing. It does not execute the target tool or mutate fixture state, so it is not intended for validating scenario outcomes.
 
-## Basic Commands
-
-List available scenarios:
+## Typical Workflow
 
 ```bash
+# 1. Validate selection and setup without a real LLM
+ax-eval run --scenario example_basic --dry-run
+
+# 2. Enable real-run consent
+export AX_EVAL_ENABLED=1
+
+# 3. List available scenarios
 ax-eval scenarios
+
+# 4. Run a scenario with an agent tool
+ax-eval run --scenario example_basic --tool claude-code
+
+# 5. Check the evaluation profile
+cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
+
+# 6. Review the transcript for debugging
+cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/artifacts/transcript.raw.txt
 ```
 
-Filter by tags or tier:
+Filter scenarios by tag or tier before running:
 
 ```bash
 ax-eval scenarios --tags examples
-ax-eval scenarios --tags smoke --tags guidance-test
 ax-eval scenarios --tier 0
-```
-
-Run a single scenario:
-
-```bash
-ax-eval run --scenario example_basic --tool claude-code
-```
-
-Run all scenarios:
-
-```bash
-ax-eval run --all --tool claude-code
-```
-
-Filter runs by tag or tier:
-
-```bash
 ax-eval run --all --tags smoke --tool claude-code
 ax-eval run --all --tags smoke --tags guidance-test --tier 1 --tool claude-code
-ax-eval run --all --tier 1 --tool claude-code
 ```
 
-Dry run without LLM calls or `AX_EVAL_ENABLED=1`:
-
-```bash
-ax-eval run --scenario example_basic --dry-run
-```
-
-Print copyable templates:
-
-```bash
-ax-eval template scenario
-ax-eval template config
-ax-eval template script-gate
-ax-eval template evaluator
-```
-
-Show run details:
-
-```bash
-ax-eval show <run-id>
-```
-
-Clean cache and legacy transcript artifacts:
-
-```bash
-# Clean cache and legacy transcript artifacts older than 7 days
-ax-eval clean --older-than "7d"
-
-# Clean cache and legacy transcript artifacts
-ax-eval clean
-```
+See the [CLI reference](../docs/reference/cli-commands.md) for all commands and flags.
 
 ## Discover a Tool
 
@@ -269,13 +235,11 @@ when creating scenarios or scripts from an agent session:
 ```bash
 ax-eval template scenario > fixtures/my_scenario.yaml
 ax-eval template config > ax-eval-config.toml
-ax-eval template script-gate > fixtures/templates/my_scenario/scripts/check_output.sh
-ax-eval template evaluator > fixtures/templates/my_scenario/scripts/score_quality.sh
 ```
 
 Templates are examples, not generated project scaffolds. After printing one,
 rename placeholders such as `mytool`, `example_cli_workflow`, and paths to match
-your fixture.
+your fixture. See the [CLI reference](../docs/reference/cli-commands.md) for all available template kinds.
 
 ## Guidance Topics
 
@@ -326,21 +290,10 @@ scaffolded, no-exploration workflow.
 
 ## Tool, Model, And Matrix Runs
 
-Run a scenario with a specific agent tool:
-
-```bash
-ax-eval run --scenario example_basic --tool claude-code
-```
-
-Pass a model when supported by the adapter:
+Run a scenario with a specific agent tool and model, or configure a judge tool independently:
 
 ```bash
 ax-eval run --scenario example_basic --tool claude-code --model claude-sonnet
-```
-
-Use a specific judge tool and model for LLM-as-judge evaluation. Judge tool selection is independent of the agent tool:
-
-```bash
 ax-eval run --scenario example_judge \
   --tool codex \
   --judge-tool claude-code \
@@ -353,7 +306,9 @@ Run a configured matrix with a profile from `ax-eval-config.toml`:
 ax-eval run --all --profile quick
 ```
 
-Scenarios can also define a `tool_matrix` to run multiple tool/model combinations without CLI flags.
+Scenarios can also define a `tool_matrix` field to run multiple tool/model combinations without CLI flags — see the [scenario spec](../specs/scenarios.md).
+
+See the [CLI reference](../docs/reference/cli-commands.md) for all `run` options.
 
 ## Configuration
 
