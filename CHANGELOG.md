@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-beta1] - 2026-05-23
+
+### Changed
+
+- Renamed project from `llm-tool-test` to `ax-eval` (binary, crate, config, docs)
+- Reframed codebase and documentation as an evaluation framework
+
+## [0.2.0-beta1] - 2026-05-23
+
+### Added
+
+- Discovery workflow for scenario management:
+  - Batch, manifest, prompts, stages, and understanding modules
+  - Discovery scenario contract and stage artifact modularization
+- Structured interaction evidence system:
+  - `interaction_evidence.rs` module with evidence extraction and profiling
+  - Target interaction evidence concentration and normalization
+  - Interaction evidence gate evaluation
+- Target health checks for scenario run validation
+- Configurable judge tools with parameterized prompts and rationale field
+- Default judge criteria when rubric omitted
+- Scenario catalog module for scenario management
+- Run lifecycle module with state machine and prepared run context
+- Scenario run request abstraction with early-return policy
+- Script contract interpretation and classified script execution results
+- Execution transcript persistence extraction
+- CLI templates and guidance for LLM tool authors
+- Agent skill conventions and domain documentation (`docs/agents/`)
+- User guide (`docs/user-guide.md`)
+- Testing guidance (`docs/testing.md`)
+- Guidance quality examples (`docs/guidance-testing.md`)
+- New example scenario fixtures:
+  - `example_e2e`, `example_full_config`, `example_gates_comprehensive`
+  - `example_judge`, `example_guidance_minimal`, `example_guidance_rich`
+- `CONTEXT.md` for domain vocabulary
+- `Cargo.lock` tracking
+
+### Changed
+
+- Modularized evaluation: split evaluation runners, extracted gate evaluation module
+- Moved adapter normalization into per-adapter modules (`normalize.rs`)
+- Centralized adapter availability checks
+- Centralized target environment handling and env conversion
+- Moved cache key creation to workspace, run early-return policy to request
+- Named input types across the codebase (metrics build, evaluation, script runner, judge execution/evaluation, setup command reports, target env conversion)
+- Introduced result record input pattern for consistent return types
+- Upgraded dependencies: portable-pty, sha2, toml parser, thiserror, YAML parser
+- Made mock adapter use structured tool calls
+- Documented adapter normalization ownership and mock test scope
+- Updated README positioning and value proposition
+
+### Fixed
+
+- Five high-severity issues: metrics logic, orphaned processes, unwrap panics, env var mutation
+- Cache invalidation and iteration metrics
+- Judge response parsing
+- Target environment placeholder paths
+- Clean age filtering
+- Codex default model handling
+- Fixture transcript write error propagation
+- Aligned documentation with implementation
+
+### Removed
+
+- SmartMockAdapter and examples tests (reverted)
+
 ## [0.1.0] - 2025-04-25
 
 ### Added
