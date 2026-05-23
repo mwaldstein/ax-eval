@@ -1,24 +1,24 @@
 # User Guide
 
-This guide covers day-to-day usage of `llm-tool-test`: running scenarios, authoring scenario files, reading results, configuring matrix runs, and troubleshooting.
+This guide covers day-to-day usage of `ax-eval`: running scenarios, authoring scenario files, reading results, configuring matrix runs, and troubleshooting.
 
 For the high-level value proposition, start with the [README](../README.md). For complete schema details, see the specs in [`specs/`](../specs/).
 
 ## Safety Flag
 
-`LLM_TOOL_TEST_ENABLED=1` is real-run consent. `llm-tool-test` will not launch
+`AX_EVAL_ENABLED=1` is real-run consent. `ax-eval` will not launch
 an agent adapter unless this variable is set, because real runs may spend LLM API
 credits and execute agent-driven CLI commands.
 
 ```bash
-export LLM_TOOL_TEST_ENABLED=1
+export AX_EVAL_ENABLED=1
 ```
 
 Use `--dry-run` when you want to validate scenario selection, fixture setup,
 cache keys, and run planning without setting the safety flag or invoking an LLM:
 
 ```bash
-llm-tool-test run --scenario example_basic --dry-run
+ax-eval run --scenario example_basic --dry-run
 ```
 
 ## Runtime Agent Tools
@@ -38,66 +38,66 @@ The `mock` adapter is internal test support for adapter plumbing. It does not ex
 List available scenarios:
 
 ```bash
-llm-tool-test scenarios
+ax-eval scenarios
 ```
 
 Filter by tags or tier:
 
 ```bash
-llm-tool-test scenarios --tags examples
-llm-tool-test scenarios --tags smoke --tags guidance-test
-llm-tool-test scenarios --tier 0
+ax-eval scenarios --tags examples
+ax-eval scenarios --tags smoke --tags guidance-test
+ax-eval scenarios --tier 0
 ```
 
 Run a single scenario:
 
 ```bash
-llm-tool-test run --scenario example_basic --tool claude-code
+ax-eval run --scenario example_basic --tool claude-code
 ```
 
 Run all scenarios:
 
 ```bash
-llm-tool-test run --all --tool claude-code
+ax-eval run --all --tool claude-code
 ```
 
 Filter runs by tag or tier:
 
 ```bash
-llm-tool-test run --all --tags smoke --tool claude-code
-llm-tool-test run --all --tags smoke --tags guidance-test --tier 1 --tool claude-code
-llm-tool-test run --all --tier 1 --tool claude-code
+ax-eval run --all --tags smoke --tool claude-code
+ax-eval run --all --tags smoke --tags guidance-test --tier 1 --tool claude-code
+ax-eval run --all --tier 1 --tool claude-code
 ```
 
-Dry run without LLM calls or `LLM_TOOL_TEST_ENABLED=1`:
+Dry run without LLM calls or `AX_EVAL_ENABLED=1`:
 
 ```bash
-llm-tool-test run --scenario example_basic --dry-run
+ax-eval run --scenario example_basic --dry-run
 ```
 
 Print copyable templates:
 
 ```bash
-llm-tool-test template scenario
-llm-tool-test template config
-llm-tool-test template script-gate
-llm-tool-test template evaluator
+ax-eval template scenario
+ax-eval template config
+ax-eval template script-gate
+ax-eval template evaluator
 ```
 
 Show run details:
 
 ```bash
-llm-tool-test show <run-id>
+ax-eval show <run-id>
 ```
 
 Clean cache and legacy transcript artifacts:
 
 ```bash
 # Clean cache and legacy transcript artifacts older than 7 days
-llm-tool-test clean --older-than "7d"
+ax-eval clean --older-than "7d"
 
 # Clean cache and legacy transcript artifacts
-llm-tool-test clean
+ax-eval clean
 ```
 
 ## Discover a Tool
@@ -106,8 +106,8 @@ Use `discover` when you do not yet have scenarios for a target CLI and want an
 LLM-first evaluation of how self-describing the executable is:
 
 ```bash
-export LLM_TOOL_TEST_ENABLED=1
-llm-tool-test discover qipu --tool opencode
+export AX_EVAL_ENABLED=1
+ax-eval discover qipu --tool opencode
 ```
 
 Discovery runs one all-in-one workflow:
@@ -124,7 +124,7 @@ Discovery runs one all-in-one workflow:
 Artifacts are written under a directory like:
 
 ```text
-llm-tool-test-results/<timestamp>-discover-<target>-<tool>-<model>/
+ax-eval-results/<timestamp>-discover-<target>-<tool>-<model>/
 ```
 
 `discover` treats low judge scores, failed target-tool calls, timeouts, and poor
@@ -138,7 +138,7 @@ evaluated scenario-run agent and the discovery authoring agent. Use
 summary should use a different agent/model:
 
 ```bash
-llm-tool-test discover qipu \
+ax-eval discover qipu \
   --tool opencode \
   --model default \
   --discover-tool codex \
@@ -155,22 +155,22 @@ the main evaluation signal.
 
 ```bash
 # 1. Validate selection and setup without a real LLM
-llm-tool-test run --scenario example_basic --dry-run
+ax-eval run --scenario example_basic --dry-run
 
 # 2. Enable real-run consent
-export LLM_TOOL_TEST_ENABLED=1
+export AX_EVAL_ENABLED=1
 
 # 3. List available scenarios
-llm-tool-test scenarios
+ax-eval scenarios
 
 # 4. Run a scenario with an agent tool
-llm-tool-test run --scenario example_basic --tool claude-code
+ax-eval run --scenario example_basic --tool claude-code
 
 # 5. Check the evaluation profile
-cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
+cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
 
 # 5. Review the transcript for debugging
-cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/artifacts/transcript.raw.txt
+cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/artifacts/transcript.raw.txt
 ```
 
 ## Scenario Authoring
@@ -187,7 +187,7 @@ template_folder: example_basic
 target:
   binary: notes
   env:
-    NOTES_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    NOTES_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 
 task:
   prompt: |
@@ -213,19 +213,19 @@ For the complete scenario schema, see the [scenario spec](../specs/scenarios.md)
 
 `target.env` values are passed to setup commands, target health checks, agent
 adapter runs, post scripts, script gates, and evaluators. Use
-`${LLM_TOOL_TEST_FIXTURE_DIR}` when a target tool needs an environment variable
+`${AX_EVAL_FIXTURE_DIR}` when a target tool needs an environment variable
 pointing at the isolated test workspace:
 
 ```yaml
 target:
   binary: mytool
   env:
-    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 ```
 
 ### Target Tool Lookup During Development
 
-`llm-tool-test` does not rewrite `PATH` for the target tool. The agent sees the
+`ax-eval` does not rewrite `PATH` for the target tool. The agent sees the
 environment you give the harness, plus any variables declared in `target.env`.
 When the target CLI is built outside the fixture, make that build directory
 discoverable before running the scenario:
@@ -233,8 +233,8 @@ discoverable before running the scenario:
 ```bash
 cargo build
 PATH="$PWD/target/debug:$PATH" \
-  LLM_TOOL_TEST_ENABLED=1 \
-  llm-tool-test run --scenario my_scenario --tool claude-code
+  AX_EVAL_ENABLED=1 \
+  ax-eval run --scenario my_scenario --tool claude-code
 ```
 
 You can also declare the development path in the scenario when every command in
@@ -251,7 +251,7 @@ target:
 Prefer a shell-level `PATH` change for one-off local development. Prefer
 `target.env` when the path is part of the scenario's reproducible setup. Values
 in `target.env` are literal except for the documented
-`${LLM_TOOL_TEST_FIXTURE_DIR}` and `${LLM_TOOL_TEST_RESULTS_DIR}` placeholders,
+`${AX_EVAL_FIXTURE_DIR}` and `${AX_EVAL_RESULTS_DIR}` placeholders,
 so `PATH: "...:${PATH}"` will not inherit the caller's path. Use a relative
 command such as `./mytool` only when the binary is copied into the fixture
 itself.
@@ -267,10 +267,10 @@ The `template` command prints schema-valid starting points to stdout. Use it
 when creating scenarios or scripts from an agent session:
 
 ```bash
-llm-tool-test template scenario > fixtures/my_scenario.yaml
-llm-tool-test template config > llm-tool-test-config.toml
-llm-tool-test template script-gate > fixtures/templates/my_scenario/scripts/check_output.sh
-llm-tool-test template evaluator > fixtures/templates/my_scenario/scripts/score_quality.sh
+ax-eval template scenario > fixtures/my_scenario.yaml
+ax-eval template config > ax-eval-config.toml
+ax-eval template script-gate > fixtures/templates/my_scenario/scripts/check_output.sh
+ax-eval template evaluator > fixtures/templates/my_scenario/scripts/score_quality.sh
 ```
 
 Templates are examples, not generated project scaffolds. After printing one,
@@ -283,10 +283,10 @@ Use `guidance` when you want help authoring a CLI and fixture guidance that LLM
 agents can use reliably:
 
 ```bash
-llm-tool-test guidance list
-llm-tool-test guidance start
-llm-tool-test guidance test-usage
-llm-tool-test guidance workflow-commands typed-errors
+ax-eval guidance list
+ax-eval guidance start
+ax-eval guidance test-usage
+ax-eval guidance workflow-commands typed-errors
 ```
 
 `guidance start` prints a short capsule index of the highest-priority
@@ -297,7 +297,7 @@ authentication, scenario authoring, usage-quality testing, and evaluation
 signals. Each topic includes related-topic suggestions so agents can traverse
 the guidance without loading every topic at once.
 
-`guidance test-usage` describes the role `llm-tool-test` should play:
+`guidance test-usage` describes the role `ax-eval` should play:
 evaluate whether agents can discover and use a tool well from realistic goals,
 not command recipes. Gates are guardrails for catastrophic correctness failures;
 the evaluation profile is the main signal for usage quality, guidance quality,
@@ -329,39 +329,39 @@ scaffolded, no-exploration workflow.
 Run a scenario with a specific agent tool:
 
 ```bash
-llm-tool-test run --scenario example_basic --tool claude-code
+ax-eval run --scenario example_basic --tool claude-code
 ```
 
 Pass a model when supported by the adapter:
 
 ```bash
-llm-tool-test run --scenario example_basic --tool claude-code --model claude-sonnet
+ax-eval run --scenario example_basic --tool claude-code --model claude-sonnet
 ```
 
 Use a specific judge tool and model for LLM-as-judge evaluation. Judge tool selection is independent of the agent tool:
 
 ```bash
-llm-tool-test run --scenario example_judge \
+ax-eval run --scenario example_judge \
   --tool codex \
   --judge-tool claude-code \
   --judge-model claude-sonnet
 ```
 
-Run a configured matrix with a profile from `llm-tool-test-config.toml`:
+Run a configured matrix with a profile from `ax-eval-config.toml`:
 
 ```bash
-llm-tool-test run --all --profile quick
+ax-eval run --all --profile quick
 ```
 
 Scenarios can also define a `tool_matrix` to run multiple tool/model combinations without CLI flags.
 
 ## Configuration
 
-An optional `llm-tool-test-config.toml` can define fixture/result paths, tool/model validation, and matrix profiles.
+An optional `ax-eval-config.toml` can define fixture/result paths, tool/model validation, and matrix profiles.
 
 ```toml
 fixtures_path = "fixtures"
-results_path = "llm-tool-test-results"
+results_path = "ax-eval-results"
 
 [tools.claude-code]
 name = "claude-code"
@@ -379,7 +379,7 @@ tools = ["claude-code"]
 models = ["claude-sonnet"]
 ```
 
-Copy `llm-tool-test-config.example.toml` as a starting point.
+Copy `ax-eval-config.example.toml` as a starting point.
 
 ## Interpreting Results
 
@@ -419,11 +419,11 @@ Common comparisons:
 Run directories are stored in:
 
 ```text
-llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/
+ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/
 ```
 
 The results directory also contains `results.jsonl`, an append-only run record
-database used by `llm-tool-test show`.
+database used by `ax-eval show`.
 
 Typical artifacts include:
 
@@ -443,11 +443,11 @@ Use CI gates for catastrophic regressions. Use the evaluation profile to underst
 
 ## Troubleshooting
 
-**"Real LLM tool runs require LLM_TOOL_TEST_ENABLED=1"**: use `--dry-run` to
-validate without an LLM, or set `LLM_TOOL_TEST_ENABLED=1` to consent to real
+**"Real LLM tool runs require AX_EVAL_ENABLED=1"**: use `--dry-run` to
+validate without an LLM, or set `AX_EVAL_ENABLED=1` to consent to real
 agent execution.
 
-**Scenario not found**: check that the scenario exists in `fixtures/`, then run `llm-tool-test scenarios`.
+**Scenario not found**: check that the scenario exists in `fixtures/`, then run `ax-eval scenarios`.
 
 **Gate failures**: treat these as guardrail failures, then inspect `evaluation.md`, `metrics.json`, and `artifacts/transcript.raw.txt` to understand the full interaction profile.
 
@@ -458,7 +458,7 @@ adapter's raw-output parser no longer matches the CLI output schema.
 
 **Timeout errors**: increase timeout with `--timeout-secs 600`.
 
-**Cache issues**: disable caching with `--no-cache` or run `llm-tool-test clean`.
+**Cache issues**: disable caching with `--no-cache` or run `ax-eval clean`.
 
 **Composite score low**: review the interaction metrics, guardrail failures, and judge rationale to understand which dimension regressed.
 
@@ -469,13 +469,13 @@ adapter's raw-output parser no longer matches the CLI output schema.
 All built-in example scenarios share the `examples` tag:
 
 ```bash
-llm-tool-test scenarios --tags examples
+ax-eval scenarios --tags examples
 ```
 
 Run all examples with Claude Code:
 
 ```bash
-llm-tool-test run --all --tags examples --tier 1 --tool claude-code
+ax-eval run --all --tags examples --tier 1 --tool claude-code
 ```
 
 The guidance examples compare minimal and rich AGENTS.md instructions:

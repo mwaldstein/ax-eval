@@ -15,20 +15,20 @@ Tagged releases publish pre-built binaries for all targets via the `release.yml`
 | Linux    | aarch64 | `ubuntu-24.04-arm` |
 | Windows  | x86_64 | `windows-latest` |
 
-Binary naming: `llm-tool-test-<version>-<target>.tar.gz` (`.zip` for Windows).
+Binary naming: `ax-eval-<version>-<target>.tar.gz` (`.zip` for Windows).
 
 ### Quick Install Scripts
 
 **Unix (macOS/Linux):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/mwaldstein/ax-eval/master/scripts/install.sh | sh
 ```
 
 The installer:
 - Detects platform and architecture
 - Downloads the appropriate binary from GitHub releases
-- Ignores prereleases by default (set `LLM_TOOL_TEST_INCLUDE_PRERELEASES=1` to include)
+- Ignores prereleases by default (set `AX_EVAL_INCLUDE_PRERELEASES=1` to include)
 - Installs to `~/.local/bin` (override with `INSTALL_DIR`)
 - Verifies SHA-256 checksums
 - Prints PATH setup guidance if needed
@@ -36,7 +36,7 @@ The installer:
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/mwaldstein/ax-eval/master/scripts/install.ps1 | iex
 ```
 
 Same behavior as the Unix installer: platform detection, checksum verification, prerelease filtering.
@@ -45,15 +45,15 @@ Same behavior as the Unix installer: platform detection, checksum verification, 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_TOOL_TEST_REPO` | `mwaldstein/llm-tool-test` | GitHub repo for releases |
+| `AX_EVAL_REPO` | `mwaldstein/ax-eval` | GitHub repo for releases |
 | `INSTALL_DIR` | `~/.local/bin` | Installation directory |
-| `LLM_TOOL_TEST_VERSION` | `latest` | Version to install (or `latest`) |
-| `LLM_TOOL_TEST_INCLUDE_PRERELEASES` | `0` | Set `1`/`true` to consider prereleases |
+| `AX_EVAL_VERSION` | `latest` | Version to install (or `latest`) |
+| `AX_EVAL_INCLUDE_PRERELEASES` | `0` | Set `1`/`true` to consider prereleases |
 
 ### Cargo Install (Future)
 
 ```bash
-cargo install llm-tool-test
+cargo install ax-eval
 ```
 
 Requires publishing to crates.io. Not yet available.
@@ -61,8 +61,8 @@ Requires publishing to crates.io. Not yet available.
 ### Homebrew (Future)
 
 ```bash
-brew tap mwaldstein/llm-tool-test
-brew install llm-tool-test
+brew tap mwaldstein/ax-eval
+brew install ax-eval
 ```
 
 Requires a Homebrew tap repository. Not yet available.
@@ -140,6 +140,6 @@ scripts/
 
 ## Remaining Work
 
-- [ ] Publish to crates.io (`cargo install llm-tool-test`)
+- [ ] Publish to crates.io (`cargo install ax-eval`)
 - [ ] Create Homebrew tap and formula
 - [ ] GPG or sigstore release signing

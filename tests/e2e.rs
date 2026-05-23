@@ -1,15 +1,15 @@
 //! End-to-end tests using real LLM tools.
 //!
-//! These tests verify the complete llm-tool-test flow with actual LLM adapters.
+//! These tests verify the complete ax-eval flow with actual LLM adapters.
 //! They require an installed and authenticated LLM tool, so they do NOT run
 //! automatically in standard test suites. They are gated behind the
-//! `LLM_TOOL_TEST_E2E` environment variable.
+//! `AX_EVAL_E2E` environment variable.
 //!
 //! For automated regression tests that run in CI, see `src/fixture_tests.rs`
 //! which exercises every fixture scenario with mock tools (no LLM required).
 //!
 //! To run these real-LLM tests:
-//!   LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e -- --ignored
+//!   AX_EVAL_ENABLED=1 AX_EVAL_E2E=1 cargo test --test e2e -- --ignored
 //!
 //! Supported tools (auto-detected):
 //!   - opencode
@@ -17,7 +17,7 @@
 //!   - codex
 //!
 //! Model selection:
-//!   Set LLM_TOOL_TEST_MODEL to override the default model. For opencode, the
+//!   Set AX_EVAL_MODEL to override the default model. For opencode, the
 //!   default is `opencode/kimi-k2.6`.
 
 mod support;
@@ -47,16 +47,16 @@ fn detect_available_tools() -> Vec<String> {
 
 /// Check if e2e tests are enabled via environment variable.
 fn e2e_enabled() -> bool {
-    env::var("LLM_TOOL_TEST_E2E").is_ok_and(|v| v == "1")
+    env::var("AX_EVAL_E2E").is_ok_and(|v| v == "1")
 }
 
-fn llm_tool_test() -> Command {
-    support::llm_tool_test()
+fn ax_eval() -> Command {
+    support::ax_eval()
 }
 
-/// Resolve model for a given tool, respecting LLM_TOOL_TEST_MODEL env var.
+/// Resolve model for a given tool, respecting AX_EVAL_MODEL env var.
 fn resolve_model(tool: &str) -> String {
-    env::var("LLM_TOOL_TEST_MODEL").unwrap_or_else(|_| match tool {
+    env::var("AX_EVAL_MODEL").unwrap_or_else(|_| match tool {
         "opencode" => "opencode/kimi-k2.6".to_string(),
         "codex" => "gpt-5-codex".to_string(),
         _ => "default".to_string(),
@@ -65,9 +65,9 @@ fn resolve_model(tool: &str) -> String {
 
 #[test]
 fn test_e2e_scenario_discovery() {
-    llm_tool_test()
+    ax_eval()
         .args(["scenarios", "--tags", "examples"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicates::str::contains("example_e2e"))
@@ -76,23 +76,23 @@ fn test_e2e_scenario_discovery() {
 
 #[test]
 fn test_e2e_dry_run() {
-    llm_tool_test()
+    ax_eval()
         .args([
             "run",
             "--scenario",
             "fixtures/example_e2e.yaml",
             "--dry-run",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
 
 #[test]
-#[ignore = "requires installed and authenticated opencode plus LLM_TOOL_TEST_E2E=1"]
+#[ignore = "requires installed and authenticated opencode plus AX_EVAL_E2E=1"]
 fn test_e2e_with_real_llm_opencode() {
     if !e2e_enabled() {
-        eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
+        eprintln!("Skipping e2e test: AX_EVAL_E2E=1 not set");
         return;
     }
 
@@ -112,7 +112,7 @@ fn test_e2e_with_real_llm_opencode() {
         "opencode should be available and authenticated"
     );
 
-    let mut cmd = llm_tool_test();
+    let mut cmd = ax_eval();
     cmd.args([
         "run",
         "--scenario",
@@ -125,7 +125,7 @@ fn test_e2e_with_real_llm_opencode() {
         "60",
         "--no-cache",
     ])
-    .env("LLM_TOOL_TEST_ENABLED", "1");
+    .env("AX_EVAL_ENABLED", "1");
 
     let assert = cmd.assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
@@ -138,10 +138,10 @@ fn test_e2e_with_real_llm_opencode() {
 }
 
 #[test]
-#[ignore = "requires installed and authenticated claude/claude-code plus LLM_TOOL_TEST_E2E=1"]
+#[ignore = "requires installed and authenticated claude/claude-code plus AX_EVAL_E2E=1"]
 fn test_e2e_with_real_llm_claude() {
     if !e2e_enabled() {
-        eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
+        eprintln!("Skipping e2e test: AX_EVAL_E2E=1 not set");
         return;
     }
 
@@ -153,7 +153,7 @@ fn test_e2e_with_real_llm_claude() {
         return;
     }
 
-    let mut cmd = llm_tool_test();
+    let mut cmd = ax_eval();
     cmd.args([
         "run",
         "--scenario",
@@ -164,7 +164,7 @@ fn test_e2e_with_real_llm_claude() {
         "60",
         "--no-cache",
     ])
-    .env("LLM_TOOL_TEST_ENABLED", "1");
+    .env("AX_EVAL_ENABLED", "1");
 
     let assert = cmd.assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
@@ -177,10 +177,10 @@ fn test_e2e_with_real_llm_claude() {
 }
 
 #[test]
-#[ignore = "requires installed and authenticated codex plus LLM_TOOL_TEST_E2E=1"]
+#[ignore = "requires installed and authenticated codex plus AX_EVAL_E2E=1"]
 fn test_e2e_with_real_llm_codex() {
     if !e2e_enabled() {
-        eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
+        eprintln!("Skipping e2e test: AX_EVAL_E2E=1 not set");
         return;
     }
 
@@ -200,7 +200,7 @@ fn test_e2e_with_real_llm_codex() {
         "codex should be available and authenticated"
     );
 
-    let mut cmd = llm_tool_test();
+    let mut cmd = ax_eval();
     cmd.args([
         "run",
         "--scenario",
@@ -213,7 +213,7 @@ fn test_e2e_with_real_llm_codex() {
         "60",
         "--no-cache",
     ])
-    .env("LLM_TOOL_TEST_ENABLED", "1");
+    .env("AX_EVAL_ENABLED", "1");
 
     let assert = cmd.assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
@@ -226,10 +226,10 @@ fn test_e2e_with_real_llm_codex() {
 }
 
 #[test]
-#[ignore = "requires an installed and authenticated LLM tool plus LLM_TOOL_TEST_E2E=1"]
+#[ignore = "requires an installed and authenticated LLM tool plus AX_EVAL_E2E=1"]
 fn test_e2e_reports_results_artifacts() {
     if !e2e_enabled() {
-        eprintln!("Skipping e2e test: LLM_TOOL_TEST_E2E=1 not set");
+        eprintln!("Skipping e2e test: AX_EVAL_E2E=1 not set");
         return;
     }
 
@@ -247,12 +247,12 @@ fn test_e2e_reports_results_artifacts() {
         }
     };
 
-    let results_dir = PathBuf::from("llm-tool-test-results");
+    let results_dir = PathBuf::from("ax-eval-results");
     let _ = std::fs::remove_dir_all(&results_dir);
 
     let model = resolve_model(&tool);
 
-    let mut cmd = llm_tool_test();
+    let mut cmd = ax_eval();
     cmd.args([
         "run",
         "--scenario",
@@ -264,7 +264,7 @@ fn test_e2e_reports_results_artifacts() {
         "--timeout-secs",
         "60",
     ])
-    .env("LLM_TOOL_TEST_ENABLED", "1");
+    .env("AX_EVAL_ENABLED", "1");
 
     let assert = cmd.assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);

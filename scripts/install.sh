@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
-repo="${LLM_TOOL_TEST_REPO:-mwaldstein/llm-tool-test}"
+repo="${AX_EVAL_REPO:-mwaldstein/ax-eval}"
 install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
-version="${LLM_TOOL_TEST_VERSION:-latest}"
-include_prereleases="${LLM_TOOL_TEST_INCLUDE_PRERELEASES:-0}"
-bin_name="llm-tool-test"
+version="${AX_EVAL_VERSION:-latest}"
+include_prereleases="${AX_EVAL_INCLUDE_PRERELEASES:-0}"
+bin_name="ax-eval"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

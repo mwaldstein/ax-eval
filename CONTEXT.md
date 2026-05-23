@@ -1,4 +1,4 @@
-# llm-tool-test Context
+# ax-eval Context
 
 ## Glossary
 
@@ -81,7 +81,7 @@ diagnostic evidence rather than pass/fail verdicts.
 Discovery scenarios should use qualitative judge evaluation as a first-class
 result, even when no deterministic gates exist. The judge is not a secondary
 clean-up step after pass/fail testing; it captures the subjective assessment
-that llm-tool-test exists to make visible.
+that ax-eval exists to make visible.
 
 Discovery may still use a judge `pass_threshold` as a general rubric reference,
 but pass/fail is not the primary discovery result. The more important output is
@@ -99,7 +99,7 @@ Discovery authors its generated scenarios as one coordinated fixture set in a
 single authoring pass. The authoring agent uses the understanding document to
 balance coverage across all five scenarios and avoid near-duplicate goals.
 
-Discovery fixture authoring produces complete runnable `llm-tool-test` scenario
+Discovery fixture authoring produces complete runnable `ax-eval` scenario
 YAML files directly, plus any required templates and rubrics. The authoring
 stage may also create a README beside the generated scenarios when additional
 annotation is worth preserving, but prose notes are not a substitute for
@@ -130,7 +130,7 @@ the final artifacts cannot be written.
 
 Discovery has the same explicit-consent requirement as normal real scenario
 runs. Because it invokes LLM agents and allows agent-driven target command
-execution, `discover` must require `LLM_TOOL_TEST_ENABLED=1` before performing
+execution, `discover` must require `AX_EVAL_ENABLED=1` before performing
 real work.
 
 Discovery distinguishes the scenario-run agent from the discovery-authoring
@@ -141,7 +141,7 @@ fixture-authoring, and final-summary stages. When omitted, discovery authoring
 defaults to the base tool/model. Judge tool/model options remain separate and
 follow the existing judge defaulting behavior.
 
-Discovery command syntax is target-first: `llm-tool-test discover <target>`.
+Discovery command syntax is target-first: `ax-eval discover <target>`.
 The positional target is the executable binary or command being discovered.
 Agent selection remains in flags so the target tool is not confused with the
 LLM agent adapter that will inspect, author, run, or judge the scenarios.
@@ -174,7 +174,7 @@ are discovery overhead. Generated scenario executions are the evaluated usage.
 combined totals for budgeting.
 
 Discovery reuses the existing scenario-run machinery internally rather than
-shelling out to `llm-tool-test run`. The workflow loads generated scenarios
+shelling out to `ax-eval run`. The workflow loads generated scenarios
 from the discovery artifact directory, runs them as one coordinated generated
 batch with caching disabled, and records paths, result IDs, errors, and usage
 totals under the discovery result.
@@ -182,11 +182,11 @@ totals under the discovery result.
 Discovery result directories include the target command and evaluated
 agent/model in the directory name so the main comparison axes are visible at a
 glance, for example
-`llm-tool-test-results/20260509-143012-discover-qipu-opencode-gpt-5/`.
+`ax-eval-results/20260509-143012-discover-qipu-opencode-gpt-5/`.
 `discovery.json` records the exact target, agent, and model values, including
 any values that are sanitized or truncated for filesystem-friendly paths.
 
 Discovery does not include a dry-run mode in the initial design. Its value
 depends on real LLM inspection, fixture authoring, generated scenario
-execution, judging, and summary. The explicit `LLM_TOOL_TEST_ENABLED=1`
+execution, judging, and summary. The explicit `AX_EVAL_ENABLED=1`
 requirement is the safety mechanism for avoiding accidental real runs.

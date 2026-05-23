@@ -43,10 +43,10 @@ These validate the framework and the built-in scenario definitions.
 
 Tests in `tests/e2e.rs` exercise the framework with actual LLM adapters. They
 require an installed and authenticated LLM tool and are gated behind
-`LLM_TOOL_TEST_E2E=1`:
+`AX_EVAL_E2E=1`:
 
 ```bash
-LLM_TOOL_TEST_ENABLED=1 LLM_TOOL_TEST_E2E=1 cargo test --test e2e -- --ignored
+AX_EVAL_ENABLED=1 AX_EVAL_E2E=1 cargo test --test e2e -- --ignored
 ```
 
 Use these for manual validation or CI environments with LLM credentials. They

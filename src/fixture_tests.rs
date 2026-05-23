@@ -5,7 +5,7 @@
 //! are correct. They run automatically in CI via `cargo test`.
 //!
 //! For tests with actual LLM adapters, see `tests/e2e.rs` which requires
-//! authenticated tools and `LLM_TOOL_TEST_E2E=1`.
+//! authenticated tools and `AX_EVAL_E2E=1`.
 
 #[cfg(test)]
 mod tests {

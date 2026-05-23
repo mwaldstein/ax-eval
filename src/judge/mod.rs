@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use llm_tool_test::judge;
+//! use ax_eval::judge;
 //! use std::path::Path;
 //!
 //! let rubric = judge::load_rubric(Path::new("rubrics/quality.yaml")).unwrap();

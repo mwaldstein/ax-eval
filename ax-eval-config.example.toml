@@ -1,10 +1,10 @@
-# llm-tool-test Configuration Example
+# ax-eval Configuration Example
 #
-# Copy this file to `llm-tool-test-config.toml` in your working directory
+# Copy this file to `ax-eval-config.toml` in your working directory
 # to customize tool configurations and test profiles.
 
 fixtures_path = "fixtures"
-results_path = "llm-tool-test-results"
+results_path = "ax-eval-results"
 
 # Tool configurations define known LLM tools and their supported models.
 # The `command` field is currently metadata for built-in adapters; adapter

@@ -16,7 +16,7 @@ use chrono::Utc;
 /// # Example
 ///
 /// ```rust
-/// use llm_tool_test::results::generate_run_id;
+/// use ax_eval::results::generate_run_id;
 ///
 /// let run_id = generate_run_id();
 /// assert!(run_id.starts_with("run-"));

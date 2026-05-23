@@ -1,12 +1,12 @@
-# AGENTS.md - llm-tool-test
+# AGENTS.md - ax-eval
 
-This file is a routing guide for LLM agents working on `llm-tool-test`. Keep
+This file is a routing guide for LLM agents working on `ax-eval`. Keep
 durable details in the focused docs linked below rather than expanding this
 file into a full manual.
 
 ## Project Overview
 
-`llm-tool-test` evaluates how effectively LLM coding agents use CLI tools. It
+`ax-eval` evaluates how effectively LLM coding agents use CLI tools. It
 produces dimensional evaluation profiles: quantitative metrics plus qualitative
 scores. Gates are fail-fast sanity checks; the primary value is the profile that
 shows how well a run went and what changed between tools, models, or guidance.
@@ -70,7 +70,7 @@ Follow `src/adapter/README.md`.
 1. Run a specific test: `cargo test <test_name>`.
 2. Run with output: `cargo test <test_name> -- --nocapture`.
 3. Check the scenario fixture under `fixtures/`.
-4. Review generated artifacts under `llm-tool-test-results/`.
+4. Review generated artifacts under `ax-eval-results/`.
 
 ## Code Conventions
 
@@ -97,7 +97,7 @@ Capitalize the first word unless using an optional prefix.
 
 ### Issue Tracker
 
-Issues and PRDs are tracked in GitHub Issues for `mwaldstein/llm-tool-test`
+Issues and PRDs are tracked in GitHub Issues for `mwaldstein/ax-eval`
 using the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage Labels

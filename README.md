@@ -1,4 +1,4 @@
-# LLM Tool Test
+# Agent Experience Eval
 
 Evaluate how coding agents use your CLI.
 
@@ -6,22 +6,22 @@ Evaluate how coding agents use your CLI.
 
 CLIs built for humans often frustrate AI agents — vague errors, complex setup, confusing subcommands — leading to retries and wasted tokens.
 
-`llm-tool-test` runs coding agents against your CLI in reproducible scenarios and produces an evaluation profile: quantitative interaction metrics, cost and token data, optional qualitative rubric scores, and supporting guardrail checks. Use it to drive a tight feedback loop on your CLI ergonomics, `--help` text, and `AGENTS.md` guidance.
+`ax-eval` runs coding agents against your CLI in reproducible scenarios and produces an evaluation profile: quantitative interaction metrics, cost and token data, optional qualitative rubric scores, and supporting guardrail checks. Use it to drive a tight feedback loop on your CLI ergonomics, `--help` text, and `AGENTS.md` guidance.
 
 Built primarily for CLI authors. Also useful for technical writers iterating on `AGENTS.md` and agent developers comparing models on a specific workflow.
 
 ## Why Not Just Tests?
 
-Unit tests verify that your CLI works. `llm-tool-test` verifies that an agent can *discover and use* it.
+Unit tests verify that your CLI works. `ax-eval` verifies that an agent can *discover and use* it.
 
-Traditional tests are deterministic. Agents are not. `llm-tool-test` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails.
+Traditional tests are deterministic. Agents are not. `ax-eval` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails.
 
 Repeatability here is about benchmarking changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable qualitative signal on the quality of the interaction. Pass/fail gates are supporting checks for catastrophic failures, not the main result.
 
 ## How It Works
 
 1. **Modify** your CLI's `--help`, `AGENTS.md`, or documentation.
-2. **Execute** a scenario — `llm-tool-test` runs the configured agent CLI against your prompt and records every command, error, and token.
+2. **Execute** a scenario — `ax-eval` runs the configured agent CLI against your prompt and records every command, error, and token.
 3. **Analyze** the metrics, transcript, and Judge score to see exactly where the agent hesitated.
 4. **Refine** and repeat.
 
@@ -35,20 +35,20 @@ your CLI's LLM usability.
 Install the latest release on macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/mwaldstein/ax-eval/master/scripts/install.sh | sh
 ```
 
 Install the latest release on Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/mwaldstein/llm-tool-test/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/mwaldstein/ax-eval/master/scripts/install.ps1 | iex
 ```
 
 To build from source:
 
 ```bash
 cargo build --release
-# Binary will be at target/release/llm-tool-test
+# Binary will be at target/release/ax-eval
 ```
 
 ## Quickstart
@@ -59,42 +59,42 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
    fixture setup, cache keys, and run planning without requiring real-run
    consent.
    ```bash
-   llm-tool-test run --scenario example_basic --dry-run
+    ax-eval run --scenario example_basic --dry-run
    ```
 
-2. **Enable real-run consent.** `LLM_TOOL_TEST_ENABLED=1` is required only for
-   real agent execution. It prevents accidental LLM API spend and arbitrary
-   agent-driven CLI execution in CI or shared environments.
-   ```bash
-   export LLM_TOOL_TEST_ENABLED=1
+2. **Enable real-run consent.** `AX_EVAL_ENABLED=1` is required only for
+    real agent execution. It prevents accidental LLM API spend and arbitrary
+    agent-driven CLI execution in CI or shared environments.
+    ```bash
+    export AX_EVAL_ENABLED=1
    ```
 
 3. **List scenarios**: View built-in examples.
    ```bash
-   llm-tool-test scenarios
+    ax-eval scenarios
    ```
 
 4. **Print a scenario template**: Start from a schema-valid YAML example.
    ```bash
-   llm-tool-test template scenario > fixtures/my_scenario.yaml
+    ax-eval template scenario > fixtures/my_scenario.yaml
    ```
 
 5. **Run evaluation**:
    ```bash
-   llm-tool-test run --scenario example_basic --tool claude-code
+    ax-eval run --scenario example_basic --tool claude-code
    ```
 
 6. **Or discover a target CLI before writing scenarios**:
    ```bash
-   llm-tool-test discover mytool --tool claude-code
+    ax-eval discover mytool --tool claude-code
    ```
    Discovery writes `understanding.md`, generated scenarios, scenario run
    artifacts, `discovery-summary.md`, and `discovery.json` under
-   `llm-tool-test-results/<timestamp>-discover-<target>-<tool>-<model>/`.
+   `ax-eval-results/<timestamp>-discover-<target>-<tool>-<model>/`.
 
 7. **Review results**:
    ```bash
-   cat llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
+    cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
    ```
 
 ## What You Get
@@ -107,7 +107,7 @@ Every run produces a dimensional profile:
 4. **Cost and runtime**: duration, token usage, and cost when adapters report them.
 
 ### Artifacts
-Each run appends a record to `llm-tool-test-results/results.jsonl` and generates a run directory containing:
+Each run appends a record to `ax-eval-results/results.jsonl` and generates a run directory containing:
 
 - `evaluation.md`: A human-readable evaluation profile and summary.
 - `report.md`: Execution details, guardrail results, and efficiency metrics.
@@ -157,7 +157,7 @@ template_folder: example_basic
 target:
   binary: notes
   env:
-    NOTES_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    NOTES_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 
 task:
   prompt: |
@@ -178,10 +178,10 @@ evaluation:
 For richer copyable examples, use:
 
 ```bash
-llm-tool-test template scenario
-llm-tool-test template config
-llm-tool-test template script-gate
-llm-tool-test template evaluator
+ax-eval template scenario
+ax-eval template config
+ax-eval template script-gate
+ax-eval template evaluator
 ```
 
 See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, and the full field reference.

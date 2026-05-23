@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transcript analyzer with configurable command pattern matching
 - Composite scoring with configurable weights (judge / gates / interaction)
 - Conditional composite score display in reports and summaries
-- `llm-tool-test-config.example.toml` with tool and profile configuration examples
+- `ax-eval-config.example.toml` with tool and profile configuration examples
 - Example scenario (`fixtures/example_basic/`) demonstrating the scripts system
 
 ### Changed

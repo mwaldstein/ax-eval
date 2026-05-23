@@ -1,10 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
-$Repo = if ($env:LLM_TOOL_TEST_REPO) { $env:LLM_TOOL_TEST_REPO } else { 'mwaldstein/llm-tool-test' }
+$Repo = if ($env:AX_EVAL_REPO) { $env:AX_EVAL_REPO } else { 'mwaldstein/ax-eval' }
 $InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { Join-Path $HOME '.local\bin' }
-$Version = if ($env:LLM_TOOL_TEST_VERSION) { $env:LLM_TOOL_TEST_VERSION } else { 'latest' }
-$IncludePrereleases = $env:LLM_TOOL_TEST_INCLUDE_PRERELEASES -in @('1', 'true')
-$BinName = 'llm-tool-test'
+$Version = if ($env:AX_EVAL_VERSION) { $env:AX_EVAL_VERSION } else { 'latest' }
+$IncludePrereleases = $env:AX_EVAL_INCLUDE_PRERELEASES -in @('1', 'true')
+$BinName = 'ax-eval'
 
 function Resolve-Version {
     param([string]$RequestedVersion)

@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 /// # Example
 ///
 /// ```rust,no_run
-/// use llm_tool_test::results::{Cache, CacheKey, ResultRecord};
+/// use ax_eval::results::{Cache, CacheKey, ResultRecord};
 /// use std::path::Path;
 ///
 /// let cache = Cache::new(Path::new("./test-data"));

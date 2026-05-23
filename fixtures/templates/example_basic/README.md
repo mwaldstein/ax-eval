@@ -1,6 +1,6 @@
 # Example Basic Scenario
 
-This is a demonstration scenario showing the llm-tool-test framework's scripts system. It uses a simple shell script acting as a mock CLI tool called `taskmgr`.
+This is a demonstration scenario showing the ax-eval framework's scripts system. It uses a simple shell script acting as a mock CLI tool called `taskmgr`.
 
 ## Purpose
 

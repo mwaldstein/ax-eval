@@ -3,12 +3,12 @@
 
 set -e
 
-if [ ! -f "${LLM_TOOL_TEST_FIXTURE_DIR:-.}/data.txt" ]; then
+if [ ! -f "${AX_EVAL_FIXTURE_DIR:-.}/data.txt" ]; then
     echo "Missing data.txt"
     exit 1
 fi
 
-if ! grep -q "item-" "${LLM_TOOL_TEST_FIXTURE_DIR:-.}/data.txt"; then
+if ! grep -q "item-" "${AX_EVAL_FIXTURE_DIR:-.}/data.txt"; then
     echo "No items found in data.txt"
     exit 1
 fi

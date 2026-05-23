@@ -42,7 +42,7 @@ pub struct Config {
 
 impl Config {
     pub fn load_or_default() -> Self {
-        let config_path = Path::new("llm-tool-test-config.toml");
+        let config_path = Path::new("ax-eval-config.toml");
 
         if config_path.exists() {
             match Self::load(config_path) {
@@ -72,9 +72,7 @@ impl Config {
     }
 
     pub fn get_results_path(&self) -> &str {
-        self.results_path
-            .as_deref()
-            .unwrap_or("llm-tool-test-results")
+        self.results_path.as_deref().unwrap_or("ax-eval-results")
     }
 
     /// Get a tool configuration by name.
@@ -229,7 +227,7 @@ mod tests {
 
     #[test]
     fn example_config_profiles_are_valid() {
-        let config = Config::load(Path::new("llm-tool-test-config.example.toml")).unwrap();
+        let config = Config::load(Path::new("ax-eval-config.example.toml")).unwrap();
 
         for profile_name in config.profiles.keys() {
             config

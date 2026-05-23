@@ -269,11 +269,11 @@ mod tests {
         let mut target_env = HashMap::new();
         target_env.insert(
             "MYTOOL_ROOT_DIR".to_string(),
-            "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
+            "${AX_EVAL_FIXTURE_DIR}".to_string(),
         );
         target_env.insert(
             "MYTOOL_EXPORT".to_string(),
-            "${LLM_TOOL_TEST_RESULTS_DIR}/export.json".to_string(),
+            "${AX_EVAL_RESULTS_DIR}/export.json".to_string(),
         );
 
         let expanded =
@@ -306,7 +306,7 @@ mod tests {
         let mut target_env = HashMap::new();
         target_env.insert(
             "MYTOOL_ROOT_DIR".to_string(),
-            "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
+            "${AX_EVAL_FIXTURE_DIR}".to_string(),
         );
         let expanded =
             TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir);
@@ -360,8 +360,8 @@ template_folder: example_basic
 target:
   binary: taskmgr
   env:
-    TARGET_ROOT: "${LLM_TOOL_TEST_FIXTURE_DIR}"
-    TARGET_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/export.json"
+    TARGET_ROOT: "${AX_EVAL_FIXTURE_DIR}"
+    TARGET_EXPORT: "${AX_EVAL_RESULTS_DIR}/export.json"
 task:
   prompt: "Create a task"
 evaluation:
@@ -405,8 +405,8 @@ template_folder: example_basic
 target:
   binary: taskmgr
   env:
-    TARGET_ROOT: "${LLM_TOOL_TEST_FIXTURE_DIR}"
-    TARGET_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/export.json"
+    TARGET_ROOT: "${AX_EVAL_FIXTURE_DIR}"
+    TARGET_EXPORT: "${AX_EVAL_RESULTS_DIR}/export.json"
 task:
   prompt: "Create a task"
 evaluation:
@@ -460,7 +460,7 @@ template_folder: example_basic
 target:
   binary: taskmgr
   env:
-    QIPU_STORE: "${LLM_TOOL_TEST_FIXTURE_DIR}/.qipu"
+    QIPU_STORE: "${AX_EVAL_FIXTURE_DIR}/.qipu"
 setup:
   commands:
     - 'printf "%s" "$QIPU_STORE" > qipu-store.txt'

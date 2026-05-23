@@ -1,4 +1,4 @@
-//! Scenario loading and types for LLM tool testing.
+//! Scenario loading and types for Agent Experience Eval.
 //!
 //! This module provides the core scenario structures and loading functionality.
 //! Scenarios define test cases for evaluating LLM tools against CLI workflows.
@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust
-//! use llm_tool_test::scenario;
+//! use ax_eval::scenario;
 //!
 //! let scenario = scenario::load("path/to/scenario.yaml").unwrap();
 //! println!("Running scenario: {}", scenario.name);
@@ -34,7 +34,7 @@ use std::path::Path;
 /// # Example
 ///
 /// ```rust,no_run
-/// use llm_tool_test::scenario;
+/// use ax_eval::scenario;
 /// use std::path::Path;
 ///
 /// let scenario = scenario::load(Path::new("scenarios/basic_note.yaml")).unwrap();

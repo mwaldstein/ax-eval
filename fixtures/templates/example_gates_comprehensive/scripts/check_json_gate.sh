@@ -1,7 +1,7 @@
 #!/bin/bash
 # check_json_gate.sh - Script gate that returns structured JSON output
 
-DATA_FILE="${LLM_TOOL_TEST_FIXTURE_DIR:-.}/data.txt"
+DATA_FILE="${AX_EVAL_FIXTURE_DIR:-.}/data.txt"
 
 if [ ! -f "$DATA_FILE" ]; then
     echo '{"passed": false, "message": "data.txt not found"}'

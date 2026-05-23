@@ -1,5 +1,5 @@
 target/
-llm-tool-test-results/
+ax-eval-results/
 .codex
 *.log
 .DS_Store

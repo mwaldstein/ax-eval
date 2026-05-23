@@ -1,5 +1,5 @@
 [package]
-name = "llm-tool-test"
+name = "ax-eval"
 version = "0.2.0-beta1"
 edition = "2021"
 

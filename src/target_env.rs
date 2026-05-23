@@ -49,14 +49,8 @@ fn expand_target_env_value(value: &str, fixture_dir: &Path, results_dir: &Path) 
     let results_dir = absolute_path(results_dir);
 
     value
-        .replace(
-            "${LLM_TOOL_TEST_FIXTURE_DIR}",
-            &fixture_dir.to_string_lossy(),
-        )
-        .replace(
-            "${LLM_TOOL_TEST_RESULTS_DIR}",
-            &results_dir.to_string_lossy(),
-        )
+        .replace("${AX_EVAL_FIXTURE_DIR}", &fixture_dir.to_string_lossy())
+        .replace("${AX_EVAL_RESULTS_DIR}", &results_dir.to_string_lossy())
 }
 
 fn absolute_path(path: &Path) -> PathBuf {
@@ -82,11 +76,11 @@ mod tests {
         let mut target_env = HashMap::new();
         target_env.insert(
             "MYTOOL_ROOT_DIR".to_string(),
-            "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
+            "${AX_EVAL_FIXTURE_DIR}".to_string(),
         );
         target_env.insert(
             "MYTOOL_EXPORT".to_string(),
-            "${LLM_TOOL_TEST_RESULTS_DIR}/export.json".to_string(),
+            "${AX_EVAL_RESULTS_DIR}/export.json".to_string(),
         );
 
         let expanded =
@@ -118,11 +112,11 @@ mod tests {
         let mut target_env = HashMap::new();
         target_env.insert(
             "MYTOOL_ROOT_DIR".to_string(),
-            "${LLM_TOOL_TEST_FIXTURE_DIR}".to_string(),
+            "${AX_EVAL_FIXTURE_DIR}".to_string(),
         );
         target_env.insert(
             "MYTOOL_EXPORT".to_string(),
-            "${LLM_TOOL_TEST_RESULTS_DIR}/export.json".to_string(),
+            "${AX_EVAL_RESULTS_DIR}/export.json".to_string(),
         );
 
         let expanded =

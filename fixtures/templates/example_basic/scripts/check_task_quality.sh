@@ -4,7 +4,7 @@
 
 set -e
 
-TASK_FILE="${LLM_TOOL_TEST_FIXTURE_DIR}/tasks.txt"
+TASK_FILE="${AX_EVAL_FIXTURE_DIR}/tasks.txt"
 
 # Check if task file exists
 if [ ! -f "$TASK_FILE" ]; then

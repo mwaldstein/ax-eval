@@ -335,15 +335,15 @@ template_folder: example_cli_workflow
 
 target:
   # If mytool is built outside the fixture, make it discoverable before running:
-  # PATH="$PWD/target/debug:$PATH" LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario ...
+  # PATH="$PWD/target/debug:$PATH" AX_EVAL_ENABLED=1 ax-eval run --scenario ...
   # Or set a complete PATH in target.env for scenario-specific lookup.
   binary: mytool
   command_pattern: "mytool\\s+(\\S+)"
   health_check: "mytool --version"
   env:
-    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
-    MYTOOL_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/mytool-export.json"
+    MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 
+    MYTOOL_EXPORT: "${AX_EVAL_RESULTS_DIR}/mytool-export.json"
 interaction:
   target_commands: required
 
@@ -396,7 +396,7 @@ run:
 "#;
 
 const CONFIG_TEMPLATE: &str = r#"fixtures_path = "fixtures"
-results_path = "llm-tool-test-results"
+results_path = "ax-eval-results"
 
 [tools.opencode]
 name = "opencode"

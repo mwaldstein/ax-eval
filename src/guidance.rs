@@ -375,8 +375,8 @@ Good scenarios:
 Use gates for catastrophic failures. Use the interaction profile to understand whether the tool's role, workflow, and state model were legible to the agent.
 
 Sources:
-- llm-tool-test evaluation spec: specs/evaluation.md
-- llm-tool-test guidance examples: docs/guidance-testing.md
+- ax-eval evaluation spec: specs/evaluation.md
+- ax-eval guidance examples: docs/guidance-testing.md
 "#,
     },
     GuidanceTopic {
@@ -391,7 +391,7 @@ Sources:
         ],
         body: r#"# Test Usage Quality
 
-Use llm-tool-test to evaluate how well an agent can discover, understand, and use a tool. The scenario should usually give the agent a goal, not a command recipe.
+Use ax-eval to evaluate how well an agent can discover, understand, and use a tool. The scenario should usually give the agent a goal, not a command recipe.
 
 Goal-based prompts stress whether the agent understands the role the tool serves. Prescriptive prompts mostly test whether the agent can follow mechanics already supplied by the test author.
 
@@ -422,8 +422,8 @@ Use gates as fail-fast guardrails for catastrophic correctness failures. Use int
 Avoid testing "the agent ran command X" unless exact command use is the behavior under evaluation. Prefer goal prompts, outcome gates, and profile interpretation.
 
 Sources:
-- llm-tool-test evaluation spec: specs/evaluation.md
-- llm-tool-test guidance examples: docs/guidance-testing.md
+- ax-eval evaluation spec: specs/evaluation.md
+- ax-eval guidance examples: docs/guidance-testing.md
 "#,
     },
     GuidanceTopic {
@@ -453,7 +453,7 @@ Common interpretations:
 Treat gates as safety checks. Treat metrics as authoring feedback.
 
 Sources:
-- llm-tool-test evaluation spec: specs/evaluation.md
+- ax-eval evaluation spec: specs/evaluation.md
 - Anthropic tool guidance: https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools
 "#,
     },

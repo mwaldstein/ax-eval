@@ -2,7 +2,7 @@ use std::path::Path;
 
 pub(super) fn inspect_prompt(target: &str) -> String {
     format!(
-        r#"You are inspecting a CLI tool for llm-tool-test discovery.
+        r#"You are inspecting a CLI tool for ax-eval discovery.
 
 Target executable: {target}
 
@@ -53,7 +53,7 @@ pub(super) fn understanding_repair_prompt(
     understanding_path: &Path,
 ) -> String {
     format!(
-        r#"You are repairing the inspect artifact for llm-tool-test discovery.
+        r#"You are repairing the inspect artifact for ax-eval discovery.
 
 Target executable: {target}
 Inspect transcript: {}
@@ -94,14 +94,14 @@ instead of pasting command output."#,
 
 pub(super) fn author_prompt(target: &str, count: usize, understanding_path: &Path) -> String {
     format!(
-        r#"You are authoring llm-tool-test discovery fixtures.
+        r#"You are authoring ax-eval discovery fixtures.
 
 Target executable: {target}
 Understanding document: {}
 Required scenario count: {count}
 
 Read the understanding document, then create a coordinated set of {count}
-complex, goal-oriented llm-tool-test scenarios under ./scenarios/.
+complex, goal-oriented ax-eval scenarios under ./scenarios/.
 
 Hard requirements:
 - Write complete runnable YAML scenario files under ./scenarios/.
@@ -149,7 +149,7 @@ rubric path, keep it relative to the generated YAML; the harness will resolve it
 
 pub(super) fn summary_prompt(understanding_path: &Path, manifest_path: &Path) -> String {
     format!(
-        r#"You are summarizing an llm-tool-test discovery run for the target tool author.
+        r#"You are summarizing an ax-eval discovery run for the target tool author.
 
 Read:
 - Understanding: {}

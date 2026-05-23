@@ -106,7 +106,7 @@ evaluation:
 
     assert_eq!(
         results_dir.parent(),
-        Some(std::path::Path::new("llm-tool-test-results"))
+        Some(std::path::Path::new("ax-eval-results"))
     );
     assert!(
         dir_name.ends_with("-mock-mock-model-request_results_dir_test"),

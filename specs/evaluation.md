@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Define how llm-tool-test evaluates the quality of LLM-tool interactions. The evaluation system must work for any CLI tool without domain-specific assumptions baked into the framework.
+Define how ax-eval evaluates the quality of LLM-tool interactions. The evaluation system must work for any CLI tool without domain-specific assumptions baked into the framework.
 
 ### Evaluation vs. Testing
 
@@ -505,7 +505,7 @@ replacement for the dimensional evaluation data.
 
 ## Evaluation for Guidance Authors
 
-The secondary audience for llm-tool-test is guidance/skills authors who are testing whether their AGENTS.md or skill definitions help LLMs use a tool effectively.
+The secondary audience for ax-eval is guidance/skills authors who are testing whether their AGENTS.md or skill definitions help LLMs use a tool effectively.
 
 ### Primary Signal: Quantitative Interaction Metrics
 

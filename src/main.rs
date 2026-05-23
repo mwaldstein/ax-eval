@@ -1,4 +1,4 @@
-//! LLM tool test runner
+//! Agent Experience Eval
 //!
 //! Evaluates LLM tools against test scenarios with automatic judging.
 
@@ -147,14 +147,14 @@ fn main() -> anyhow::Result<()> {
             timeout_secs,
         } => {
             // Safety check: only real LLM executions require explicit consent.
-            if !dry_run && std::env::var("LLM_TOOL_TEST_ENABLED").as_deref() != Ok("1") {
+            if !dry_run && std::env::var("AX_EVAL_ENABLED").as_deref() != Ok("1") {
                 anyhow::bail!(
-                    "Real LLM tool runs require LLM_TOOL_TEST_ENABLED=1 as an explicit safety consent.\n\
+                    "Real LLM tool runs require AX_EVAL_ENABLED=1 as an explicit safety consent.\n\
                      This prevents accidental expensive LLM API calls and arbitrary agent-driven CLI execution.\n\
                      \n\
                      To validate selection and setup without an LLM, use --dry-run.\n\
                      To run a real agent evaluation, set:\n\
-                     export LLM_TOOL_TEST_ENABLED=1"
+                     export AX_EVAL_ENABLED=1"
                 );
             }
 
@@ -207,13 +207,13 @@ fn main() -> anyhow::Result<()> {
             judge_tool,
             timeout_secs,
         } => {
-            if std::env::var("LLM_TOOL_TEST_ENABLED").as_deref() != Ok("1") {
+            if std::env::var("AX_EVAL_ENABLED").as_deref() != Ok("1") {
                 anyhow::bail!(
-                    "Real LLM tool runs require LLM_TOOL_TEST_ENABLED=1 as an explicit safety consent.\n\
+                    "Real LLM tool runs require AX_EVAL_ENABLED=1 as an explicit safety consent.\n\
                      This prevents accidental expensive LLM API calls and arbitrary agent-driven CLI execution.\n\
                      \n\
                      To run discovery, set:\n\
-                     export LLM_TOOL_TEST_ENABLED=1"
+                     export AX_EVAL_ENABLED=1"
                 );
             }
 

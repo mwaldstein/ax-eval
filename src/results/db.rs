@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 /// # Example
 ///
 /// ```rust,no_run
-/// use llm_tool_test::results::{ResultsDB, ResultRecord};
+/// use ax_eval::results::{ResultsDB, ResultRecord};
 /// use std::path::Path;
 ///
 /// let db = ResultsDB::new(Path::new("./test-data"));

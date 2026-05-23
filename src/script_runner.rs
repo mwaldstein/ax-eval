@@ -103,7 +103,7 @@ impl ScriptRunner {
     /// Create a new script runner.
     pub fn new(config: ScriptRunnerConfig) -> Self {
         // Ensure fixture_dir is absolute so that scripts referencing
-        // LLM_TOOL_TEST_FIXTURE_DIR resolve paths correctly regardless
+        // AX_EVAL_FIXTURE_DIR resolve paths correctly regardless
         // of the script's working directory.
         let fixture_dir = config
             .fixture_dir
@@ -124,7 +124,7 @@ impl ScriptRunner {
     /// Run a shell command with the configured environment.
     ///
     /// The command is executed via `sh -c` in the fixture directory with
-    /// LLM_TOOL_TEST_* environment variables set. The timeout is enforced
+    /// AX_EVAL_* environment variables set. The timeout is enforced
     /// using the wait-timeout crate.
     pub fn run(&self, command: &str, timeout_secs: u64) -> anyhow::Result<ScriptResult> {
         run_shell_piped(command, &self.fixture_dir, timeout_secs, &self.build_env())
@@ -139,32 +139,29 @@ impl ScriptRunner {
     fn build_env(&self) -> HashMap<String, String> {
         let mut env = HashMap::new();
 
-        // LLM_TOOL_TEST_* variables
+        // AX_EVAL_* variables
         env.insert(
-            "LLM_TOOL_TEST_FIXTURE_DIR".to_string(),
+            "AX_EVAL_FIXTURE_DIR".to_string(),
             self.fixture_dir.to_string_lossy().to_string(),
         );
         env.insert(
-            "LLM_TOOL_TEST_RESULTS_DIR".to_string(),
+            "AX_EVAL_RESULTS_DIR".to_string(),
             self.results_dir.to_string_lossy().to_string(),
         );
-        env.insert(
-            "LLM_TOOL_TEST_SCENARIO".to_string(),
-            self.scenario_name.clone(),
-        );
-        env.insert("LLM_TOOL_TEST_AGENT".to_string(), self.agent.clone());
-        env.insert("LLM_TOOL_TEST_MODEL".to_string(), self.model.clone());
+        env.insert("AX_EVAL_SCENARIO".to_string(), self.scenario_name.clone());
+        env.insert("AX_EVAL_AGENT".to_string(), self.agent.clone());
+        env.insert("AX_EVAL_MODEL".to_string(), self.model.clone());
 
         if let Some(ref path) = self.transcript_path {
             env.insert(
-                "LLM_TOOL_TEST_TRANSCRIPT".to_string(),
+                "AX_EVAL_TRANSCRIPT".to_string(),
                 path.to_string_lossy().to_string(),
             );
         }
 
         if let Some(ref path) = self.events_path {
             env.insert(
-                "LLM_TOOL_TEST_EVENTS".to_string(),
+                "AX_EVAL_EVENTS".to_string(),
                 path.to_string_lossy().to_string(),
             );
         }
@@ -219,14 +216,11 @@ mod tests {
 
         let env = runner.build_env();
 
-        assert_eq!(env["LLM_TOOL_TEST_SCENARIO"], "scenario-a");
-        assert_eq!(env["LLM_TOOL_TEST_AGENT"], "mock");
-        assert_eq!(env["LLM_TOOL_TEST_MODEL"], "model-a");
-        assert_eq!(
-            env["LLM_TOOL_TEST_TRANSCRIPT"],
-            transcript_path.to_string_lossy()
-        );
-        assert_eq!(env["LLM_TOOL_TEST_EVENTS"], events_path.to_string_lossy());
+        assert_eq!(env["AX_EVAL_SCENARIO"], "scenario-a");
+        assert_eq!(env["AX_EVAL_AGENT"], "mock");
+        assert_eq!(env["AX_EVAL_MODEL"], "model-a");
+        assert_eq!(env["AX_EVAL_TRANSCRIPT"], transcript_path.to_string_lossy());
+        assert_eq!(env["AX_EVAL_EVENTS"], events_path.to_string_lossy());
         assert_eq!(env["TARGET_OVERRIDE"], "target-value");
     }
 
@@ -344,7 +338,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let runner = create_test_runner(temp.path().to_path_buf());
 
-        let result = runner.run("echo $LLM_TOOL_TEST_SCENARIO", 10).unwrap();
+        let result = runner.run("echo $AX_EVAL_SCENARIO", 10).unwrap();
 
         assert!(result.succeeded());
         assert!(result.stdout.contains("test_scenario"));
@@ -354,10 +348,7 @@ mod tests {
     fn test_target_env_override() {
         let temp = TempDir::new().unwrap();
         let mut target_env = HashMap::new();
-        target_env.insert(
-            "LLM_TOOL_TEST_SCENARIO".to_string(),
-            "overridden".to_string(),
-        );
+        target_env.insert("AX_EVAL_SCENARIO".to_string(), "overridden".to_string());
 
         let runner = ScriptRunner::new(ScriptRunnerConfig {
             fixture_dir: temp.path().to_path_buf(),
@@ -370,7 +361,7 @@ mod tests {
             target_env,
         });
 
-        let result = runner.run("echo $LLM_TOOL_TEST_SCENARIO", 10).unwrap();
+        let result = runner.run("echo $AX_EVAL_SCENARIO", 10).unwrap();
 
         assert!(result.succeeded());
         assert!(result.stdout.contains("overridden"));

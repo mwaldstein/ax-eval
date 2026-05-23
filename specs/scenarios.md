@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Define the scenario format, target tool configuration, and fixture structure for llm-tool-test.
+Define the scenario format, target tool configuration, and fixture structure for ax-eval.
 
 A scenario is the unit of evaluation. Each scenario defines a task for an LLM agent to attempt using a specific CLI tool, then evaluates the result. The framework is tool-agnostic: the scenario declares what tool is being evaluated and how to interact with it.
 
@@ -33,8 +33,8 @@ target:
   command_pattern: "mytool\\s+"
   health_check: "mytool --version"
   env:
-    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
-    MYTOOL_EXPORT: "${LLM_TOOL_TEST_RESULTS_DIR}/mytool-export.json"
+    MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
+    MYTOOL_EXPORT: "${AX_EVAL_RESULTS_DIR}/mytool-export.json"
     MYTOOL_CONFIG: "/etc/mytool/config.toml"
     MYTOOL_AUTH_TOKEN: "token-value"
 ```
@@ -43,8 +43,8 @@ If no target is specified, scenario loading fails with a clear error.
 Most environment values are passed literally. Two run-directory placeholders are
 expanded after the isolated workspace is created:
 
-- `${LLM_TOOL_TEST_FIXTURE_DIR}`: absolute path to the per-run fixture directory.
-- `${LLM_TOOL_TEST_RESULTS_DIR}`: absolute path to the per-run results directory.
+- `${AX_EVAL_FIXTURE_DIR}`: absolute path to the per-run fixture directory.
+- `${AX_EVAL_RESULTS_DIR}`: absolute path to the per-run results directory.
 
 Use these when the target tool needs a root/config/output path inside the test
 workspace:
@@ -53,10 +53,10 @@ workspace:
 target:
   binary: mytool
   env:
-    MYTOOL_ROOT_DIR: "${LLM_TOOL_TEST_FIXTURE_DIR}"
+    MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 ```
 
-`llm-tool-test` does not modify `PATH` to locate the target tool. If
+`ax-eval` does not modify `PATH` to locate the target tool. If
 `target.binary` is a bare command name, the command must already be discoverable
 in the environment used for the run. During local development, where the target
 tool often lives in a build output directory such as `target/debug`,
@@ -64,8 +64,8 @@ tool often lives in a build output directory such as `target/debug`,
 
 ```bash
 PATH="$PWD/target/debug:$PATH" \
-  LLM_TOOL_TEST_ENABLED=1 \
-  llm-tool-test run --scenario my_scenario --tool opencode
+  AX_EVAL_ENABLED=1 \
+  ax-eval run --scenario my_scenario --tool opencode
 ```
 
 For scenario-specific lookup, set `PATH` in `target.env`; it is passed to setup
@@ -81,7 +81,7 @@ target:
 ```
 
 `target.env` values are literal except for
-`${LLM_TOOL_TEST_FIXTURE_DIR}` and `${LLM_TOOL_TEST_RESULTS_DIR}`. A value such
+`${AX_EVAL_FIXTURE_DIR}` and `${AX_EVAL_RESULTS_DIR}`. A value such
 as `PATH: "...:${PATH}"` does not inherit the caller's path; use shell-level
 `PATH` manipulation when you need that behavior.
 
@@ -392,9 +392,9 @@ fixtures/
 ### Listing Scenarios
 
 ```bash
-llm-tool-test scenarios
-llm-tool-test scenarios --tags crud
-llm-tool-test scenarios --tier 0
+ax-eval scenarios
+ax-eval scenarios --tags crud
+ax-eval scenarios --tier 0
 ```
 
 ### Filtering
@@ -409,7 +409,7 @@ llm-tool-test scenarios --tier 0
 Each run produces a results directory:
 
 ```
-llm-tool-test-results/<timestamp>-<agent>-<model>-<scenario>/
+ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
 ├── metrics.json            # Machine-readable evaluation profile
 ├── evaluation.md           # Human-readable evaluation profile
 ├── report.md               # Execution details, guardrail results, efficiency metrics
@@ -500,7 +500,7 @@ Each scenario YAML uses the **same** task prompt and evaluation gates, but point
 ### Running
 
 ```bash
-llm-tool-test run --all --tags guidance-test --tier 1
+ax-eval run --all --tags guidance-test --tier 1
 ```
 
 ### Comparing

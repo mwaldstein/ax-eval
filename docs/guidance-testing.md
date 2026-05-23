@@ -17,7 +17,7 @@ Both use the same `notes` mock tool, task prompt, and evaluation gates.
 ## Running The Comparison
 
 ```bash
-llm-tool-test run --all --tags guidance-test --tier 1
+ax-eval run --all --tags guidance-test --tier 1
 ```
 
 Compare `metrics.json` across result directories. Use `results.jsonl` in the
@@ -39,7 +39,7 @@ comparison is to measure interaction quality.
 All built-in example scenarios share the `examples` tag.
 
 ```bash
-llm-tool-test scenarios --tags examples
-llm-tool-test run --all --tags examples --tool opencode
-llm-tool-test run --all --tags examples --tier 1 --tool opencode --model opencode/kimi-k2.6
+ax-eval scenarios --tags examples
+ax-eval run --all --tags examples --tool opencode
+ax-eval run --all --tags examples --tier 1 --tool opencode --model opencode/kimi-k2.6
 ```

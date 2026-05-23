@@ -1,6 +1,6 @@
 mod support;
 
-use crate::support::llm_tool_test;
+use crate::support::ax_eval;
 use predicates::prelude::*;
 use std::fs;
 use std::process::Command;
@@ -14,31 +14,31 @@ fn create_qipu_template(root: &std::path::Path) {
 
 #[test]
 fn test_cli_help() {
-    llm_tool_test()
+    ax_eval()
         .arg("--help")
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
 
 #[test]
 fn test_cli_without_args_prints_guidance() {
-    llm_tool_test()
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+    ax_eval()
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains(
             "Use it to improve CLI help, docs, and AGENTS.md guidance",
         ))
-        .stdout(predicate::str::contains("llm-tool-test template scenario"))
-        .stdout(predicate::str::contains("LLM_TOOL_TEST_ENABLED=1"));
+        .stdout(predicate::str::contains("ax-eval template scenario"))
+        .stdout(predicate::str::contains("AX_EVAL_ENABLED=1"));
 }
 
 #[test]
 fn test_run_help_includes_judge_tool_option() {
-    llm_tool_test()
+    ax_eval()
         .args(["run", "--help"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("--judge-tool"));
@@ -46,26 +46,26 @@ fn test_run_help_includes_judge_tool_option() {
 
 #[test]
 fn test_run_help_documents_safety_and_examples() {
-    llm_tool_test()
+    ax_eval()
         .args(["run", "--help"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
-        .stdout(predicate::str::contains("LLM_TOOL_TEST_ENABLED=1"))
+        .stdout(predicate::str::contains("AX_EVAL_ENABLED=1"))
         .stdout(predicate::str::contains(
-            "llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode",
+            "ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode",
         ))
         .stdout(predicate::str::contains("Artifacts are written"));
 }
 
 #[test]
 fn test_discover_help_documents_agent_options() {
-    llm_tool_test()
+    ax_eval()
         .args(["discover", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Usage: llm-tool-test discover [OPTIONS] <TARGET>",
+            "Usage: ax-eval discover [OPTIONS] <TARGET>",
         ))
         .stdout(predicate::str::contains("--discover-tool"))
         .stdout(predicate::str::contains("--discover-model"))
@@ -74,19 +74,19 @@ fn test_discover_help_documents_agent_options() {
 
 #[test]
 fn test_discover_requires_safety_env_var() {
-    llm_tool_test()
+    ax_eval()
         .args(["discover", "qipu", "--tool", "mock"])
-        .env_remove("LLM_TOOL_TEST_ENABLED")
+        .env_remove("AX_EVAL_ENABLED")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("LLM_TOOL_TEST_ENABLED=1"));
+        .stderr(predicate::str::contains("AX_EVAL_ENABLED=1"));
 }
 
 #[test]
 fn test_cli_help_points_to_template_command() {
-    llm_tool_test()
+    ax_eval()
         .arg("--help")
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("template"));
@@ -94,9 +94,9 @@ fn test_cli_help_points_to_template_command() {
 
 #[test]
 fn test_template_scenario_outputs_copyable_schema() {
-    llm_tool_test()
+    ax_eval()
         .args(["template", "scenario"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("template_folder:"))
@@ -108,9 +108,9 @@ fn test_template_scenario_outputs_copyable_schema() {
 
 #[test]
 fn test_template_config_outputs_supported_config_shape() {
-    llm_tool_test()
+    ax_eval()
         .args(["template", "config"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("fixtures_path"))
@@ -121,9 +121,9 @@ fn test_template_config_outputs_supported_config_shape() {
 
 #[test]
 fn test_template_script_gate_outputs_json_contract() {
-    llm_tool_test()
+    ax_eval()
         .args(["template", "script-gate"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("\"passed\""))
@@ -132,7 +132,7 @@ fn test_template_script_gate_outputs_json_contract() {
 
 #[test]
 fn test_guidance_list_outputs_topics() {
-    llm_tool_test()
+    ax_eval()
         .args(["guidance", "list"])
         .assert()
         .success()
@@ -143,7 +143,7 @@ fn test_guidance_list_outputs_topics() {
 
 #[test]
 fn test_guidance_topic_shortcut_outputs_topic_body() {
-    llm_tool_test()
+    ax_eval()
         .args(["guidance", "start"])
         .assert()
         .success()
@@ -153,7 +153,7 @@ fn test_guidance_topic_shortcut_outputs_topic_body() {
 
 #[test]
 fn test_guidance_commands_take_priority_over_topic_shortcut() {
-    llm_tool_test()
+    ax_eval()
         .args(["guidance", "list"])
         .assert()
         .success()
@@ -163,7 +163,7 @@ fn test_guidance_commands_take_priority_over_topic_shortcut() {
 
 #[test]
 fn test_guidance_show_start_outputs_capsule_index() {
-    llm_tool_test()
+    ax_eval()
         .args(["guidance", "show", "start"])
         .assert()
         .success()
@@ -176,7 +176,7 @@ fn test_guidance_show_start_outputs_capsule_index() {
 
 #[test]
 fn test_guidance_show_test_usage_outputs_usage_quality_principle() {
-    llm_tool_test()
+    ax_eval()
         .args(["guidance", "show", "test-usage"])
         .assert()
         .success()
@@ -192,7 +192,7 @@ fn test_guidance_show_test_usage_outputs_usage_quality_principle() {
 
 #[test]
 fn test_guidance_show_outputs_topic_body() {
-    llm_tool_test()
+    ax_eval()
         .args(["guidance", "show", "agent-instructions"])
         .assert()
         .success()
@@ -203,12 +203,12 @@ fn test_guidance_show_outputs_topic_body() {
 
 #[test]
 fn test_cli_version() {
-    llm_tool_test()
+    ax_eval()
         .arg("--version")
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
-        .stdout(predicate::str::contains("llm-tool-test"));
+        .stdout(predicate::str::contains("ax-eval"));
 }
 
 #[test]
@@ -234,12 +234,12 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("test_basic.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["run", "--scenario", "fixtures/qipu/test_basic.yaml"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("LLM_TOOL_TEST_ENABLED"))
+        .stderr(predicate::str::contains("AX_EVAL_ENABLED"))
         .stderr(predicate::str::contains("--dry-run"))
         .stderr(predicate::str::contains("explicit safety consent"));
 }
@@ -247,10 +247,10 @@ evaluation:
 #[test]
 fn test_run_command_with_all_flag_requires_scenarios() {
     let dir = tempdir().unwrap();
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["run", "--all"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -258,10 +258,10 @@ fn test_run_command_with_all_flag_requires_scenarios() {
 #[test]
 fn test_scenarios_command_no_fixtures() {
     let dir = tempdir().unwrap();
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["scenarios"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("Available scenarios"));
@@ -292,10 +292,10 @@ evaluation:
 "#;
     fs::write(fixtures_dir.join("test_scenario.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["scenarios"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("test_scenario"))
@@ -345,10 +345,10 @@ evaluation:
     fs::write(fixtures_dir.join("scenario1.yaml"), scenario1_content).unwrap();
     fs::write(fixtures_dir.join("scenario2.yaml"), scenario2_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["scenarios", "--tags", "smoke"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("scenario1"))
@@ -420,10 +420,10 @@ evaluation:
     .unwrap();
     fs::write(fixtures_dir.join("docs_scenario.yaml"), docs_scenario).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["scenarios", "--tags", "smoke", "--tags", "integration"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("smoke_scenario"))
@@ -455,7 +455,7 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("dry_run_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -463,7 +463,7 @@ evaluation:
             "fixtures/qipu/dry_run_test.yaml",
             "--dry-run",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -496,7 +496,7 @@ evaluation:
     )
     .unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -504,7 +504,7 @@ evaluation:
             "fixtures/qipu/dry_run_without_env_test.yaml",
             "--dry-run",
         ])
-        .env_remove("LLM_TOOL_TEST_ENABLED")
+        .env_remove("AX_EVAL_ENABLED")
         .assert()
         .success();
 }
@@ -553,10 +553,10 @@ evaluation:
     fs::write(qipu_dir.join("tagged_scenario.yaml"), scenario1_content).unwrap();
     fs::write(qipu_dir.join("untagged_scenario.yaml"), scenario2_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["run", "--all", "--tags", "smoke", "--tool", "mock"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -627,7 +627,7 @@ evaluation:
     .unwrap();
     fs::write(qipu_dir.join("docs_run_scenario.yaml"), docs_scenario).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -638,7 +638,7 @@ evaluation:
             "integration",
             "--dry-run",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains(
@@ -674,7 +674,7 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("tool_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -683,7 +683,7 @@ evaluation:
             "--tool",
             "mock",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -713,7 +713,7 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("single_error_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -722,7 +722,7 @@ evaluation:
             "--tool",
             "mock",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .failure()
         .stderr(predicate::str::contains("Run failed for mock / default"))
@@ -753,7 +753,7 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("model_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -764,7 +764,7 @@ evaluation:
             "--model",
             "test-model",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -810,10 +810,10 @@ evaluation:
     fs::write(qipu_dir.join("tier0_scenario.yaml"), scenario1_content).unwrap();
     fs::write(qipu_dir.join("tier1_scenario.yaml"), scenario2_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["run", "--all", "--tier", "0", "--tool", "mock"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -842,7 +842,7 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("timeout_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -853,7 +853,7 @@ evaluation:
             "--timeout-secs",
             "60",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -882,7 +882,7 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("no_cache_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -892,7 +892,7 @@ evaluation:
             "mock",
             "--no-cache",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 }
@@ -926,10 +926,10 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("matrix_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["run", "--scenario", "fixtures/qipu/matrix_test.yaml"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("Matrix run"));
@@ -965,10 +965,10 @@ evaluation:
 "#;
     fs::write(qipu_dir.join("matrix_error_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["run", "--scenario", "fixtures/qipu/matrix_error_test.yaml"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .failure()
         .stdout(predicate::str::contains("Evaluation Profile Summary"))
@@ -982,10 +982,10 @@ evaluation:
 #[test]
 fn test_clean_command_with_older_than() {
     let dir = tempdir().unwrap();
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["clean", "--older-than", "7d"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains("Cleaned 0 cache file(s)"));
@@ -994,7 +994,7 @@ fn test_clean_command_with_older_than() {
 #[test]
 fn test_clean_command_with_older_than_keeps_new_cache_files() {
     let dir = tempdir().unwrap();
-    let cache_dir = dir.path().join("llm-tool-test-results").join("cache");
+    let cache_dir = dir.path().join("ax-eval-results").join("cache");
     fs::create_dir_all(&cache_dir).unwrap();
 
     let old_cache_file = cache_dir.join("old-cache-entry");
@@ -1009,10 +1009,10 @@ fn test_clean_command_with_older_than_keeps_new_cache_files() {
         .unwrap();
     assert!(status.success());
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["clean", "--older-than", "1h"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
         .stdout(predicate::str::contains(
@@ -1026,10 +1026,10 @@ fn test_clean_command_with_older_than_keeps_new_cache_files() {
 #[test]
 fn test_clean_command_invalid_duration() {
     let dir = tempdir().unwrap();
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args(["clean", "--older-than", "invalid"])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .failure();
 }
@@ -1090,7 +1090,7 @@ evaluation:
     let fixtures_dir = dir.path().join("fixtures");
     fs::write(fixtures_dir.join("post_script_test.yaml"), scenario_content).unwrap();
 
-    llm_tool_test()
+    ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
@@ -1099,7 +1099,7 @@ evaluation:
             "--tool",
             "mock",
         ])
-        .env("LLM_TOOL_TEST_ENABLED", "1")
+        .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success();
 

@@ -159,17 +159,17 @@ All scripts receive these environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `LLM_TOOL_TEST_FIXTURE_DIR` | Absolute path to the fixture (working) directory |
-| `LLM_TOOL_TEST_RESULTS_DIR` | Absolute path to the results directory |
-| `LLM_TOOL_TEST_SCENARIO` | Scenario name |
-| `LLM_TOOL_TEST_AGENT` | LLM agent tool used (e.g., "opencode") |
-| `LLM_TOOL_TEST_MODEL` | Model used (e.g., "gpt-4o") |
-| `LLM_TOOL_TEST_TRANSCRIPT` | Path to `artifacts/transcript.raw.txt` (post-execution and evaluation scripts only) |
-| `LLM_TOOL_TEST_EVENTS` | Path to `artifacts/events.jsonl` (post-execution and evaluation scripts only) |
+| `AX_EVAL_FIXTURE_DIR` | Absolute path to the fixture (working) directory |
+| `AX_EVAL_RESULTS_DIR` | Absolute path to the results directory |
+| `AX_EVAL_SCENARIO` | Scenario name |
+| `AX_EVAL_AGENT` | LLM agent tool used (e.g., "opencode") |
+| `AX_EVAL_MODEL` | Model used (e.g., "gpt-4o") |
+| `AX_EVAL_TRANSCRIPT` | Path to `artifacts/transcript.raw.txt` (post-execution and evaluation scripts only) |
+| `AX_EVAL_EVENTS` | Path to `artifacts/events.jsonl` (post-execution and evaluation scripts only) |
 
 Scripts also inherit any `target.env` variables defined in the scenario, after
-run-directory placeholders such as `${LLM_TOOL_TEST_FIXTURE_DIR}` and
-`${LLM_TOOL_TEST_RESULTS_DIR}` are expanded.
+run-directory placeholders such as `${AX_EVAL_FIXTURE_DIR}` and
+`${AX_EVAL_RESULTS_DIR}` are expanded.
 
 ---
 

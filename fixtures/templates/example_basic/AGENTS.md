@@ -1,6 +1,6 @@
 # AGENTS.md - Example Basic Fixture
 
-This directory contains a demonstration scenario for the llm-tool-test framework.
+This directory contains a demonstration scenario for the ax-eval framework.
 
 ## Files
 

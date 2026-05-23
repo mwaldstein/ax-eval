@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     version,
     arg_required_else_help = true,
     about = "Evaluate how coding agents use CLI tools",
-    long_about = "llm-tool-test runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test guidance list\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test discover qipu --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>\n\nUse `llm-tool-test template <kind>` for copyable schema examples.",
-    after_help = "Common commands:\n  llm-tool-test scenarios\n  llm-tool-test template scenario > fixtures/my_scenario.yaml\n  llm-tool-test template config > llm-tool-test-config.toml\n  llm-tool-test guidance start\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test discover qipu --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario my_scenario --tool opencode\n  llm-tool-test show <run-id>"
+    long_about = "ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval guidance list\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>\n\nUse `ax-eval template <kind>` for copyable schema examples.",
+    after_help = "Common commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval template config > ax-eval-config.toml\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -30,8 +30,8 @@ pub struct ToolModelArgs {
 pub enum Commands {
     /// Run a test scenario
     #[command(
-        long_about = "Run one scenario, all selected scenarios, or a configured tool/model matrix.\n\nReal agent execution is disabled unless LLM_TOOL_TEST_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.\n\nArtifacts are written under llm-tool-test-results/ by default, including reports, transcripts, metrics, and the isolated fixture workspace.",
-        after_help = "Examples:\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode\n  PATH=\"$PWD/target/debug:$PATH\" LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --tool opencode\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --all --tags smoke --tier 1 --tool claude-code\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test run --scenario fixtures/my_scenario.yaml --profile quick\n  llm-tool-test run --scenario fixtures/my_scenario.yaml --dry-run\n\nStart with `llm-tool-test template scenario` for a copyable scenario schema."
+        long_about = "Run one scenario, all selected scenarios, or a configured tool/model matrix.\n\nReal agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.\n\nArtifacts are written under ax-eval-results/ by default, including reports, transcripts, metrics, and the isolated fixture workspace.",
+        after_help = "Examples:\n  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode\n  PATH=\"$PWD/target/debug:$PATH\" AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --all --tags smoke --tier 1 --tool claude-code\n  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --profile quick\n  ax-eval run --scenario fixtures/my_scenario.yaml --dry-run\n\nStart with `ax-eval template scenario` for a copyable scenario schema."
     )]
     Run {
         /// Path to scenario file or name
@@ -88,8 +88,8 @@ pub enum Commands {
     },
     /// Discover how well a target CLI describes itself to LLM agents
     #[command(
-        long_about = "Run an all-in-one discovery workflow for a target executable. Discovery asks an LLM agent to understand the target command, author five complex goal-oriented scenarios, run the generated scenario batch, judge usage quality, and summarize the results.\n\nReal agent execution is disabled unless LLM_TOOL_TEST_ENABLED=1 is set, because discovery may spend LLM API credits and execute agent-driven CLI commands.",
-        after_help = "Example:\n  LLM_TOOL_TEST_ENABLED=1 llm-tool-test discover qipu --tool opencode\n\nUse --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent."
+        long_about = "Run an all-in-one discovery workflow for a target executable. Discovery asks an LLM agent to understand the target command, author five complex goal-oriented scenarios, run the generated scenario batch, judge usage quality, and summarize the results.\n\nReal agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because discovery may spend LLM API credits and execute agent-driven CLI commands.",
+        after_help = "Example:\n  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode\n\nUse --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent."
     )]
     Discover {
         /// Target executable binary or command to discover
@@ -177,7 +177,7 @@ pub enum GuidanceCommand {
 pub enum TemplateKind {
     /// Scenario YAML with target, task, setup, scripts, gates, judge, and matrix fields
     Scenario,
-    /// llm-tool-test-config.toml with supported config fields and valid profiles
+    /// ax-eval-config.toml with supported config fields and valid profiles
     Config,
     /// Shell script gate that reports pass/fail JSON
     ScriptGate,

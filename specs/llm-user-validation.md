@@ -4,13 +4,13 @@
 
 ## Purpose
 
-llm-tool-test is an **evaluation framework** for measuring how effectively LLM coding agents use CLI tools. This is not a traditional testing tool — it does not produce a binary pass/fail verdict and stop. It produces **dimensional measurements** that answer questions like "how much did the new model increase token usage?" and "did the richer AGENTS.md reduce the error rate?"
+ax-eval is an **evaluation framework** for measuring how effectively LLM coding agents use CLI tools. This is not a traditional testing tool — it does not produce a binary pass/fail verdict and stop. It produces **dimensional measurements** that answer questions like "how much did the new model increase token usage?" and "did the richer AGENTS.md reduce the error rate?"
 
 ### Evaluation, Not Testing
 
 Traditional testing tools answer: _"Did it pass?"_ — a binary question with a binary answer.
 
-llm-tool-test answers: _"How well did it go?"_ — a scalar question measured across multiple dimensions:
+ax-eval answers: _"How well did it go?"_ — a scalar question measured across multiple dimensions:
 
 - **Quantitative**: token usage, command count, error rate, first-try success rate, cost, duration, retry rate
 - **Qualitative**: did the agent use the tool as intended? Did it follow documented conventions? Was its approach efficient or circuitous?
@@ -50,7 +50,7 @@ These answer questions like: _"Does a new model or harness increase token usage?
 
 These require judgment — either from a human reviewing the transcript, or from an LLM-as-judge scoring against a rubric that encodes the tool author's intent.
 
-llm-tool-test automates both dimensions. It launches a real LLM coding agent in an isolated workspace, gives it a task that requires using the target CLI tool, captures the full interaction transcript, and produces a structured evaluation profile — not just a pass/fail stamp.
+ax-eval automates both dimensions. It launches a real LLM coding agent in an isolated workspace, gives it a task that requires using the target CLI tool, captures the full interaction transcript, and produces a structured evaluation profile — not just a pass/fail stamp.
 
 The framework is tool-agnostic. It does not link against the target tool's code or assume anything about its internals. It treats the target tool as a black box — exactly as an LLM agent would.
 
@@ -60,7 +60,7 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Scenarios     │────▶│  llm-tool-test  │────▶│  LLM Agent      │
+│   Scenarios     │────▶│    ax-eval      │────▶│  LLM Agent      │
 │   (YAML)        │     │  (harness)      │     │  Adapters        │
 └─────────────────┘     └────────┬────────┘     └────────┬────────┘
                                  │                       │
@@ -105,7 +105,7 @@ The framework is tool-agnostic. It does not link against the target tool's code 
 
 ### Discovery Workflow
 
-`llm-tool-test discover <target>` is a top-level workflow for bootstrapping an
+`ax-eval discover <target>` is a top-level workflow for bootstrapping an
 evaluation profile from the target executable itself. Discovery is not a
 scenario promotion mechanism and not a pass/fail test. It asks an LLM agent to
 inspect the command surface, explain what the tool appears to be for, author a
@@ -115,7 +115,7 @@ summarize the results for the tool author.
 Discovery artifacts live under the discovery result directory:
 
 ```text
-llm-tool-test-results/<timestamp>-discover-<target>-<agent>-<model>/
+ax-eval-results/<timestamp>-discover-<target>-<agent>-<model>/
 ├── understanding.md
 ├── scenarios/
 ├── runs/
@@ -141,7 +141,7 @@ separate.
 
 ### Key Architectural Decisions
 
-1. **Separate binary**: `llm-tool-test` is a standalone tool, not a library or test harness linked into the target tool.
+1. **Separate binary**: `ax-eval` is a standalone tool, not a library or test harness linked into the target tool.
 
 2. **Black-box evaluation**: The harness treats the target as an external CLI tool. It doesn't link against the tool's library code.
 
@@ -262,7 +262,7 @@ Structured events logged during the run:
 Each run produces:
 
 ```
-llm-tool-test-results/<timestamp>-<tool>-<model>-<scenario>/
+ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/
 ├── metrics.json            # Evaluation metrics
 ├── evaluation.md           # Human-readable summary
 ├── report.md               # Execution and efficiency report
@@ -368,12 +368,12 @@ If cache hit, reuse transcript and evaluation results. Disable with `--no-cache`
 - Generated run metadata placeholder
 
 No LLM API calls are made, no agent adapter is launched, and
-`LLM_TOOL_TEST_ENABLED=1` is not required.
+`AX_EVAL_ENABLED=1` is not required.
 
 ### Environment Variables
 
 ```bash
-LLM_TOOL_TEST_ENABLED=1          # Required only for real agent execution; not needed for --dry-run.
+AX_EVAL_ENABLED=1          # Required only for real agent execution; not needed for --dry-run.
 ```
 
 ---
@@ -394,7 +394,7 @@ The raw transcript is preserved but marked as sensitive. It should not be commit
 
 ```gitignore
 # LLM test artifacts (volatile, potentially sensitive)
-llm-tool-test-results/
+ax-eval-results/
 ```
 
 ---
@@ -405,35 +405,35 @@ llm-tool-test-results/
 
 ```bash
 # Run scenarios
-llm-tool-test run --scenario example_basic  # Run specific scenario
-llm-tool-test run --all                     # Run all scenarios
-llm-tool-test run --all --tags capture      # Run by tag
-llm-tool-test run --all --tags smoke --tags capture  # Match any listed tag
-llm-tool-test run --all --tier 1            # Run by tier
-llm-tool-test run --scenario example_basic --tool opencode  # Run with specific agent
-llm-tool-test run --dry-run                 # Validate selection without LLM calls
+ax-eval run --scenario example_basic  # Run specific scenario
+ax-eval run --all                     # Run all scenarios
+ax-eval run --all --tags capture      # Run by tag
+ax-eval run --all --tags smoke --tags capture  # Match any listed tag
+ax-eval run --all --tier 1            # Run by tier
+ax-eval run --scenario example_basic --tool opencode  # Run with specific agent
+ax-eval run --dry-run                 # Validate selection without LLM calls
 
 # Matrix runs
-llm-tool-test run --all --profile quick
+ax-eval run --all --profile quick
 
 # Discover a target tool and run generated scenarios
-llm-tool-test discover qipu --tool opencode
-llm-tool-test discover qipu --tool opencode --discover-tool codex
+ax-eval discover qipu --tool opencode
+ax-eval discover qipu --tool opencode --discover-tool codex
 
 # Print copyable schema templates
-llm-tool-test template scenario
-llm-tool-test template config
-llm-tool-test template script-gate
-llm-tool-test template evaluator
+ax-eval template scenario
+ax-eval template config
+ax-eval template script-gate
+ax-eval template evaluator
 
 # List and inspect scenarios
-llm-tool-test scenarios                     # List all scenarios
-llm-tool-test scenarios --tags capture      # Filter by tags
-llm-tool-test show <run-id>                 # Show saved run details
+ax-eval scenarios                     # List all scenarios
+ax-eval scenarios --tags capture      # Filter by tags
+ax-eval show <run-id>                 # Show saved run details
 
 # Maintenance
-llm-tool-test clean --older-than 7d         # Clean cache and legacy transcript artifacts
-llm-tool-test clean                         # Clean cache and legacy transcript artifacts
+ax-eval clean --older-than 7d         # Clean cache and legacy transcript artifacts
+ax-eval clean                         # Clean cache and legacy transcript artifacts
 ```
 
 ---
@@ -456,7 +456,7 @@ A single run produces a profile. Two runs produce a comparison. Many runs produc
 Results are stored in an append-only format for trend analysis:
 
 ```
-llm-tool-test-results/
+ax-eval-results/
 ├── results.jsonl           # Append-only run results
 └── results.db              # Optional SQLite for queries
 ```
