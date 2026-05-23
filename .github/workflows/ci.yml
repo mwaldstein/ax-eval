@@ -37,3 +37,6 @@ jobs:
 
       - name: Build release binary
         run: cargo build --release --locked
+
+      - name: Verify crates.io publish
+        run: cargo publish --dry-run --locked

@@ -1,7 +1,13 @@
 [package]
 name = "ax-eval"
-version = "0.3.0-beta1"
+version = "0.3.0-beta.1"
 edition = "2021"
+description = "Evaluate how coding agents use CLI tools"
+license = "MIT"
+repository = "https://github.com/mwaldstein/ax-eval"
+readme = "README.md"
+keywords = ["llm", "agent", "cli", "evaluation", "testing"]
+categories = ["command-line-utilities", "development-tools::testing"]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }

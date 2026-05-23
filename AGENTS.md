@@ -82,9 +82,9 @@ Follow `src/adapter/README.md`.
 
 ## Commit Messages
 
-Use concise imperative commit messages: `Add target health checks`, not `Added target health checks`.
+Use concise imperative messages: `Fix cache invalidation`, not `Fixed cache invalidation`.
 Keep the subject specific and usually under 72 characters; avoid vague subjects like `Docs update`.
-For code changes, prefer a plain imperative subject such as `Fix cache invalidation`.
+For code changes, prefer a plain imperative subject.
 Prefixes are optional; use them only when they clarify scope.
 Allowed prefixes: `docs:`, `test:`, `ci:`, `chore:`.
 Do not require Conventional Commits unless release automation later depends on it.
@@ -92,6 +92,13 @@ Commit one logical change at a time.
 Add a body when the reason or tradeoff is not obvious from the diff.
 Reference issues at the end of the body when relevant, e.g. `Refs #123`.
 Capitalize the first word unless using an optional prefix.
+
+## Versioning
+
+Use strict semver for all version strings and git tags: `MAJOR.MINOR.PATCH` with
+optional `-pre.N` pre-release suffix (e.g. `0.3.0-beta.1`). Never use
+`-beta1`, `-rc1`, or other non-dotted pre-release forms — crates.io and many
+tooling ecosystems reject them.
 
 ## Agent Skills
 

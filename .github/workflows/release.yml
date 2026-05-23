@@ -131,3 +131,19 @@ jobs:
           files: dist/*
           generate_release_notes: true
           prerelease: ${{ needs.validate.outputs.prerelease }}
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
