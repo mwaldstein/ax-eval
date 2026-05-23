@@ -5,14 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-beta1] - 2026-05-23
+## [0.3.0-beta.2] - 2026-05-23
+
+### Added
+
+- `ax-eval validate` command: schema validation for scenario YAML files without fixture setup or LLM spend. Checks required fields, gate types (with typo suggestions), regex compilation, judge configuration, composite weights, and semantic warnings. Supports `--scenario <path>` and `--all`.
+
+### Fixed
+
+- `target.binary` documented as interaction-matching label, not execution path
+- Tutorial removed broken `PATH: "${AX_EVAL_FIXTURE_DIR}:${PATH}"` (unsupported expansion)
+
+## [0.3.0-beta.1] - 2026-05-23
 
 ### Changed
 
 - Renamed project from `llm-tool-test` to `ax-eval` (binary, crate, config, docs)
 - Reframed codebase and documentation as an evaluation framework
 
-## [0.2.0-beta1] - 2026-05-23
+## [0.2.0-beta.1] - 2026-05-23
 
 ### Added
 
@@ -106,3 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `qipu_version` and `qipu_commit` fields from run metadata and cache keys
 - `get_prime_output` from fixture utilities
 - `SPLIT_PLAN.md` (superseded by completed implementation)
+
+[0.3.0-beta.2]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.1...v0.3.0-beta.2
+[0.3.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.2.0-beta.1...v0.3.0-beta.1
+[0.2.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.1.0...v0.2.0-beta.1
+[0.1.0]: https://github.com/mwaldstein/ax-eval/releases/tag/v0.1.0
