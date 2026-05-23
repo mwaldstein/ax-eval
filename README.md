@@ -175,21 +175,12 @@ evaluation:
       substring: "Project"
 ```
 
-For richer copyable examples, use:
-
-```bash
-ax-eval template scenario
-ax-eval template config
-ax-eval template script-gate
-ax-eval template evaluator
-```
-
-See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, and the full field reference.
+See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, and the full field reference. Use `ax-eval template scenario` for a copyable starting point.
 
 ## Documentation
 
 - [CLI reference](docs/reference/cli-commands.md): All commands, flags, and examples.
-- [User guide](docs/user-guide.md): Commands, scenarios, and CI usage.
+- [User guide](docs/user-guide.md): Workflows, scenario authoring, results, and troubleshooting.
 - [Scenario spec](specs/scenarios.md): Complete YAML format.
 - [Evaluation spec](specs/evaluation.md): Scoring and metrics design.
 - [Scripts spec](specs/scripts.md): Custom evaluators and post-scripts.
