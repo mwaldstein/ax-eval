@@ -188,6 +188,7 @@ See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, 
 
 ## Documentation
 
+- [CLI reference](docs/reference/cli-commands.md): All commands, flags, and examples.
 - [User guide](docs/user-guide.md): Commands, scenarios, and CI usage.
 - [Scenario spec](specs/scenarios.md): Complete YAML format.
 - [Evaluation spec](specs/evaluation.md): Scoring and metrics design.
