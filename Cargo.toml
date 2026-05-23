@@ -1,6 +1,6 @@
 [package]
 name = "ax-eval"
-version = "0.2.0-beta1"
+version = "0.3.0-beta1"
 edition = "2021"
 
 [dependencies]
