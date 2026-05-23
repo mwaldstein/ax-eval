@@ -140,8 +140,6 @@ template_folder: todo_tutorial
 
 target:
   binary: ./todo
-  env:
-    PATH: "${AX_EVAL_FIXTURE_DIR}:${PATH}"
 
 task:
   prompt: |
@@ -185,8 +183,7 @@ run:
 
 Key decisions in this scenario:
 
-- **`target.binary: ./todo`** — the tool is part of the fixture, so we reference it relatively.
-- **`target.env`** — ensures the fixture directory is on PATH so the agent can find `todo`.
+- **`target.binary: ./todo`** — the tool is part of the fixture, so we reference it by relative path. No PATH manipulation needed.
 - **Gates verify outcomes** — the store file exists, all three tasks appear, and one is marked DONE. We do not assert exact command sequences.
 - **Judge disabled** — for a first run, interaction metrics are the primary signal.
 

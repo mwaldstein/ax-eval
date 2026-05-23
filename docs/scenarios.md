@@ -18,7 +18,7 @@ Each scenario must declare the CLI tool under evaluation. This is the **target t
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `target.binary` | string | yes | Path or name of the CLI tool binary |
+| `target.binary` | string | yes | Binary name used to identify target tool invocations in interaction evidence. Not executed by the harness; the agent discovers and runs the tool based on AGENTS.md and the fixture workspace. The path portion is ignored — only the filename is matched (e.g. `./todo`, `todo`, and `/usr/local/bin/todo` all match `todo`). |
 | `target.command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. No default; when omitted, only aggregate command counts are available for regex-based metrics. |
 | `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens, fixture paths) |
 | `target.health_check` | string | no | Command to verify the tool is working before/after runs |
@@ -39,6 +39,12 @@ target:
     MYTOOL_AUTH_TOKEN: "token-value"
 ```
 
+`target.binary` identifies which commands in the agent's interaction belong to
+your tool (for interaction profiling and judge prompts). The harness does not
+execute it — the agent runs the tool itself based on the fixture's AGENTS.md.
+Only the filename is used for matching, so `./mytool`, `mytool`, and
+`/usr/local/bin/mytool` are equivalent.
+
 If no target is specified, scenario loading fails with a clear error.
 Most environment values are passed literally. Two run-directory placeholders are
 expanded after the isolated workspace is created:
@@ -56,11 +62,13 @@ target:
     MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 ```
 
-`ax-eval` does not modify `PATH` to locate the target tool. If
-`target.binary` is a bare command name, the command must already be discoverable
-in the environment used for the run. During local development, where the target
-tool often lives in a build output directory such as `target/debug`,
-`target/release`, or `dist`, prepend that directory before invoking the harness:
+`ax-eval` does not modify `PATH` to locate the target tool. The agent
+discovers and runs the tool based on AGENTS.md and the fixture workspace.
+During local development, where the target tool often lives in a build output
+directory such as `target/debug`, `target/release`, or `dist`, make sure it
+is visible to the agent — either by putting the binary in the fixture directory
+(and documenting it in AGENTS.md) or by setting PATH before invoking the
+harness:
 
 ```bash
 PATH="$PWD/target/debug:$PATH" \
@@ -68,26 +76,18 @@ PATH="$PWD/target/debug:$PATH" \
   ax-eval run --scenario my_scenario --tool opencode
 ```
 
-For scenario-specific lookup, set `PATH` in `target.env`; it is passed to setup
-commands, health checks, agent adapter runs, post scripts, script gates, and
-evaluators:
+### Environment value expansion
 
-```yaml
-target:
-  binary: mytool
-  health_check: "mytool --version"
-  env:
-    PATH: "/absolute/path/to/mytool/target/debug:/usr/local/bin:/usr/bin:/bin"
-```
+`target.env` values are literal except for two framework placeholders:
 
-`target.env` values are literal except for
-`${AX_EVAL_FIXTURE_DIR}` and `${AX_EVAL_RESULTS_DIR}`. A value such
-as `PATH: "...:${PATH}"` does not inherit the caller's path; use shell-level
-`PATH` manipulation when you need that behavior.
+- `${AX_EVAL_FIXTURE_DIR}` — absolute path to the per-run fixture directory.
+- `${AX_EVAL_RESULTS_DIR}` — absolute path to the per-run results directory.
 
-Use `./mytool` only when the target binary is part of the fixture workspace.
-Use an absolute `target.binary` only when the task and interaction metrics
-should expose that absolute command path to the agent and evaluators.
+The child process inherits the parent environment. `target.env` entries are
+layered on top, overriding any inherited values by name. This means setting
+`PATH` in `target.env` **replaces** the inherited PATH entirely — it does not
+prepend or append. If you need to modify PATH, do it at the shell level before
+invoking `ax-eval` (as shown above).
 
 ### `command_pattern`
 
