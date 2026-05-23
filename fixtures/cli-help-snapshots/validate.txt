@@ -1,0 +1,25 @@
+Validate one or more scenario files for schema correctness.
+
+Checks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.
+
+Use it after editing a scenario to catch errors before running.
+
+Usage: ax-eval validate [OPTIONS]
+
+Options:
+  -s, --scenario <SCENARIO>
+          Path to scenario file or name
+
+      --all
+          Validate all scenarios in fixtures directory
+
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval validate --all
+  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose

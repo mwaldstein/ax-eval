@@ -13,15 +13,16 @@ Use it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agent
 Common commands:
   ax-eval scenarios
   ax-eval template scenario > fixtures/my_scenario.yaml
+  ax-eval validate --scenario fixtures/my_scenario.yaml
   ax-eval guidance list
   ax-eval guidance start
-  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode
+  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
   AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode
   ax-eval show <run-id>
 
 Use `ax-eval template <kind>` for copyable schema examples.
 
-Usage: ax-eval <COMMAND>
+Usage: ax-eval [OPTIONS] <COMMAND>
 
 Commands:
   run        Run a test scenario
@@ -30,10 +31,14 @@ Commands:
   show       Show details for a saved run ID
   clean      Clean cache and legacy transcript artifacts
   guidance   Show guidance for building LLM-usable tools and docs
+  validate   Validate scenario YAML without running
   template   Print copyable scenario, config, and script templates
   help       Print this message or the help of the given subcommand(s)
 
 Options:
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
   -h, --help
           Print help (see a summary with '-h')
 
@@ -44,8 +49,9 @@ Common commands:
   ax-eval scenarios
   ax-eval template scenario > fixtures/my_scenario.yaml
   ax-eval template config > ax-eval-config.toml
+  ax-eval validate --scenario fixtures/my_scenario.yaml
   ax-eval guidance start
-  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode
+  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
   AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode
   ax-eval show <run-id>
 ```
@@ -90,6 +96,9 @@ Options:
 
       --no-cache
           Disable caching
+
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
 
       --judge-model <JUDGE_MODEL>
           Judge model for LLM-as-judge evaluation
@@ -157,11 +166,14 @@ Options:
           
           [default: 300]
 
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
   -h, --help
           Print help (see a summary with '-h')
 
 Example:
-  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode
+  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
 
 Use --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent.
 ```
@@ -176,6 +188,7 @@ Usage: ax-eval scenarios [OPTIONS]
 Options:
       --tags <TAGS>  Filter by tags
       --tier <TIER>  Filter scenarios by tier (0=smoke, 1=quick, 2=standard, 3=comprehensive) [default: 0]
+  -v, --verbose      Enable verbose output (or set RUST_LOG for fine-grained control)
   -h, --help         Print help
 ```
 
@@ -184,13 +197,14 @@ Options:
 ```
 Show details for a saved run ID
 
-Usage: ax-eval show <NAME>
+Usage: ax-eval show [OPTIONS] <NAME>
 
 Arguments:
   <NAME>  Name of the scenario
 
 Options:
-  -h, --help  Print help
+  -v, --verbose  Enable verbose output (or set RUST_LOG for fine-grained control)
+  -h, --help     Print help
 ```
 
 ## ax-eval clean
@@ -202,7 +216,38 @@ Usage: ax-eval clean [OPTIONS]
 
 Options:
       --older-than <OLDER_THAN>  Clean artifacts older than duration (e.g., "30d", "7d", "1h")
+  -v, --verbose                  Enable verbose output (or set RUST_LOG for fine-grained control)
   -h, --help                     Print help
+```
+
+## ax-eval validate
+
+```
+Validate one or more scenario files for schema correctness.
+
+Checks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.
+
+Use it after editing a scenario to catch errors before running.
+
+Usage: ax-eval validate [OPTIONS]
+
+Options:
+  -s, --scenario <SCENARIO>
+          Path to scenario file or name
+
+      --all
+          Validate all scenarios in fixtures directory
+
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval validate --all
+  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose
 ```
 
 ## ax-eval guidance
@@ -210,7 +255,7 @@ Options:
 ```
 Show guidance for building LLM-usable tools and docs
 
-Usage: ax-eval guidance <COMMAND>
+Usage: ax-eval guidance [OPTIONS] <COMMAND>
 
 Commands:
   list  List available guidance topics
@@ -218,7 +263,8 @@ Commands:
   help  Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help  Print help
+  -v, --verbose  Enable verbose output (or set RUST_LOG for fine-grained control)
+  -h, --help     Print help
 ```
 
 ## ax-eval template
@@ -226,7 +272,7 @@ Options:
 ```
 Print copyable scenario, config, and script templates
 
-Usage: ax-eval template <KIND>
+Usage: ax-eval template [OPTIONS] <KIND>
 
 Arguments:
   <KIND>
@@ -239,6 +285,9 @@ Arguments:
           - evaluator:   Custom evaluator script that reports metrics, score, and summary JSON
 
 Options:
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
   -h, --help
           Print help (see a summary with '-h')
 ```

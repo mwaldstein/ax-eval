@@ -41,6 +41,6 @@ Options:
           Print help (see a summary with '-h')
 
 Example:
-  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode
+  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
 
 Use --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent.

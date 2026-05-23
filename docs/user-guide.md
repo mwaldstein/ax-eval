@@ -19,6 +19,10 @@ export AX_EVAL_ENABLED=1
 Use `--dry-run` when you want to validate scenario selection, fixture setup,
 cache keys, and run planning without setting the safety flag or invoking an LLM.
 
+Use `ax-eval validate --scenario <path>` to check scenario YAML for schema errors
+before running. It catches missing fields, unknown gate types, invalid regexes,
+and misconfigured judge/composite weights — no fixture setup, no LLM spend.
+
 ## Runtime Agent Tools
 
 Runtime adapters currently support:
@@ -38,7 +42,7 @@ LLM-first evaluation of how self-describing the executable is:
 
 ```bash
 export AX_EVAL_ENABLED=1
-ax-eval discover qipu --tool opencode
+ax-eval discover mytool --tool opencode
 ```
 
 Discovery runs one all-in-one workflow:
@@ -69,7 +73,7 @@ evaluated scenario-run agent and the discovery authoring agent. Use
 summary should use a different agent/model:
 
 ```bash
-ax-eval discover qipu \
+ax-eval discover mytool \
   --tool opencode \
   --model default \
   --discover-tool codex \
@@ -85,6 +89,21 @@ the main evaluation signal.
 ## Scenario Authoring
 
 The tutorial covers writing your first scenario. This section covers advanced authoring patterns.
+
+### Validating Scenarios
+
+After editing a scenario YAML, run `validate` to catch errors before spending
+time on fixture setup or LLM credits:
+
+```bash
+ax-eval validate --scenario fixtures/my_scenario.yaml
+ax-eval validate --all
+```
+
+`validate` checks YAML syntax, required fields, gate types (with typo
+suggestions), regex compilation, judge configuration, and composite weight
+sums. It produces no side effects — no fixture workspace, no LLM calls, no
+agent execution.
 
 ### Target Tool Lookup During Development
 

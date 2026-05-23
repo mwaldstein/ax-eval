@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     version,
     arg_required_else_help = true,
     about = "Evaluate how coding agents use CLI tools",
-    long_about = "ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval guidance list\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>\n\nUse `ax-eval template <kind>` for copyable schema examples.",
-    after_help = "Common commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval template config > ax-eval-config.toml\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>"
+    long_about = "ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval guidance list\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>\n\nUse `ax-eval template <kind>` for copyable schema examples.",
+    after_help = "Common commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval template config > ax-eval-config.toml\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -93,7 +93,7 @@ pub enum Commands {
     /// Discover how well a target CLI describes itself to LLM agents
     #[command(
         long_about = "Run an all-in-one discovery workflow for a target executable. Discovery asks an LLM agent to understand the target command, author five complex goal-oriented scenarios, run the generated scenario batch, judge usage quality, and summarize the results.\n\nReal agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because discovery may spend LLM API credits and execute agent-driven CLI commands.",
-        after_help = "Example:\n  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode\n\nUse --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent."
+        after_help = "Example:\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n\nUse --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent."
     )]
     Discover {
         /// Target executable binary or command to discover
@@ -153,6 +153,20 @@ pub enum Commands {
     Guidance {
         #[command(subcommand)]
         command: GuidanceCommand,
+    },
+    /// Validate scenario YAML without running
+    #[command(
+        long_about = "Validate one or more scenario files for schema correctness.\n\nChecks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.\n\nUse it after editing a scenario to catch errors before running.",
+        after_help = "Examples:\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval validate --all\n  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose"
+    )]
+    Validate {
+        /// Path to scenario file or name
+        #[arg(long, short)]
+        scenario: Option<String>,
+
+        /// Validate all scenarios in fixtures directory
+        #[arg(long)]
+        all: bool,
     },
     /// Print copyable scenario, config, and script templates
     Template {
