@@ -12,9 +12,7 @@ Built primarily for CLI authors. Also useful for technical writers iterating on 
 
 ## Measure Agent Experience
 
-Your CLI works. Can an agent discover and use it?
-
-`ax-eval` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails. Where unit tests verify deterministic behavior, ax-eval measures how agents actually interact with your tool.
+ax-eval measures how agents discover, learn, and use your CLI. It captures the qualitative friction of real agent interactions — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails. Where unit tests verify deterministic behavior, ax-eval measures how agents actually interact with your tool.
 
 Benchmark changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable qualitative signal on interaction quality. Pass/fail gates are supporting checks for catastrophic failures, not the main result.
 
