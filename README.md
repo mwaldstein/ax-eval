@@ -2,7 +2,7 @@
 
 Evaluate how coding agents use your CLI.
 
-**Status:** Pre-1.0; interfaces may change. Supports `claude-code`, `opencode`, and `codex` on macOS, Linux, and Windows.
+Supports `claude-code`, `opencode`, and `codex` on macOS, Linux, and Windows.
 
 CLIs built for humans often frustrate AI agents — vague errors, complex setup, confusing subcommands — leading to retries and wasted tokens.
 
