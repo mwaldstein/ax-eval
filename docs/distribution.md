@@ -50,13 +50,13 @@ Same behavior as the Unix installer: platform detection, checksum verification, 
 | `AX_EVAL_VERSION` | `latest` | Version to install (or `latest`) |
 | `AX_EVAL_INCLUDE_PRERELEASES` | `0` | Set `1`/`true` to consider prereleases |
 
-### Cargo Install (Future)
+### Cargo Install
 
 ```bash
 cargo install ax-eval
 ```
 
-Requires publishing to crates.io. Not yet available.
+Published to crates.io. The `release.yml` workflow publishes on tag push. CI runs `cargo publish --dry-run` on every push to catch metadata issues early.
 
 ### Homebrew (Future)
 
@@ -98,7 +98,9 @@ Triggered by pushing a `v*` tag. Three jobs:
 
 2. **Build** — matrix across all 4 targets, builds release binaries, packages as `.tar.gz` (Unix) or `.zip` (Windows), uploads as artifacts.
 
-3. **Publish** — downloads all build artifacts, generates `SHA256SUMS`, creates GitHub release with `softprops/action-gh-release@v3`. Prerelease tags are marked accordingly.
+3. **Publish GitHub release** — downloads all build artifacts, generates `SHA256SUMS`, creates GitHub release with `softprops/action-gh-release@v3`. Prerelease tags are marked accordingly.
+
+4. **Publish to crates.io** — runs `cargo publish --locked`. Requires `CARGO_REGISTRY_TOKEN` secret.
 
 ### Targets
 
@@ -140,6 +142,6 @@ scripts/
 
 ## Remaining Work
 
-- [ ] Publish to crates.io (`cargo install ax-eval`)
+- [x] Publish to crates.io (`cargo install ax-eval`)
 - [ ] Create Homebrew tap and formula
 - [ ] GPG or sigstore release signing
