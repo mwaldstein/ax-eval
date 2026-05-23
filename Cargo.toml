@@ -24,3 +24,4 @@ yaml_serde = "0.10.4"
 tempfile = "3.24.0"
 assert_cmd = "2.0"
 predicates = "3.0"
+similar = { version = "2.7", features = ["inline"] }

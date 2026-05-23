@@ -1,0 +1,17 @@
+Print copyable scenario, config, and script templates
+
+Usage: ax-eval template <KIND>
+
+Arguments:
+  <KIND>
+          Template to print
+
+          Possible values:
+          - scenario:    Scenario YAML with target, task, setup, scripts, gates, judge, and matrix fields
+          - config:      ax-eval-config.toml with supported config fields and valid profiles
+          - script-gate: Shell script gate that reports pass/fail JSON
+          - evaluator:   Custom evaluator script that reports metrics, score, and summary JSON
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')

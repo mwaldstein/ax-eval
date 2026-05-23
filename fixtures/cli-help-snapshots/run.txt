@@ -1,0 +1,63 @@
+Run one scenario, all selected scenarios, or a configured tool/model matrix.
+
+Real agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.
+
+Artifacts are written under ax-eval-results/ by default, including reports, transcripts, metrics, and the isolated fixture workspace.
+
+Usage: ax-eval run [OPTIONS]
+
+Options:
+  -s, --scenario <SCENARIO>
+          Path to scenario file or name
+
+      --all
+          Run all scenarios in fixtures directory
+
+      --tags <TAGS>
+          Filter scenarios by tags
+
+      --tier <TIER>
+          Filter scenarios by tier (0=smoke, 1=quick, 2=standard, 3=comprehensive)
+          
+          [default: 0]
+
+      --tool <TOOL>
+          Tool to test (e.g., claude-code, opencode)
+
+      --model <MODEL>
+          Model to use with the tool (e.g., claude-sonnet-4-20250514, gpt-4o)
+
+      --profile <PROFILE>
+          Profile to use for matrix run (defined in config)
+
+      --dry-run
+          Dry run (don't execute LLM calls)
+
+      --no-cache
+          Disable caching
+
+      --judge-model <JUDGE_MODEL>
+          Judge model for LLM-as-judge evaluation
+
+      --judge-tool <JUDGE_TOOL>
+          Tool to use for LLM-as-judge evaluation (defaults to judge config or opencode)
+
+      --no-judge
+          Disable LLM-as-judge evaluation
+
+      --timeout-secs <TIMEOUT_SECS>
+          Maximum execution time in seconds per command
+          
+          [default: 300]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode
+  PATH="$PWD/target/debug:$PATH" AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode
+  AX_EVAL_ENABLED=1 ax-eval run --all --tags smoke --tier 1 --tool claude-code
+  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --profile quick
+  ax-eval run --scenario fixtures/my_scenario.yaml --dry-run
+
+Start with `ax-eval template scenario` for a copyable scenario schema.

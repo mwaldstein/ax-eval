@@ -6,6 +6,45 @@ use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
 
+const SNAPSHOTS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cli-help-snapshots");
+
+fn assert_help_snapshot(subcommand: Option<&str>, snapshot_name: &str) {
+    let mut cmd = ax_eval();
+    if let Some(sc) = subcommand {
+        cmd.args([sc, "--help"]);
+    } else {
+        cmd.arg("--help");
+    }
+    let output = cmd.env_remove("AX_EVAL_ENABLED").output().unwrap();
+    let actual = String::from_utf8_lossy(&output.stdout).into_owned();
+    let expected = fs::read_to_string(format!("{SNAPSHOTS}/{snapshot_name}.txt"))
+        .unwrap_or_else(|_| panic!("snapshot file not found: {SNAPSHOTS}/{snapshot_name}.txt"));
+    if actual != expected {
+        let diff = similar::TextDiff::from_lines(&expected, &actual);
+        let mut diff_lines = Vec::new();
+        for change in diff.iter_all_changes() {
+            let sign = match change.tag() {
+                similar::ChangeTag::Delete => "-",
+                similar::ChangeTag::Insert => "+",
+                similar::ChangeTag::Equal => " ",
+            };
+            diff_lines.push(format!("{sign}{change}"));
+        }
+        panic!(
+            "CLI help for '{snapshot_name}' has drifted from its snapshot.\n\
+             \n\
+             Help text in src/cli.rs no longer matches the committed fixture.\n\
+             If this change is intentional:\n\
+               1. Run: scripts/generate-cli-reference.sh\n\
+               2. Commit the updated fixtures/cli-help-snapshots/ and docs/reference/cli-commands.md\n\
+             \n\
+             Diff (expected vs actual):\n\
+             {}\n",
+            diff_lines.join("")
+        );
+    }
+}
+
 fn create_qipu_template(root: &std::path::Path) {
     let templates_dir = root.join("fixtures/templates/qipu");
     fs::create_dir_all(&templates_dir).unwrap();
@@ -1119,4 +1158,44 @@ evaluation:
         let content = fs::read_to_string(path).unwrap();
         assert!(content.contains("post_script_output"));
     }
+}
+
+#[test]
+fn snapshot_help_root() {
+    assert_help_snapshot(None, "ax-eval");
+}
+
+#[test]
+fn snapshot_help_run() {
+    assert_help_snapshot(Some("run"), "run");
+}
+
+#[test]
+fn snapshot_help_discover() {
+    assert_help_snapshot(Some("discover"), "discover");
+}
+
+#[test]
+fn snapshot_help_scenarios() {
+    assert_help_snapshot(Some("scenarios"), "scenarios");
+}
+
+#[test]
+fn snapshot_help_show() {
+    assert_help_snapshot(Some("show"), "show");
+}
+
+#[test]
+fn snapshot_help_clean() {
+    assert_help_snapshot(Some("clean"), "clean");
+}
+
+#[test]
+fn snapshot_help_guidance() {
+    assert_help_snapshot(Some("guidance"), "guidance");
+}
+
+#[test]
+fn snapshot_help_template() {
+    assert_help_snapshot(Some("template"), "template");
 }

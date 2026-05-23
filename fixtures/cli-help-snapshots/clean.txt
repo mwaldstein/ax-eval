@@ -1,0 +1,7 @@
+Clean cache and legacy transcript artifacts
+
+Usage: ax-eval clean [OPTIONS]
+
+Options:
+      --older-than <OLDER_THAN>  Clean artifacts older than duration (e.g., "30d", "7d", "1h")
+  -h, --help                     Print help

@@ -1,0 +1,9 @@
+Show details for a saved run ID
+
+Usage: ax-eval show <NAME>
+
+Arguments:
+  <NAME>  Name of the scenario
+
+Options:
+  -h, --help  Print help

@@ -1,0 +1,43 @@
+Run an all-in-one discovery workflow for a target executable. Discovery asks an LLM agent to understand the target command, author five complex goal-oriented scenarios, run the generated scenario batch, judge usage quality, and summarize the results.
+
+Real agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because discovery may spend LLM API credits and execute agent-driven CLI commands.
+
+Usage: ax-eval discover [OPTIONS] <TARGET>
+
+Arguments:
+  <TARGET>
+          Target executable binary or command to discover
+
+Options:
+      --tool <TOOL>
+          Agent tool to evaluate in generated scenarios
+          
+          [default: opencode]
+
+      --model <MODEL>
+          Model to evaluate in generated scenarios
+
+      --discover-tool <DISCOVER_TOOL>
+          Agent tool used for inspect, fixture authoring, and final summary
+
+      --discover-model <DISCOVER_MODEL>
+          Agent model used for inspect, fixture authoring, and final summary
+
+      --judge-model <JUDGE_MODEL>
+          Judge model for LLM-as-judge evaluation
+
+      --judge-tool <JUDGE_TOOL>
+          Tool to use for LLM-as-judge evaluation
+
+      --timeout-secs <TIMEOUT_SECS>
+          Maximum execution time in seconds per agent command
+          
+          [default: 300]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Example:
+  AX_EVAL_ENABLED=1 ax-eval discover qipu --tool opencode
+
+Use --discover-tool/--discover-model when the agent authoring the discovery artifacts should differ from the evaluated scenario-run agent.
