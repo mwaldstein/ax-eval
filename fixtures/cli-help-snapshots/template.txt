@@ -1,6 +1,6 @@
 Print copyable scenario, config, and script templates
 
-Usage: ax-eval template <KIND>
+Usage: ax-eval template [OPTIONS] <KIND>
 
 Arguments:
   <KIND>
@@ -13,5 +13,8 @@ Arguments:
           - evaluator:   Custom evaluator script that reports metrics, score, and summary JSON
 
 Options:
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
   -h, --help
           Print help (see a summary with '-h')

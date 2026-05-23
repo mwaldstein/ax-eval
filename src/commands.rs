@@ -7,6 +7,7 @@ use crate::run;
 use crate::scenario::catalog::ScenarioCatalog;
 use chrono::{Duration, Utc};
 use std::path::Path;
+use tracing::debug;
 
 pub struct ScenarioSelection {
     pub scenario: Option<String>,
@@ -53,6 +54,7 @@ pub fn handle_run_command(
 
     for record in scenarios_to_run {
         let s = record.scenario;
+        debug!("loaded scenario: {} from {}", s.name, record.path.display());
         println!("Loaded scenario: {}", s.name);
 
         let matrix = crate::build_tool_matrix(
@@ -64,6 +66,7 @@ pub fn handle_run_command(
         )?;
 
         if matrix.len() > 1 {
+            debug!("matrix run: {} tool×model combinations", matrix.len());
             println!("Matrix run: {} tool×model combinations", matrix.len());
         }
 

@@ -12,6 +12,10 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+
+    /// Enable verbose output (or set RUST_LOG for fine-grained control)
+    #[arg(long, short, global = true)]
+    pub verbose: bool,
 }
 
 #[derive(Args, Clone, Debug)]

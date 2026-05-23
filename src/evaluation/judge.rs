@@ -4,6 +4,7 @@ use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
 use std::path::Path;
+use tracing::debug;
 
 #[derive(Debug, Clone)]
 pub struct JudgeEvaluationResult {
@@ -63,10 +64,10 @@ pub fn maybe_run_judge(
                 ));
             }
             if gates_passed < gates_total {
-                println!(
-                    "Skipping judge: {}/{} gates failed",
+                debug!(
+                    "skipping judge: {}/{} gates failed",
                     gates_total - gates_passed,
-                    gates_total
+                    gates_total,
                 );
                 return Ok(JudgeEvaluationResult::skipped_with_threshold(
                     judge_config.pass_threshold,
@@ -77,13 +78,13 @@ pub fn maybe_run_judge(
             let passed = execution.score.map(|s| s >= judge_config.pass_threshold);
             if let Some(s) = execution.score {
                 if s >= judge_config.pass_threshold {
-                    println!(
-                        "Judge passed: score {:.2} >= threshold {:.2}",
+                    debug!(
+                        "judge passed: score {:.2} >= threshold {:.2}",
                         s, judge_config.pass_threshold
                     );
                 } else {
-                    println!(
-                        "Judge failed: score {:.2} < threshold {:.2}",
+                    debug!(
+                        "judge failed: score {:.2} < threshold {:.2}",
                         s, judge_config.pass_threshold
                     );
                 }
@@ -106,8 +107,8 @@ fn run_judge_evaluation(
     scenario: &Scenario,
     env_root: &Path,
 ) -> Result<JudgeExecutionResult> {
-    println!("Running LLM-as-judge evaluation...");
     let tool = resolve_judge_tool(judge_config, judge_tool);
+    debug!("running judge evaluation with tool={}, model={:?}", tool, judge_model);
     let rubric = resolve_judge_rubric(judge_config)?;
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(

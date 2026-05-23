@@ -35,6 +35,23 @@ use cli::Cli;
 use cli::Commands;
 use results::{Cache, ResultsDB};
 use scenario::ToolConfig as ScenarioToolConfig;
+use tracing::debug;
+use tracing_subscriber::EnvFilter;
+
+fn init_logging(verbose: bool) {
+    if std::env::var("RUST_LOG").is_ok() {
+        // User set RUST_LOG directly — respect it
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+    } else if verbose {
+        // --verbose enables debug for ax_eval
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::new("ax_eval=debug"))
+            .init();
+    }
+    // Otherwise: no subscriber, no output
+}
 
 /// Build a matrix of tool-model configurations from CLI args, profile, or scenario config
 pub fn build_tool_matrix(
@@ -117,6 +134,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let cli = Cli::parse();
+    init_logging(cli.verbose);
 
     // Use the configured results path for cache and database
     // Resolve to absolute path to avoid issues with nested creation
@@ -192,6 +210,7 @@ fn main() -> anyhow::Result<()> {
             };
 
             if selection.scenario.is_some() || selection.all {
+                debug!("running scenarios: scenario={:?}, all={}", selection.scenario, selection.all);
                 commands::handle_run_command(&selection, &exec_config, &ctx, &config)?;
             } else {
                 println!("No scenario specified. Use --scenario <path> or --all");

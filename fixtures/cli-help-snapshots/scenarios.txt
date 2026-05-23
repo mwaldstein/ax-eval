@@ -5,4 +5,5 @@ Usage: ax-eval scenarios [OPTIONS]
 Options:
       --tags <TAGS>  Filter by tags
       --tier <TIER>  Filter scenarios by tier (0=smoke, 1=quick, 2=standard, 3=comprehensive) [default: 0]
+  -v, --verbose      Enable verbose output (or set RUST_LOG for fine-grained control)
   -h, --help         Print help

@@ -12,6 +12,7 @@ use crate::adapter::registry::CheckedAdapter;
 use crate::results::{Cache, CacheKey, ResultRecord, ResultsDB};
 use crate::scenario::Scenario;
 use std::path::{Path, PathBuf};
+use tracing::debug;
 
 pub struct ScenarioRunRequest<'a> {
     pub scenario: &'a Scenario,
@@ -71,6 +72,10 @@ impl ScenarioRunRequest<'_> {
 }
 
 pub fn run_single_scenario(request: ScenarioRunRequest<'_>) -> anyhow::Result<ResultRecord> {
+    debug!(
+        "running scenario: {} with {}/{}",
+        request.scenario.name, request.tool, request.model
+    );
     lifecycle::ScenarioRunLifecycle::new(request).run()
 }
 

@@ -33,6 +33,9 @@ Options:
       --dry-run
           Dry run (don't execute LLM calls)
 
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
       --no-cache
           Disable caching
 

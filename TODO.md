@@ -11,7 +11,7 @@
 
 - [ ] `ax-eval validate` — Quick scenario schema validation without fixture setup or LLM spend.
 - [ ] `--dry-run` for `discover` — Validate discovery workflow without spending credits.
-- [ ] `RUST_LOG` / `--verbose` — Tracing exists but isn't exposed to users; documented debug logging would improve debugging dramatically.
+- [x] `RUST_LOG` / `--verbose` — Added global `-v/--verbose` flag and `RUST_LOG` support. Tracing initialized in main.rs with debug logging at key points: adapter resolution, scenario loading, gate evaluation, judge execution, interaction profiling.
 - [ ] JUnit/XML output format — CI dashboard integration.
 - [ ] Shell completions — `ax-eval completions bash|zsh|fish`.
 

@@ -17,6 +17,7 @@ use crate::target_env::TargetEnvironment;
 use anyhow::Result;
 use std::path::Path;
 use std::path::PathBuf;
+use tracing::debug;
 
 struct MetricsBuildInput<'a> {
     scenario: &'a Scenario,
@@ -76,7 +77,7 @@ pub struct EvaluationInput<'a> {
 
 pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
     let scenario = input.scenario;
-    println!("Evaluating results for scenario: {}", scenario.name);
+    debug!("evaluating scenario: {}", scenario.name);
 
     let target = TargetInteractionSpec::new(
         scenario.target.binary.clone(),
@@ -91,6 +92,13 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
             completed: input.completed,
             target_command_policy: scenario.interaction.target_commands,
         })?;
+    debug!(
+        "interaction profile: {} commands, {} errors, {} retries, evidence={:?}",
+        interaction_profile.metrics.total_commands,
+        interaction_profile.metrics.error_count,
+        interaction_profile.metrics.retry_count,
+        interaction_profile.evidence_source,
+    );
 
     let ctx = GateEvaluationContext {
         env_root: input.env_root,
@@ -101,6 +109,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
 
     let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
     let gates_total = scenario.evaluation.gates.len();
+    debug!("gates: {}/{} passed", gates_passed, gates_total);
     let judge_result = maybe_run_judge(
         scenario,
         input.env_root,
@@ -110,6 +119,9 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         input.judge_model,
         input.judge_tool,
     )?;
+    if let Some(score) = judge_result.score {
+        debug!("judge score: {:.2}", score);
+    }
     let mut metrics = build_metrics(MetricsBuildInput {
         scenario,
         details,

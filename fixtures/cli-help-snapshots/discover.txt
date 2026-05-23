@@ -34,6 +34,9 @@ Options:
           
           [default: 300]
 
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
   -h, --help
           Print help (see a summary with '-h')
 

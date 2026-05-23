@@ -5,6 +5,7 @@ use super::{
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Clone)]
 pub struct CheckedAdapter {
@@ -49,12 +50,13 @@ impl AdapterRegistry {
             Ok(adapter) => adapter,
             Err(error) => {
                 let message = format!("{error:#}");
+                debug!("failed to create adapter for {}: {}", tool, message);
                 self.checked
                     .insert(tool.to_string(), AdapterEntry::Unavailable(message.clone()));
                 anyhow::bail!("{message}");
             }
         };
-        println!("Checking availability for tool: {}", tool);
+        debug!("checking availability for tool: {}", tool);
         if let Err(error) = adapter.check_availability() {
             let message = format!("{error:#}");
             self.checked

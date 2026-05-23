@@ -4,4 +4,5 @@ Usage: ax-eval clean [OPTIONS]
 
 Options:
       --older-than <OLDER_THAN>  Clean artifacts older than duration (e.g., "30d", "7d", "1h")
+  -v, --verbose                  Enable verbose output (or set RUST_LOG for fine-grained control)
   -h, --help                     Print help
