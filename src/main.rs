@@ -210,7 +210,10 @@ fn main() -> anyhow::Result<()> {
             };
 
             if selection.scenario.is_some() || selection.all {
-                debug!("running scenarios: scenario={:?}, all={}", selection.scenario, selection.all);
+                debug!(
+                    "running scenarios: scenario={:?}, all={}",
+                    selection.scenario, selection.all
+                );
                 commands::handle_run_command(&selection, &exec_config, &ctx, &config)?;
             } else {
                 println!("No scenario specified. Use --scenario <path> or --all");
@@ -258,8 +261,8 @@ fn main() -> anyhow::Result<()> {
         Commands::Scenarios { tags, tier } => {
             commands::handle_list_command(tags, tier, &results_db)?;
         }
-        Commands::Show { name } => {
-            commands::handle_show_command(name, &results_db)?;
+        Commands::Show { id } => {
+            commands::handle_show_command(id, &results_db)?;
         }
         Commands::Clean { older_than } => {
             commands::handle_clean_command(&cache, older_than, &base_dir)?;
@@ -269,6 +272,9 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Template { kind } => {
             commands::handle_template_command(*kind);
+        }
+        Commands::Validate { scenario, all } => {
+            commands::handle_validate_command(scenario, *all)?;
         }
     }
     Ok(())

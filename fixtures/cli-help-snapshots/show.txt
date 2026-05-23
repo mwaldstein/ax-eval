@@ -1,9 +1,9 @@
-Show details for a saved run ID
+Show details for a saved run
 
-Usage: ax-eval show [OPTIONS] <NAME>
+Usage: ax-eval show [OPTIONS] <ID>
 
 Arguments:
-  <NAME>  Name of the scenario
+  <ID>  Run ID to look up
 
 Options:
   -v, --verbose  Enable verbose output (or set RUST_LOG for fine-grained control)

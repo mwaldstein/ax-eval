@@ -20,7 +20,7 @@ Commands:
   run        Run a test scenario
   discover   Discover how well a target CLI describes itself to LLM agents
   scenarios  List available scenarios
-  show       Show details for a saved run ID
+  show       Show details for a saved run
   clean      Clean cache and legacy transcript artifacts
   guidance   Show guidance for building LLM-usable tools and docs
   validate   Validate scenario YAML without running

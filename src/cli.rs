@@ -137,11 +137,11 @@ pub enum Commands {
         #[arg(long, default_value = "0")]
         tier: usize,
     },
-    /// Show details for a saved run ID
+    /// Show details for a saved run
     Show {
-        /// Name of the scenario
+        /// Run ID to look up
         #[arg(required = true)]
-        name: String,
+        id: String,
     },
     /// Clean cache and legacy transcript artifacts
     Clean {

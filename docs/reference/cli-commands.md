@@ -28,7 +28,7 @@ Commands:
   run        Run a test scenario
   discover   Discover how well a target CLI describes itself to LLM agents
   scenarios  List available scenarios
-  show       Show details for a saved run ID
+  show       Show details for a saved run
   clean      Clean cache and legacy transcript artifacts
   guidance   Show guidance for building LLM-usable tools and docs
   validate   Validate scenario YAML without running
@@ -195,12 +195,12 @@ Options:
 ## ax-eval show
 
 ```
-Show details for a saved run ID
+Show details for a saved run
 
-Usage: ax-eval show [OPTIONS] <NAME>
+Usage: ax-eval show [OPTIONS] <ID>
 
 Arguments:
-  <NAME>  Name of the scenario
+  <ID>  Run ID to look up
 
 Options:
   -v, --verbose  Enable verbose output (or set RUST_LOG for fine-grained control)
