@@ -117,28 +117,6 @@ first-class result; pass/fail is a coarse reference, while the numeric judge
 score, rationale, confidence, issues, highlights, and interaction metrics are
 the main evaluation signal.
 
-## Typical Workflow
-
-```bash
-# 1. Validate selection and setup without a real LLM
-ax-eval run --scenario example_basic --dry-run
-
-# 2. Enable real-run consent
-export AX_EVAL_ENABLED=1
-
-# 3. List available scenarios
-ax-eval scenarios
-
-# 4. Run a scenario with an agent tool
-ax-eval run --scenario example_basic --tool claude-code
-
-# 5. Check the evaluation profile
-cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
-
-# 5. Review the transcript for debugging
-cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/artifacts/transcript.raw.txt
-```
-
 ## Scenario Authoring
 
 A scenario describes the task given to the agent, the fixture environment it works in, and the evaluation that runs after the agent exits.
