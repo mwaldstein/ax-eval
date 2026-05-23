@@ -20,7 +20,7 @@
 
 **Composite Score** — An optional single-number summary combining gate, judge, and interaction layer scores with explicit weights. Not reported by default; scenario authors must define weights.
 
-**Discovery** — A top-level workflow (`ax-eval discover <target>`) that asks an agent to inspect a target executable, produce an understanding document, author five goal-oriented scenarios, run them, and summarize findings. Evaluates how self-describing a CLI is. See `specs/llm-user-validation.md` for architecture and `docs/user-guide.md` for usage.
+**Discovery** — A top-level workflow (`ax-eval discover <target>`) that asks an agent to inspect a target executable, produce an understanding document, author five goal-oriented scenarios, run them, and summarize findings. Evaluates how self-describing a CLI is. See `docs/user-guide.md` for usage.
 
 **Tool Event Normalization** — The conversion from an adapter's raw execution output into canonical run artifacts: transcript text, command events, token usage, cost, and exit status. Adapter-specific parsing lives in `src/adapter/<name>/normalize.rs`; shared helpers live in `src/adapter/normalize.rs`.
 

@@ -76,4 +76,4 @@ when zero target-tool command errors is the scenario's explicit quality
 requirement. Do not use it as a unit-test-style substitute for checking final
 state. Errors during learning may be informative; use interaction metrics to
 compare error rate, retry rate, first-try success, token usage, and cost. See
-`specs/evaluation.md`.
+`docs/evaluation.md`.

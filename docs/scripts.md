@@ -1,6 +1,6 @@
 # Scripts
 
-**Status: Draft**
+**Status: Stable**
 
 ## Purpose
 
@@ -164,8 +164,8 @@ All scripts receive these environment variables:
 | `AX_EVAL_SCENARIO` | Scenario name |
 | `AX_EVAL_AGENT` | LLM agent tool used (e.g., "opencode") |
 | `AX_EVAL_MODEL` | Model used (e.g., "gpt-4o") |
-| `AX_EVAL_TRANSCRIPT` | Path to `artifacts/transcript.raw.txt` (post-execution and evaluation scripts only) |
-| `AX_EVAL_EVENTS` | Path to `artifacts/events.jsonl` (post-execution and evaluation scripts only) |
+| `AX_EVAL_TRANSCRIPT` | Path to `artifacts/transcript.raw.txt` (set when transcript path is available) |
+| `AX_EVAL_EVENTS` | Path to `artifacts/events.jsonl` (set when events path is available) |
 
 Scripts also inherit any `target.env` variables defined in the scenario, after
 run-directory placeholders such as `${AX_EVAL_FIXTURE_DIR}` and

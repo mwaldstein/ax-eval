@@ -16,7 +16,7 @@ shows how well a run went and what changed between tools, models, or guidance.
 This framework evaluates; it does not merely test. Gates answer "did a
 catastrophic failure happen?" while the evaluation profile answers "how well did
 the run go?" Preserve that distinction when adding scenarios, gates, metrics, or
-docs. See `specs/evaluation.md`.
+docs. See `docs/evaluation.md`.
 
 ## Build Commands
 
@@ -33,10 +33,10 @@ cargo run -- run --scenario <name> --tool opencode
 
 ## Where To Look
 
-- Scenario schema: `specs/scenarios.md`
-- Evaluation layers, gates, and scoring: `specs/evaluation.md`
-- Script hooks, script gates, and evaluators: `specs/scripts.md`
-- Harness architecture: `specs/llm-user-validation.md`
+- Scenario schema: `docs/scenarios.md`
+- Evaluation layers, gates, and scoring: `docs/evaluation.md`
+- Script hooks, script gates, and evaluators: `docs/scripts.md`
+- Harness architecture: `src/adapter/` and `src/run/`
 - Runtime adapter organization: `src/adapter/README.md`
 - Testing guidance: `docs/testing.md`
 - Guidance-quality examples: `docs/guidance-testing.md`
@@ -52,7 +52,7 @@ cargo run -- run --scenario <name> --tool opencode
 2. Add deserialization coverage in `src/scenario/tests/gates.rs`.
 3. Implement evaluation dispatch in `src/evaluation.rs`.
 4. Add focused behavior tests for the evaluator.
-5. Update `specs/evaluation.md` and `specs/scenarios.md` when schema or semantics change.
+5. Update `docs/evaluation.md` and `docs/scenarios.md` when schema or semantics change.
 
 ### Adding a New Adapter
 

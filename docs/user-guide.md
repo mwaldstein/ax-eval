@@ -153,7 +153,7 @@ Good scenarios evaluate outcomes, not the exact process an agent used. Because L
 
 Use gates as guardrails for catastrophic outcome failures. The richer evaluation signal comes from the interaction metrics, transcript, custom evaluator results, and optional judge rubric.
 
-For the complete scenario schema, see the [scenario spec](../specs/scenarios.md).
+For the complete scenario schema, see the [scenario reference](scenarios.md).
 
 `target.env` values are passed to setup commands, target health checks, agent
 adapter runs, post scripts, script gates, and evaluators. Use
@@ -284,7 +284,7 @@ Run a configured matrix with a profile from `ax-eval-config.toml`:
 ax-eval run --all --profile quick
 ```
 
-Scenarios can also define a `tool_matrix` field to run multiple tool/model combinations without CLI flags — see the [scenario spec](../specs/scenarios.md).
+Scenarios can also define a `tool_matrix` field to run multiple tool/model combinations without CLI flags — see the [scenario reference](scenarios.md).
 
 See the [CLI reference](../docs/reference/cli-commands.md) for all `run` options.
 

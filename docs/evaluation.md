@@ -1,6 +1,6 @@
 # Evaluation
 
-**Status: Draft**
+**Status: Stable**
 
 ## Purpose
 
@@ -133,23 +133,6 @@ These metrics are most valuable to guidance/skills authors who want to know whet
 - **Low first-try success rate**: Combined signal that something is off — either the docs are misleading or the CLI surface is confusing.
 - **High command count with completion**: The LLM got there, but took a circuitous path. May indicate missing examples or unclear workflows.
 
-### Rust Representation
-
-The existing `EfficiencyMetrics` struct maps directly to this layer. Add `completion` and rename the struct:
-
-```rust
-pub struct InteractionMetrics {
-    pub total_commands: usize,
-    pub unique_commands: usize,
-    pub error_count: usize,
-    pub retry_count: usize,
-    pub help_invocations: usize,
-    pub first_try_success_rate: f64,
-    pub iteration_ratio: f64,
-    pub completed: bool,  // new: did the agent finish the task
-}
-```
-
 ---
 
 ## Layer 2: Outcome Assertions (Gates)
@@ -176,7 +159,7 @@ The current implementation provides generic gate primitives that any CLI tool au
 | `file_contains` | `path: String`, `substring: String` | Read file. Assert content contains substring. |
 | `file_matches` | `path: String`, `pattern: String` | Read file. Assert content matches regex pattern. |
 | `no_transcript_errors` | *(none)* | Quality guardrail: fail when target-tool interaction evidence includes non-zero exit codes. Prefer outcome gates for task correctness. |
-| `script` | `command: String`, `description: String` | Run script. Pass if exit code 0. Optionally returns structured JSON. See [specs/scripts.md](scripts.md). |
+| `script` | `command: String`, `description: String` | Run script. Pass if exit code 0. Optionally returns structured JSON. See [docs/scripts.md](scripts.md). |
 
 #### `command_json_path` Assertions
 
@@ -211,82 +194,6 @@ evaluation:
 ```
 
 The scenario author brings domain knowledge; the framework provides the assertion primitives.
-
-#### Rust Representation
-
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Gate {
-    CommandSucceeds { command: String },
-    CommandOutputContains { command: String, substring: String },
-    CommandOutputMatches { command: String, pattern: String },
-    CommandJsonPath { command: String, path: String, assertion: String },
-    FileExists { path: String },
-    FileContains { path: String, substring: String },
-    FileMatches { path: String, pattern: String },
-    NoTranscriptErrors,
-    Script { command: String, description: String },
-}
-```
-
-### Gate Design Philosophy
-
-Gates verify **outcomes**, not **process**. A scenario should ask "did the task get done?" not "did the LLM follow my expected steps without deviation?"
-
-More importantly: gates are **guardrails**, not the whole evaluation. The framework's primary output is the evaluation profile (scalar measurements across all three layers), not a binary pass/fail stamp. Gates catch catastrophic failures; the profile captures nuance.
-
-#### Outcome vs Process
-
-| Good Gate (outcome) | Bad Gate (process) |
-|---------------------|-------------------|
-| `file_exists: report.pdf` | Command used exact flag order |
-| `command_json_path: len >= 4` | Zero command errors as proof of correctness |
-| `file_contains: "migration"` | Search returned specific substring |
-
-LLMs are non-deterministic. Two runs with identical prompts may use different note titles, file names, or command sequences. Gates that require exact outputs or zero errors will flake and do not measure effectiveness.
-
-#### When to Use `no_transcript_errors`
-
-The `no_transcript_errors` gate is an interaction-quality guardrail. It fails
-when target-tool interaction evidence includes a command with a non-zero exit
-code. Do not use it as a unit-test-style assertion for task correctness; use
-outcome gates for that.
-
-This gate is only appropriate when zero target-tool command errors is itself a
-deliberate quality requirement, such as:
-
-- **Scaffolded scenarios** where the correct workflow is explicitly provided
-  and no exploration is expected (e.g., "run `./hello run`")
-- **Narrow regression checks** where command errors would indicate a known
-  adapter, guidance, or CLI regression rather than ordinary discovery
-
-It is **inappropriate** for:
-- **Discovery/guidance scenarios** where the LLM must learn the tool via trial and error
-- **Complex multi-step tasks** where exploration is expected
-- **Unit-test-style validation** where the real requirement is final state or
-  output correctness
-
-In discovery scenarios, errors are diagnostic data (Layer 1 interaction metrics), not failures.
-
-#### Minimal Gates for Guidance Testing
-
-When comparing AGENTS.md versions, the primary signal is Layer 1 interaction metrics (error rate, retry rate, help-seeking, first-try success). Gates should be a minimal guardrail check that the task was completed:
-
-```yaml
-evaluation:
-  gates:
-    - type: file_exists
-      path: notes.db
-    - type: command_json_path
-      command: "./notes export --format json"
-      path: "$.notes"
-      assertion: "len >= 4"
-    - type: file_exists
-      path: links.txt
-```
-
-The comparison between guidance variants happens in `metrics.json` — lower error rates and higher first-try success rates tell you the richer documentation is working.
 
 ---
 
@@ -372,9 +279,9 @@ Execution flow:
 3. Parse stdout as JSON into `JudgeResponse`.
 
 Current judge invocations:
-- `opencode`: `opencode run [--model <model>] <prompt>`
-- `codex`: `codex exec --full-auto --skip-git-repo-check [--model <model>] <prompt>`
-- `claude` / `claude-code`: `claude run [--model <model>] <prompt>`
+- `opencode`: `opencode run --format json [--model <model>] <prompt>`
+- `codex`: `codex exec --json --full-auto --skip-git-repo-check [--model <model>] <prompt>`
+- `claude` / `claude-code`: `claude -p --output-format stream-json --verbose --include-partial-messages [--model <model>] <prompt>`
 
 ### Structured Output
 
@@ -440,18 +347,18 @@ If a scenario author wants a single number, they can define weights explicitly:
 ```yaml
 evaluation:
   composite:
-    gate_weight: 0.50
-    judge_weight: 0.30
-    interaction_weight: 0.20
+    judge_weight: 0.55
+    gate_weight: 0.35
+    interaction_weight: 0.10
 ```
 
-When `composite` is present, a composite score is computed. When absent, no composite score is reported.
+When `composite` is present, a composite score is computed using the configured weights (defaults: judge 0.55, gate 0.35, interaction 0.10). When absent, no composite score is reported.
 
 ### Run Status
 
 The human-facing aggregate output reports the judge column as
 `score (target) +/-delta`, for example `0.74 (0.80) -0.06`. It also reports a
-run status, not an absolute pass/fail outcome. Status labels should explain
+run status, not an absolute pass/fail outcome. Status labels explain
 what needs attention:
 
 - `completed; judge threshold met`
@@ -459,7 +366,7 @@ what needs attention:
 - `guardrail attention: N/M gates`
 - `judge threshold attention`
 - `agent did not complete`
-- `run error: ...`
+- `dry run; not executed`
 
 Interaction metrics do not make a run pass or fail. They are diagnostic and
 comparative. Gate and judge threshold states are quick filters over the run,
@@ -468,35 +375,31 @@ not the evaluation conclusion.
 ### Rust Representation
 
 ```rust
-pub struct EvaluationResult {
-    // Layer 1
-    pub interaction: InteractionMetrics,
-
-    // Layer 2
-    pub gates: Vec<GateResult>,
+pub struct EvaluationMetrics {
     pub gates_passed: usize,
     pub gates_total: usize,
-
-    // Layer 3 (optional)
+    pub details: Vec<GateResult>,
     pub judge_score: Option<f64>,
     pub judge_response: Option<JudgeResponse>,
-
-    // Composite (optional)
+    pub judge_passed: Option<bool>,
+    pub judge_threshold: Option<f64>,
+    pub efficiency: EfficiencyMetrics,
+    pub interaction_evidence_source: InteractionEvidenceSource,
     pub composite_score: Option<f64>,
-
-    // Triage aid
-    pub status: RunStatus,
+    pub evaluator_results: Vec<EvaluatorResult>,
 }
 
-pub enum RunStatus {
-    CompletedJudgeThresholdMet,
-    CompletedJudgeNotRun,
-    GuardrailAttention { gates_passed: usize, gates_total: usize },
-    JudgeThresholdAttention,
-    AgentDidNotComplete,
-    RunError { reason: String },
+pub struct RunStatus {
+    pub gates_passed: bool,
+    pub judge_passed: Option<bool>,
+    pub judge_score: Option<f64>,
 }
 ```
+
+`RunStatus` is derived from `EvaluationMetrics` and projects a pass/fail outcome
+via `outcome(gates_passed, gates_total)`: `"Pass"`, `"Fail: N/M gates passed"`,
+or `"Fail: judge score X.XX below threshold"`. Human-facing status labels are
+produced separately by `format_run_status` in the output module.
 
 Human review is a workflow concern layered on top of the profile, not a
 replacement for the dimensional evaluation data.

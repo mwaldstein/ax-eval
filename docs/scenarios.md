@@ -1,6 +1,6 @@
 # Scenarios
 
-**Status: Draft**
+**Status: Stable**
 
 ## Purpose
 
@@ -19,7 +19,7 @@ Each scenario must declare the CLI tool under evaluation. This is the **target t
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `target.binary` | string | yes | Path or name of the CLI tool binary |
-| `target.command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. Defaults to the binary name. |
+| `target.command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. No default; when omitted, only aggregate command counts are available for regex-based metrics. |
 | `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens, fixture paths) |
 | `target.health_check` | string | no | Command to verify the tool is working before/after runs |
 
@@ -96,8 +96,7 @@ that support structured tool calls must provide structured interaction evidence
 instead; `command_pattern` is ignored for those adapter-backed metrics.
 
 For fallback adapters, the pattern identifies tool invocations, counts them, and
-extracts arguments. It defaults to a simple match on the binary name but can be
-customized for tools with subcommand patterns. The capture group is optional —
+extracts arguments. The capture group is optional —
 when present, it enables per-subcommand analytics:
 
 ```yaml
@@ -177,7 +176,7 @@ setup:                           # optional
   commands:                      # Shell commands to run before the task
     - string
 
-scripts:                         # optional, see specs/scripts.md
+scripts:                         # optional, see docs/scripts.md
   post:                          # Run after agent exits, before evaluation
     - command: string
       timeout_secs: int          # optional (default: 30)
@@ -187,8 +186,8 @@ scripts:                         # optional, see specs/scripts.md
       timeout_secs: int          # optional (default: 60)
 
 evaluation:
-  gates:                         # List of gate assertions (required)
-    - type: gate_type            # See specs/evaluation.md for gate types
+  gates:                         # List of gate assertions
+    - type: gate_type            # See docs/evaluation.md for gate types
       ...gate_params
   judge:                         # optional LLM-as-judge configuration
     enabled: bool
@@ -206,7 +205,7 @@ tool_matrix:                     # optional
       - string
 
 run:
-  timeout_secs: int              # Execution timeout (default: 300)
+  timeout_secs: int              # Execution timeout
 
 tags:                            # optional categorization tags
   - string
@@ -315,9 +314,6 @@ fixtures/task_manager_organize/
 │   ├── check-priorities.sh
 │   ├── check-completion.sh
 │   └── task-quality.sh
-├── initial-state/         # Pre-populated tool data (optional)
-│   └── .taskmgr/
-│       └── tasks.json
 └── project-brief.md       # Any other files the LLM should see
 ```
 
@@ -364,10 +360,6 @@ taskmgr search "query"                # Search tasks by title/description
 ### README.md
 
 Provides project context. The LLM reads this to understand what it's working on.
-
-### initial-state/
-
-Optional directory containing pre-populated tool data. Contents are copied to the working directory root before setup commands run. Use this when the scenario needs existing data (e.g., a pre-initialized store, seed records, config files).
 
 ---
 
@@ -442,7 +434,9 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
       "message": "Quality script passed"
     }
   ],
+  "judge_score": 0.83,
   "judge_passed": true,
+  "judge_threshold": 0.70,
   "efficiency": {
     "total_commands": 6,
     "unique_commands": 5,
@@ -518,7 +512,7 @@ Compare `metrics.json` across variants. The primary signal is **interaction metr
 
 The `evaluation.md` reports are human-readable and can be compared side by side.
 
-**Important**: Keep gates minimal for guidance evaluation. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). Gates are guardrails, not the primary evaluation signal. See `specs/evaluation.md` for gate design philosophy.
+**Important**: Keep gates minimal for guidance evaluation. Gates should verify the outcome (e.g., notes were created and linked), not the process (e.g., no errors were made, exact search terms were used). Gates are guardrails, not the primary evaluation signal. See `docs/evaluation.md` for gate design philosophy.
 
 ### What to Vary
 

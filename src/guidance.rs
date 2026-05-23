@@ -375,7 +375,7 @@ Good scenarios:
 Use gates for catastrophic failures. Use the interaction profile to understand whether the tool's role, workflow, and state model were legible to the agent.
 
 Sources:
-- ax-eval evaluation spec: specs/evaluation.md
+- ax-eval evaluation spec: docs/evaluation.md
 - ax-eval guidance examples: docs/guidance-testing.md
 "#,
     },
@@ -422,7 +422,7 @@ Use gates as fail-fast guardrails for catastrophic correctness failures. Use int
 Avoid testing "the agent ran command X" unless exact command use is the behavior under evaluation. Prefer goal prompts, outcome gates, and profile interpretation.
 
 Sources:
-- ax-eval evaluation spec: specs/evaluation.md
+- ax-eval evaluation spec: docs/evaluation.md
 - ax-eval guidance examples: docs/guidance-testing.md
 "#,
     },
@@ -453,7 +453,7 @@ Common interpretations:
 Treat gates as safety checks. Treat metrics as authoring feedback.
 
 Sources:
-- ax-eval evaluation spec: specs/evaluation.md
+- ax-eval evaluation spec: docs/evaluation.md
 - Anthropic tool guidance: https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools
 "#,
     },

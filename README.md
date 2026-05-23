@@ -141,7 +141,7 @@ Each run appends a record to `ax-eval-results/results.jsonl` and generates a run
 }
 ```
 
-Judge, composite, and custom evaluator fields are included only when configured — see the [evaluation spec](specs/evaluation.md).
+Judge, composite, and custom evaluator fields are included only when configured — see the [evaluation reference](docs/evaluation.md).
 
 ## Scenario Format
 
@@ -173,12 +173,12 @@ evaluation:
       substring: "Project"
 ```
 
-See the [scenario spec](specs/scenarios.md) for setup hooks, custom evaluators, and the full field reference. Use `ax-eval template scenario` for a copyable starting point.
+See the [scenario reference](docs/scenarios.md) for setup hooks, custom evaluators, and the full field reference. Use `ax-eval template scenario` for a copyable starting point.
 
 ## Documentation
 
 - [CLI reference](docs/reference/cli-commands.md): All commands, flags, and examples.
 - [User guide](docs/user-guide.md): Workflows, scenario authoring, results, and troubleshooting.
-- [Scenario spec](specs/scenarios.md): Complete YAML format.
-- [Evaluation spec](specs/evaluation.md): Scoring and metrics design.
-- [Scripts spec](specs/scripts.md): Custom evaluators and post-scripts.
+- [Scenario reference](docs/scenarios.md): Complete YAML format.
+- [Evaluation reference](docs/evaluation.md): Scoring and metrics design.
+- [Scripts reference](docs/scripts.md): Custom evaluators and post-scripts.
