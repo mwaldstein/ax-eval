@@ -10,13 +10,13 @@ CLIs built for humans often frustrate AI agents — vague errors, complex setup,
 
 Built primarily for CLI authors. Also useful for technical writers iterating on `AGENTS.md` and agent developers comparing models on a specific workflow.
 
-## Why Not Just Tests?
+## Measure Agent Experience
 
-Unit tests verify that your CLI works. `ax-eval` verifies that an agent can *discover and use* it.
+Your CLI works. Can an agent discover and use it?
 
-Traditional tests are deterministic. Agents are not. `ax-eval` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails.
+`ax-eval` captures the qualitative friction of an agent operator — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails. Where unit tests verify deterministic behavior, ax-eval measures how agents actually interact with your tool.
 
-Repeatability here is about benchmarking changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable qualitative signal on the quality of the interaction. Pass/fail gates are supporting checks for catastrophic failures, not the main result.
+Benchmark changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable qualitative signal on interaction quality. Pass/fail gates are supporting checks for catastrophic failures, not the main result.
 
 ## How It Works
 
