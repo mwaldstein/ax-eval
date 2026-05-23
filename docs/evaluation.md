@@ -464,5 +464,5 @@ criteria:
 
 - **Domain-specific quality metrics** (title length, tags per note, links per note, orphan detection) — these belong in scenario-specific gates and rubrics, not in the framework. The existing `QualityMetrics` / `StoreAnalyzer` module should be removed or moved to an example scenario.
 - **Real-time cost tracking via provider APIs** — cost estimation from token counts and configured rates is sufficient.
-- **Statistical significance testing across runs** — future work. Currently, each run is evaluated independently.
-- **Automatic regression detection** — future work. The results database supports trend analysis, but automated alerting is not part of this spec.
+- **Statistical significance testing across runs** — each run is evaluated independently.
+- **Automatic regression detection** — the results database supports trend analysis, but automated alerting is not part of this spec.

@@ -58,25 +58,6 @@ cargo install ax-eval
 
 Published to crates.io. The `release.yml` workflow publishes on tag push. CI runs `cargo publish --dry-run` on every push to catch metadata issues early.
 
-### Homebrew (Future)
-
-```bash
-brew tap mwaldstein/ax-eval
-brew install ax-eval
-```
-
-Requires a Homebrew tap repository. Not yet available.
-
-### Package Managers (Future)
-
-| Manager | Platform | Priority |
-|---------|----------|----------|
-| AUR     | Arch Linux | Medium |
-| Nix     | NixOS/macOS | Medium |
-| winget  | Windows | Low |
-| Scoop   | Windows | Low |
-| deb/rpm | Debian/RHEL | Low |
-
 ---
 
 ## Release Automation
@@ -122,10 +103,6 @@ Triggered by pushing a `v*` tag. Three jobs:
 
 Every release includes a `SHA256SUMS` file. Install scripts verify checksums before executing binaries.
 
-### Signatures (Future)
-
-Consider GPG or sigstore signing for releases.
-
 ---
 
 ## Repository Structure
@@ -139,9 +116,3 @@ scripts/
     ci.yml         # CI: lint, test, build on push/PR
     release.yml    # Release: build + publish on tag
 ```
-
-## Remaining Work
-
-- [x] Publish to crates.io (`cargo install ax-eval`)
-- [ ] Create Homebrew tap and formula
-- [ ] GPG or sigstore release signing
