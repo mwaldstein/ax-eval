@@ -3,7 +3,7 @@
 ## High-impact
 
 - [x] **Stabilize specs** — All 3 user-facing docs marked Stable and moved to `docs/`. Removed `specs/llm-user-validation.md` (architecture is now in code). Stripped Rust struct sections from `docs/evaluation.md`.
-- [ ] **Tutorial** — "Evaluate your CLI in 10 minutes" walkthrough with a concrete example. Biggest onboarding gap.
+- [x] **Tutorial** — `docs/tutorial.md`: step-by-step walkthrough creating a mock CLI, writing a scenario, running evaluation, and iterating.
 - [ ] **1-2 more adapters** — `gemini-cli` or `aider` to broaden appeal and demonstrate adapter architecture flexibility.
 - [ ] **crates.io publishing** — Even as secondary install method; signals maturity, enables ecosystem discoverability.
 

@@ -177,6 +177,7 @@ See the [scenario reference](docs/scenarios.md) for setup hooks, custom evaluato
 
 ## Documentation
 
+- [Tutorial](docs/tutorial.md): Evaluate your CLI in 10 minutes.
 - [CLI reference](docs/reference/cli-commands.md): All commands, flags, and examples.
 - [User guide](docs/user-guide.md): Workflows, scenario authoring, results, and troubleshooting.
 - [Scenario reference](docs/scenarios.md): Complete YAML format.

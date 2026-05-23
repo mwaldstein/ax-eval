@@ -2,7 +2,9 @@
 
 This guide covers day-to-day usage of `ax-eval`: running scenarios, authoring scenario files, reading results, configuring matrix runs, and troubleshooting.
 
-For the high-level value proposition, start with the [README](../README.md). For the complete CLI flag reference, see [CLI commands](../docs/reference/cli-commands.md). For complete schema details, see the specs in [`specs/`](../specs/).
+> **Read the [tutorial](tutorial.md) first.** This guide assumes you have completed the tutorial and builds on the concepts it introduces — scenario structure, running evaluations, and reading results. The tutorial covers the basics; this guide covers advanced patterns, configuration, and operational concerns.
+
+For complete schema details, see the references in [`docs/`](./).
 
 ## Safety Flag
 
@@ -15,11 +17,7 @@ export AX_EVAL_ENABLED=1
 ```
 
 Use `--dry-run` when you want to validate scenario selection, fixture setup,
-cache keys, and run planning without setting the safety flag or invoking an LLM:
-
-```bash
-ax-eval run --scenario example_basic --dry-run
-```
+cache keys, and run planning without setting the safety flag or invoking an LLM.
 
 ## Runtime Agent Tools
 
@@ -32,39 +30,6 @@ Runtime adapters currently support:
 The selected tool must be installed and authenticated before you run a scenario.
 
 The `mock` adapter is internal test support for adapter plumbing. It does not execute the target tool or mutate fixture state, so it is not intended for validating scenario outcomes.
-
-## Typical Workflow
-
-```bash
-# 1. Validate selection and setup without a real LLM
-ax-eval run --scenario example_basic --dry-run
-
-# 2. Enable real-run consent
-export AX_EVAL_ENABLED=1
-
-# 3. List available scenarios
-ax-eval scenarios
-
-# 4. Run a scenario with an agent tool
-ax-eval run --scenario example_basic --tool claude-code
-
-# 5. Check the evaluation profile
-cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/evaluation.md
-
-# 6. Review the transcript for debugging
-cat ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/artifacts/transcript.raw.txt
-```
-
-Filter scenarios by tag or tier before running:
-
-```bash
-ax-eval scenarios --tags examples
-ax-eval scenarios --tier 0
-ax-eval run --all --tags smoke --tool claude-code
-ax-eval run --all --tags smoke --tags guidance-test --tier 1 --tool claude-code
-```
-
-See the [CLI reference](../docs/reference/cli-commands.md) for all commands and flags.
 
 ## Discover a Tool
 
@@ -119,53 +84,7 @@ the main evaluation signal.
 
 ## Scenario Authoring
 
-A scenario describes the task given to the agent, the fixture environment it works in, and the evaluation that runs after the agent exits.
-
-```yaml
-name: example_basic
-description: Create a summary with the notes CLI
-tags: [examples, smoke]
-tier: 0
-template_folder: example_basic
-
-target:
-  binary: notes
-  env:
-    NOTES_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
-
-task:
-  prompt: |
-    Use the notes CLI to create a project note and export a summary.
-
-interaction:
-  target_commands: required
-
-evaluation:
-  gates:
-    - type: file_exists
-      path: summary.md
-    - type: file_contains
-      path: summary.md
-      substring: "Project"
-```
-
-Good scenarios evaluate outcomes, not the exact process an agent used. Because LLMs are nondeterministic, prefer checks like "was the summary created?" over "did the agent run these exact commands in this exact order?"
-
-Use gates as guardrails for catastrophic outcome failures. The richer evaluation signal comes from the interaction metrics, transcript, custom evaluator results, and optional judge rubric.
-
-For the complete scenario schema, see the [scenario reference](scenarios.md).
-
-`target.env` values are passed to setup commands, target health checks, agent
-adapter runs, post scripts, script gates, and evaluators. Use
-`${AX_EVAL_FIXTURE_DIR}` when a target tool needs an environment variable
-pointing at the isolated test workspace:
-
-```yaml
-target:
-  binary: mytool
-  env:
-    MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
-```
+The tutorial covers writing your first scenario. This section covers advanced authoring patterns.
 
 ### Target Tool Lookup During Development
 
@@ -200,10 +119,20 @@ so `PATH: "...:${PATH}"` will not inherit the caller's path. Use a relative
 command such as `./mytool` only when the binary is copied into the fixture
 itself.
 
+### Interaction Policy
+
 `interaction.target_commands` defaults to `required`, which is appropriate for
 normal CLI workflows. Set it to `optional` for validation scenarios where the
 agent may legitimately finish without calling the target tool, or `forbidden`
 when calling the target tool should fail the scenario.
+
+### Design Principles
+
+Good scenarios evaluate outcomes, not the exact process an agent used. Because LLMs are nondeterministic, prefer checks like "was the summary created?" over "did the agent run these exact commands in this exact order?"
+
+Use gates as guardrails for catastrophic outcome failures. The richer evaluation signal comes from the interaction metrics, transcript, custom evaluator results, and optional judge rubric.
+
+For the complete scenario schema, see the [scenario reference](scenarios.md).
 
 ## Templates
 
@@ -217,7 +146,7 @@ ax-eval template config > ax-eval-config.toml
 
 Templates are examples, not generated project scaffolds. After printing one,
 rename placeholders such as `mytool`, `example_cli_workflow`, and paths to match
-your fixture. See the [CLI reference](../docs/reference/cli-commands.md) for all available template kinds.
+your fixture. See the [CLI reference](reference/cli-commands.md) for all available template kinds.
 
 ## Guidance Topics
 
@@ -286,7 +215,7 @@ ax-eval run --all --profile quick
 
 Scenarios can also define a `tool_matrix` field to run multiple tool/model combinations without CLI flags — see the [scenario reference](scenarios.md).
 
-See the [CLI reference](../docs/reference/cli-commands.md) for all `run` options.
+See the [CLI reference](reference/cli-commands.md) for all `run` options.
 
 ## Configuration
 
@@ -316,57 +245,28 @@ Copy `ax-eval-config.example.toml` as a starting point.
 
 ## Interpreting Results
 
-Each run generates `evaluation.md`, `report.md`, and `metrics.json`.
+The tutorial covers reading your first run output. This section covers advanced interpretation and comparison.
 
-`evaluation.md` is the human-readable profile. It includes:
+### Evidence Source
 
-- Summary: scenario name, tool, model, and run status
-- Quality signals: judge score with target threshold and delta, composite score when present, and custom evaluator count
-- Interaction metrics: command count, errors, retries, help invocations, first-try success, and evidence source
-- Run metrics: duration and cost when adapters report it
-- Qualitative scoring: judge score, rationale, issues, highlights, and criteria scores when a rubric is configured
-- Custom evaluator summaries and errors
-- Guardrails: gate counts and details
-- Human review section: space for manual scoring
+The `interaction_evidence_source` field in `metrics.json` shows how command metrics were built:
+- `structured_tool_calls` — the adapter provided canonical command events.
+- `transcript_regex_fallback` — metrics came from transcript regex analysis for an adapter that cannot expose structured tool calls.
 
-`report.md` includes execution details, scores, interaction metrics, and guardrail details.
-Use `metrics.json` when comparing repeated runs programmatically; it is the
-canonical machine-readable profile for interaction quality.
-Use `results.jsonl` in the results directory for run-level metadata such as
-tool, model, token usage, and cost when adapters report those fields.
+Structured-capable adapters must not use the fallback. If you see `transcript_regex_fallback` from opencode, claude-code, or codex, the adapter's raw-output parser likely no longer matches the CLI output schema.
 
-The `interaction_evidence_source` field shows how command metrics were built:
-`structured_tool_calls` means the adapter provided canonical command events;
-`transcript_regex_fallback` means metrics came from transcript regex analysis
-for an adapter that cannot expose structured tool calls.
+### Comparison Questions
 
-Common comparisons:
+Use `metrics.json` for programmatic comparison between runs. Common questions:
 
 - Did the new model reduce token usage?
 - Did richer AGENTS.md guidance lower the error rate?
 - Did a help-text change improve first-try success?
 - Does one adapter complete the same workflow with fewer retries?
 
-## Results Location
+### Run-Level Metadata
 
-Run directories are stored in:
-
-```text
-ax-eval-results/<timestamp>-<tool>-<model>-<scenario>/
-```
-
-The results directory also contains `results.jsonl`, an append-only run record
-database used by `ax-eval show`.
-
-Typical artifacts include:
-
-- `evaluation.md`
-- `report.md`
-- `metrics.json`
-- `artifacts/transcript.raw.txt`
-- `artifacts/events.jsonl`
-- `artifacts/tool-output.raw.txt`
-- `artifacts/command-events.json`
+Use `results.jsonl` in the results directory for run-level metadata such as tool, model, token usage, and cost when adapters report those fields. Use `ax-eval show <run-id>` to query a specific run.
 
 ## CI And Regression Gates
 
