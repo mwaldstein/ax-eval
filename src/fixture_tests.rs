@@ -114,6 +114,7 @@ mod tests {
         let metrics = evaluation::evaluate(evaluation::EvaluationInput {
             scenario: &scenario,
             env_root: &env.root,
+            scenario_path: env.root.as_path(),
             no_judge: true,
             script_runner: Some(&script_runner),
             judge_model: None,

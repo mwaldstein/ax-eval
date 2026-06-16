@@ -390,6 +390,9 @@ evaluation:
   judge:
     enabled: false
     pass_threshold: 0.70
+    # Rubric paths resolve relative to the fixture workspace (copied from template_folder).
+    # If the rubric is not in the workspace, resolution falls back to fixtures_path.
+    # rubric: rubrics/example.yaml
 
 tool_matrix:
   - tool: opencode

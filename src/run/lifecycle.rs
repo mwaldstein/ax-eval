@@ -96,6 +96,7 @@ impl<'a> ScenarioRunLifecycle<'a> {
         let evaluation = run_attempt(RunAttemptInput {
             adapter: checked_adapter.adapter(),
             scenario: self.request.scenario,
+            scenario_path: self.request.scenario_path,
             context: &context,
             prepared: &prepared,
             tool: self.request.tool,

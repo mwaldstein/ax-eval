@@ -7,10 +7,12 @@ use crate::run::status;
 use crate::scenario::Scenario;
 use crate::target_env::TargetEnvironment;
 use crate::transcript::TranscriptWriter;
+use std::path::Path;
 
 pub struct RunAttemptInput<'a> {
     pub adapter: &'a dyn ToolAdapter,
     pub scenario: &'a Scenario,
+    pub scenario_path: &'a Path,
     pub context: &'a PreparedRunContext,
     pub prepared: &'a PreparedScenarioRun,
     pub tool: &'a str,
@@ -152,6 +154,7 @@ pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResul
     let metrics = crate::evaluation::evaluate(EvaluationInput {
         scenario: input.scenario,
         env_root: &input.context.workspace.env.root,
+        scenario_path: input.scenario_path,
         no_judge: input.no_judge,
         script_runner: Some(&script_runner),
         judge_model: input.judge_model,

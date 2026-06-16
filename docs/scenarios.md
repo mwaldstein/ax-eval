@@ -192,7 +192,11 @@ evaluation:
   judge:                         # optional LLM-as-judge configuration
     enabled: bool
     tool: string                  # optional judge CLI tool: opencode, codex, claude, claude-code (default: opencode)
-    rubric: string               # optional path to rubric YAML; defaults apply when omitted
+    rubric: string               # optional path to rubric YAML; resolved in this order:
+                                 # 1. relative to the scenario YAML file (scenario-relative)
+                                 # 2. relative to the scenario workspace (env_root)
+                                 # 3. falling back to fixtures_path
+                                 # Defaults apply when rubric and inline criteria are both omitted.
     criteria:                    # optional inline criteria; used when rubric is omitted
       - id: string
         weight: float            # weights must sum to 1.0

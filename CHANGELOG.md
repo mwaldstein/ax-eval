@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `show` command: renamed `NAME` positional arg to `ID` to match actual lookup behavior
 - Stale `qipu` references replaced with `mytool` in user-facing CLI help and docs
 - `validate --all` now skips non-scenario YAML files (e.g. rubrics) using a `>=2` distinctive-key heuristic, matching the behavior of `run --all`
+- Rubric path resolution: now CWD-agnostic. Relative paths are resolved first against the scenario YAML file, then the workspace (env_root), then fall back to fixtures_path. Previously relied on CWD-dependent behavior that differed between discovery-generated and hand-written scenarios.
 
 ## [0.3.0-beta.2] - 2026-05-23
 

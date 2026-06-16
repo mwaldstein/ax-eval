@@ -64,6 +64,7 @@ fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
 pub struct EvaluationInput<'a> {
     pub scenario: &'a Scenario,
     pub env_root: &'a Path,
+    pub scenario_path: &'a Path,
     pub no_judge: bool,
     pub script_runner: Option<&'a ScriptRunner>,
     pub judge_model: Option<&'a str>,
@@ -113,6 +114,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
     let judge_result = maybe_run_judge(
         scenario,
         input.env_root,
+        input.scenario_path,
         input.no_judge,
         gates_passed,
         gates_total,
@@ -186,6 +188,7 @@ mod tests {
         let metrics = evaluate(EvaluationInput {
             scenario: &scenario,
             env_root: dir.path(),
+            scenario_path: dir.path(),
             no_judge: true,
             script_runner: None,
             judge_model: None,

@@ -3,7 +3,7 @@ use crate::judge::{load_rubric, Criterion, JudgeResponse, OutputFormat, Rubric};
 use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
 use anyhow::{Context, Result};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::debug;
 
 #[derive(Debug, Clone)]
@@ -47,9 +47,11 @@ impl JudgeExecutionResult {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn maybe_run_judge(
     scenario: &Scenario,
     env_root: &Path,
+    scenario_path: &Path,
     no_judge: bool,
     gates_passed: usize,
     gates_total: usize,
@@ -73,8 +75,14 @@ pub fn maybe_run_judge(
                     judge_config.pass_threshold,
                 ));
             }
-            let execution =
-                run_judge_evaluation(judge_config, judge_model, judge_tool, scenario, env_root)?;
+            let execution = run_judge_evaluation(
+                judge_config,
+                judge_model,
+                judge_tool,
+                scenario,
+                env_root,
+                scenario_path,
+            )?;
             let passed = execution.score.map(|s| s >= judge_config.pass_threshold);
             if let Some(s) = execution.score {
                 if s >= judge_config.pass_threshold {
@@ -106,13 +114,14 @@ fn run_judge_evaluation(
     judge_tool: Option<&str>,
     scenario: &Scenario,
     env_root: &Path,
+    scenario_path: &Path,
 ) -> Result<JudgeExecutionResult> {
     let tool = resolve_judge_tool(judge_config, judge_tool);
     debug!(
         "running judge evaluation with tool={}, model={:?}",
         tool, judge_model
     );
-    let rubric = resolve_judge_rubric(judge_config)?;
+    let rubric = resolve_judge_rubric(judge_config, env_root, scenario_path)?;
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(
         &scenario.target.binary,
@@ -201,9 +210,13 @@ fn judge_output_text(output: &ToolRunOutput) -> String {
         .to_string()
 }
 
-fn resolve_judge_rubric(judge_config: &JudgeConfig) -> Result<Rubric> {
+fn resolve_judge_rubric(
+    judge_config: &JudgeConfig,
+    env_root: &Path,
+    scenario_path: &Path,
+) -> Result<Rubric> {
     if let Some(rubric) = &judge_config.rubric {
-        let rubric_path = crate::utils::resolve_fixtures_path(rubric);
+        let rubric_path = resolve_rubric_path(rubric, env_root, scenario_path);
         return load_rubric(&rubric_path)
             .with_context(|| format!("Failed to load rubric from {}", rubric_path.display()));
     }
@@ -218,6 +231,30 @@ fn resolve_judge_rubric(judge_config: &JudgeConfig) -> Result<Rubric> {
     }
 
     Ok(default_judge_rubric())
+}
+
+/// Resolve a rubric path in a CWD-agnostic way:
+///
+/// 1. If absolute, use as-is.
+/// 2. If relative and exists next to the scenario file (scenario-relative), use that.
+/// 3. If relative and exists under `env_root` (the workspace), use that.
+/// 4. Otherwise fall back to `resolve_fixtures_path` (checks CWD, then fixtures_path).
+fn resolve_rubric_path(rubric: &str, env_root: &Path, scenario_path: &Path) -> PathBuf {
+    let rubric_path = Path::new(rubric);
+    if rubric_path.is_absolute() {
+        return rubric_path.to_path_buf();
+    }
+    if let Some(scenario_dir) = scenario_path.parent() {
+        let scenario_relative = scenario_dir.join(rubric_path);
+        if scenario_relative.exists() {
+            return scenario_relative;
+        }
+    }
+    let workspace_path = env_root.join(rubric_path);
+    if workspace_path.exists() {
+        return workspace_path;
+    }
+    crate::utils::resolve_fixtures_path(rubric)
 }
 
 fn default_judge_rubric() -> Rubric {
@@ -443,7 +480,12 @@ mod tests {
             pass_threshold: 0.7,
         };
 
-        let rubric = resolve_judge_rubric(&judge_config).expect("default rubric");
+        let rubric = resolve_judge_rubric(
+            &judge_config,
+            std::path::Path::new("/tmp"),
+            std::path::Path::new("/tmp"),
+        )
+        .expect("default rubric");
 
         assert_eq!(rubric.criteria.len(), 3);
         assert_eq!(rubric.criteria[0].id, "task_completion");
@@ -474,7 +516,12 @@ mod tests {
             pass_threshold: 0.7,
         };
 
-        let rubric = resolve_judge_rubric(&judge_config).expect("inline rubric");
+        let rubric = resolve_judge_rubric(
+            &judge_config,
+            std::path::Path::new("/tmp"),
+            std::path::Path::new("/tmp"),
+        )
+        .expect("inline rubric");
 
         assert_eq!(rubric.criteria.len(), 2);
         assert_eq!(rubric.criteria[0].id, "goal");
@@ -483,6 +530,91 @@ mod tests {
             .output
             .require_fields
             .contains(&"rationale".to_string()));
+    }
+
+    #[test]
+    fn judge_rubric_resolves_scenario_relative_then_workspace_then_fallback() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("workspace");
+        std::fs::create_dir_all(&workspace).expect("workspace dir");
+
+        // Create a rubric next to the scenario file
+        let scenario_dir = dir.path().join("fixtures");
+        std::fs::create_dir_all(&scenario_dir).expect("scenario dir");
+        std::fs::create_dir_all(scenario_dir.join("rubrics")).expect("rubrics dir");
+        std::fs::write(
+            scenario_dir.join("rubrics/scenario_rubric.yaml"),
+            r#"
+criteria:
+  - id: scenario
+    weight: 1.0
+    description: "Scenario rubric"
+output:
+  format: json
+  require_fields: [scores, rationale]
+"#,
+        )
+        .expect("write scenario rubric");
+
+        // Create a rubric in the workspace
+        std::fs::create_dir_all(workspace.join("rubrics")).expect("workspace rubrics dir");
+        std::fs::write(
+            workspace.join("rubrics/workspace_rubric.yaml"),
+            r#"
+criteria:
+  - id: workspace
+    weight: 1.0
+    description: "Workspace rubric"
+output:
+  format: json
+  require_fields: [scores, rationale]
+"#,
+        )
+        .expect("write workspace rubric");
+
+        let scenario_path = scenario_dir.join("scenario.yaml");
+
+        // 1. Scenario-relative takes precedence
+        let judge_config = JudgeConfig {
+            enabled: true,
+            tool: None,
+            rubric: Some("rubrics/scenario_rubric.yaml".to_string()),
+            criteria: vec![],
+            pass_threshold: 0.7,
+        };
+        let rubric = resolve_judge_rubric(&judge_config, &workspace, &scenario_path)
+            .expect("scenario-relative rubric");
+        assert_eq!(rubric.criteria[0].id, "scenario");
+
+        // 2. Workspace-relative when scenario-relative does not exist
+        let judge_config = JudgeConfig {
+            enabled: true,
+            tool: None,
+            rubric: Some("rubrics/workspace_rubric.yaml".to_string()),
+            criteria: vec![],
+            pass_threshold: 0.7,
+        };
+        let rubric = resolve_judge_rubric(&judge_config, &workspace, &scenario_path)
+            .expect("workspace rubric");
+        assert_eq!(rubric.criteria[0].id, "workspace");
+
+        // 3. Fallback when neither exists
+        let empty_workspace = dir.path().join("empty");
+        std::fs::create_dir_all(&empty_workspace).expect("empty dir");
+        let judge_config = JudgeConfig {
+            enabled: true,
+            tool: None,
+            rubric: Some("nonexistent_rubric.yaml".to_string()),
+            criteria: vec![],
+            pass_threshold: 0.7,
+        };
+        let result = resolve_judge_rubric(&judge_config, &empty_workspace, &scenario_path);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Failed to load rubric"),
+            "expected fallback error, got: {err}"
+        );
     }
 
     #[test]
