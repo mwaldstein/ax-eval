@@ -2,7 +2,8 @@
 
 ## Medium-impact
 
-- [ ] `--dry-run` for `discover` — Validate discovery workflow without spending credits.
+- [ ] ~~`--dry-run` for `discover`~~ — Not feasible: discover inherently requires LLM calls for inspection, scenario authoring, and summary generation.
+- [ ] `AX_EVAL_RESULTS_DIR` runtime env var — Currently only a template placeholder in `target.env`; custom scripts and evaluators cannot access it at runtime.
 - [ ] JUnit/XML output format — CI dashboard integration.
 - [ ] Shell completions — `ax-eval completions bash|zsh|fish`.
 
