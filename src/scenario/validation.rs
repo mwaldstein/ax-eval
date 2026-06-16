@@ -1,6 +1,8 @@
 use std::path::Path;
 
 use super::{Gate, Scenario};
+use crate::judge::load_rubric;
+use crate::utils::resolve_fixtures_path;
 
 #[derive(Debug)]
 pub struct ValidationWarning {
@@ -25,11 +27,42 @@ pub fn validate_scenario_file(path: &Path) -> anyhow::Result<ValidationResult> {
     })?;
 
     let warnings = validate_scenario(&scenario);
+
+    if let Some(ref judge) = scenario.evaluation.judge {
+        if let Some(ref rubric) = judge.rubric {
+            let rubric_path = resolve_rubric_path_for_validation(rubric, path);
+            if !rubric_path.exists() {
+                anyhow::bail!(
+                    "rubric file not found: {} (resolved from {})",
+                    rubric_path.display(),
+                    rubric
+                );
+            }
+            if let Err(e) = load_rubric(&rubric_path) {
+                anyhow::bail!("invalid rubric {}: {}", rubric_path.display(), e);
+            }
+        }
+    }
+
     Ok(ValidationResult {
         name: scenario.name.clone(),
         path: path.display().to_string(),
         warnings,
     })
+}
+
+fn resolve_rubric_path_for_validation(rubric: &str, scenario_path: &Path) -> std::path::PathBuf {
+    let rubric_path = Path::new(rubric);
+    if rubric_path.is_absolute() {
+        return rubric_path.to_path_buf();
+    }
+    if let Some(scenario_dir) = scenario_path.parent() {
+        let scenario_relative = scenario_dir.join(rubric_path);
+        if scenario_relative.exists() {
+            return scenario_relative;
+        }
+    }
+    resolve_fixtures_path(rubric)
 }
 
 fn format_yaml_error(content: &str, raw_error: &str) -> String {
@@ -633,5 +666,137 @@ evaluation:
         let result = validate_scenario_file(&path).unwrap();
         assert_eq!(result.name, "test");
         assert!(result.warnings.is_empty());
+    }
+
+    #[test]
+    fn validate_file_missing_rubric() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &path,
+            r#"
+name: test
+description: "Missing rubric"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+  judge:
+    enabled: true
+    rubric: rubrics/missing.yaml
+    pass_threshold: 0.7
+"#,
+        )
+        .unwrap();
+
+        let result = validate_scenario_file(&path);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("rubric file not found"),
+            "expected rubric not found error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_file_invalid_rubric_weights() {
+        let dir = tempfile::tempdir().unwrap();
+        let rubrics_dir = dir.path().join("rubrics");
+        std::fs::create_dir_all(&rubrics_dir).unwrap();
+        std::fs::write(
+            rubrics_dir.join("bad.yaml"),
+            r#"
+criteria:
+  - id: test
+    weight: 0.5
+    description: "Bad weights"
+output:
+  format: json
+  require_fields: [scores, rationale]
+"#,
+        )
+        .unwrap();
+
+        let path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &path,
+            r#"
+name: test
+description: "Invalid rubric"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+  judge:
+    enabled: true
+    rubric: rubrics/bad.yaml
+    pass_threshold: 0.7
+"#,
+        )
+        .unwrap();
+
+        let result = validate_scenario_file(&path);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Rubric criterion weights must sum to 1.0"),
+            "expected weight validation error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_file_valid_rubric() {
+        let dir = tempfile::tempdir().unwrap();
+        let rubrics_dir = dir.path().join("rubrics");
+        std::fs::create_dir_all(&rubrics_dir).unwrap();
+        std::fs::write(
+            rubrics_dir.join("good.yaml"),
+            r#"
+criteria:
+  - id: test
+    weight: 1.0
+    description: "Good weights"
+output:
+  format: json
+  require_fields: [scores, rationale]
+"#,
+        )
+        .unwrap();
+
+        let path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &path,
+            r#"
+name: test
+description: "Valid rubric"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+  judge:
+    enabled: true
+    rubric: rubrics/good.yaml
+    pass_threshold: 0.7
+"#,
+        )
+        .unwrap();
+
+        let result = validate_scenario_file(&path).unwrap();
+        assert_eq!(result.name, "test");
     }
 }
