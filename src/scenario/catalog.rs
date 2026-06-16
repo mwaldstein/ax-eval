@@ -86,6 +86,17 @@ impl ScenarioCatalog {
         Ok(summaries)
     }
 
+    pub fn yaml_paths(&self) -> Vec<PathBuf> {
+        if !self.fixtures_dir.exists() {
+            return Vec::new();
+        }
+
+        let mut paths = Vec::new();
+        collect_yaml_paths_excluding(&self.fixtures_dir, &mut paths, "templates");
+        paths.sort();
+        paths
+    }
+
     fn scenario_paths(&self) -> Vec<PathBuf> {
         if !self.fixtures_dir.exists() {
             return Vec::new();
@@ -107,6 +118,24 @@ fn collect_yaml_paths(dir: &Path, paths: &mut Vec<PathBuf>) {
         let path = entry.path();
         if path.is_dir() {
             collect_yaml_paths(&path, paths);
+        } else if path.extension().is_some_and(|ext| ext == "yaml") {
+            paths.push(path);
+        }
+    }
+}
+
+fn collect_yaml_paths_excluding(dir: &Path, paths: &mut Vec<PathBuf>, exclude: &str) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if path.file_name().is_some_and(|n| n == exclude) {
+                continue;
+            }
+            collect_yaml_paths_excluding(&path, paths, exclude);
         } else if path.extension().is_some_and(|ext| ext == "yaml") {
             paths.push(path);
         }
@@ -199,5 +228,21 @@ evaluation:
 
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].scenario.name, "scenario");
+    }
+
+    #[test]
+    fn yaml_paths_excludes_templates_directory() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write_scenario(&dir.path().join("scenario.yaml"), "scenario", 0, &["smoke"]);
+
+        let templates_dir = dir.path().join("templates").join("sub");
+        fs::create_dir_all(&templates_dir).expect("create templates dir");
+        fs::write(templates_dir.join("rubric.yaml"), "criteria: []\n").expect("write rubric");
+
+        let catalog = ScenarioCatalog::new(dir.path().to_path_buf());
+        let paths = catalog.yaml_paths();
+
+        assert_eq!(paths.len(), 1);
+        assert!(paths[0].ends_with("scenario.yaml"));
     }
 }

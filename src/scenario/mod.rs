@@ -15,6 +15,7 @@
 pub mod catalog;
 pub mod discovery;
 pub mod types;
+pub mod validation;
 
 pub use types::*;
 

@@ -22,6 +22,8 @@
 
 **Discovery** — A top-level workflow (`ax-eval discover <target>`) that asks an agent to inspect a target executable, produce an understanding document, author five goal-oriented scenarios, run them, and summarize findings. Evaluates how self-describing a CLI is. See `docs/user-guide.md` for usage.
 
+**Validate** — A pre-flight check (`ax-eval validate`) that parses scenario YAML for schema errors, unknown gate types, invalid regexes, and misconfigured judge or composite weights. No fixture setup, no LLM spend. See `docs/scenarios.md` for usage.
+
 **Tool Event Normalization** — The conversion from an adapter's raw execution output into canonical run artifacts: transcript text, command events, token usage, cost, and exit status. Adapter-specific parsing lives in `src/adapter/<name>/normalize.rs`; shared helpers live in `src/adapter/normalize.rs`.
 
 **Run Status** — A human-facing triage label derived from execution completion, guardrail state, and judge threshold. Examples: `completed; judge threshold met`, `guardrail attention: 2/3 gates`, `agent did not complete`. Not an absolute pass/fail verdict.

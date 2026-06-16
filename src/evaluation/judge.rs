@@ -108,7 +108,10 @@ fn run_judge_evaluation(
     env_root: &Path,
 ) -> Result<JudgeExecutionResult> {
     let tool = resolve_judge_tool(judge_config, judge_tool);
-    debug!("running judge evaluation with tool={}, model={:?}", tool, judge_model);
+    debug!(
+        "running judge evaluation with tool={}, model={:?}",
+        tool, judge_model
+    );
     let rubric = resolve_judge_rubric(judge_config)?;
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(

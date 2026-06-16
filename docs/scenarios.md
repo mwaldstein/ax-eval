@@ -394,6 +394,25 @@ ax-eval scenarios --tier 0
 - `--tags`: repeat the flag for multiple tags; matches scenarios with any of the given tags
 - `--tier`: runs scenarios at or below the given tier (0 = smoke tests only, 1 = smoke + quick, etc.)
 
+### Validating Scenarios
+
+Use `validate` to check scenario YAML for schema errors before running. It catches
+missing fields, unknown gate types (with typo suggestions), invalid regexes, and
+misconfigured judge or composite weights. No fixture setup, no LLM spend, no
+agent execution.
+
+```bash
+ax-eval validate --scenario fixtures/my_scenario.yaml
+ax-eval validate --all
+```
+
+`validate --all` scans the fixtures directory recursively, skipping the
+`templates/` subdirectory which contains non-scenario YAMLs such as rubrics.
+
+The command exits 0 when all scenarios parse successfully (warnings are
+informational). It exits non-zero when any scenario fails to parse or is missing
+required fields.
+
 ---
 
 ## Artifacts

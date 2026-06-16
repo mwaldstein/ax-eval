@@ -1,27 +1,57 @@
-# Agent Experience Eval
+# Agent Experience Eval (`ax-eval`)
 
-Evaluate how coding agents use your CLI.
+**Build great tools for agents.**
 
-Supports `claude-code`, `opencode`, and `codex` on macOS, Linux, and Windows.
+Even capable agents benefit from tools designed with their needs in mind. Without intentional design, agents may encounter execution loops, hallucinated command structures, excessive token usage, or complete failure to achieve goals. 
 
-CLIs built for humans often frustrate AI agents — vague errors, complex setup, confusing subcommands — leading to retries and wasted tokens.
+Replace ad-hoc developer exploration with structured, measured, and judged evaluations. `ax-eval` runs coding agents against your tool in reproducible scenarios to generate quantitative metrics and qualitative scores. Stop guessing if your tool's ergonomics or `AGENTS.md` are actually effective. Run apples-to-apples comparisons before and after changes to guarantee your updates reduce friction, eliminate loops, and save tokens.
 
-`ax-eval` runs coding agents against your CLI in reproducible scenarios and produces an evaluation profile: quantitative interaction metrics, cost and token data, optional qualitative rubric scores, and supporting guardrail checks. Use it to drive a tight feedback loop on your CLI ergonomics, `--help` text, and `AGENTS.md` guidance.
+### See it in action
 
-Built primarily for CLI authors. Also useful for technical writers iterating on `AGENTS.md` and agent developers comparing models on a specific workflow.
+Run a reproducible scenario against your CLI:
 
-## Measure Agent Experience
+```bash
+ax-eval run --scenario create_project --tool claude-code
+```
 
-ax-eval measures how agents discover, learn, and use your CLI. It captures the qualitative friction of real agent interactions — wrong turns, retries, and token burn — while providing repeatable setup and objective guardrails. Where unit tests verify deterministic behavior, ax-eval measures how agents actually interact with your tool.
+Get an immediate, dimensional evaluation profile of the agent's execution:
 
-Benchmark changes to your environment: does the same scenario perform better after a model upgrade or a documentation rewrite? Scalar metrics give you trend data; **rubric-based Judge scoring** gives you a repeatable qualitative signal on interaction quality. Pass/fail gates are supporting checks for catastrophic failures, not the main result.
+```json
+{
+  "efficiency": {
+    "total_commands": 6,
+    "error_count": 0,
+    "retry_count": 1,
+    "first_try_success_rate": 1.0
+  },
+  "costs": {
+    "total_tokens_used": 14250,
+    "total_cost_usd": 0.04
+  },
+  "judge": {
+    "score": 4,
+    "rationale": "The agent correctly identified the right command but initially struggled with the syntax for the input file, eventually recovering after one retry."
+  },
+  "gates_passed": 3,
+  "gates_total": 3
+}
+```
+
+*(See `ax-eval-results/` for full transcripts, cost/token usage, and markdown summaries).*
+
+---
+
+## Supported Agents
+`ax-eval` currently supports `claude-code`, `opencode`, and `codex` on macOS, Linux, and Windows.
+
+Built primarily for CLI authors, technical writers iterating on `AGENTS.md`, and agent developers comparing models on a specific workflow.
 
 ## How It Works
 
-1. **Modify** your CLI's `--help`, `AGENTS.md`, or documentation.
-2. **Execute** a scenario — `ax-eval` runs the configured agent CLI against your prompt and records every command, error, and token.
-3. **Analyze** the metrics, transcript, and Judge score to see exactly where the agent hesitated.
-4. **Refine** and repeat.
+1. **Execute** a baseline scenario — `ax-eval` runs the configured agent CLI against your prompt and records every command, error, and token.
+2. **Analyze** the metrics, transcript, and Judge score to see exactly where the agent stalled or wasted effort.
+3. **Modify** your CLI's error messages, parameter handling, `--help` text, or `AGENTS.md` instructions.
+4. **Repeat** to run an apples-to-apples comparison and verify your changes actually reduced friction.
 
 If you do not have scenarios yet, start with `discover`: it asks an agent to
 inspect your executable, write an understanding document, author five
@@ -29,6 +59,12 @@ goal-oriented scenarios, run them, and summarize what the results reveal about
 your CLI's LLM usability.
 
 ## Install
+
+Install via crates.io:
+
+```bash
+cargo install ax-eval
+```
 
 Install the latest release on macOS or Linux:
 
@@ -55,10 +91,14 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
 
 1. **Validate without a real LLM**. `--dry-run` checks scenario selection,
    fixture setup, cache keys, and run planning without requiring real-run
-   consent.
+   consent. `validate` checks scenario YAML for schema errors before setup.
    ```bash
-    ax-eval run --scenario example_basic --dry-run
-   ```
+     ax-eval run --scenario example_basic --dry-run
+    ```
+
+   ```bash
+     ax-eval validate --scenario fixtures/example_basic.yaml
+    ```
 
 2. **Enable real-run consent.** `AX_EVAL_ENABLED=1` is required only for
     real agent execution. It prevents accidental LLM API spend and arbitrary

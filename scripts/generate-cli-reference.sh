@@ -25,7 +25,7 @@ fi
 mkdir -p "$SNAPSHOT_DIR"
 mkdir -p "$(dirname "$REFERENCE_DOC")"
 
-SUBCOMMANDS=("run" "discover" "scenarios" "show" "clean" "guidance" "template")
+SUBCOMMANDS=("run" "discover" "scenarios" "show" "clean" "validate" "guidance" "template")
 
 echo "# CLI Command Reference" > "$REFERENCE_DOC"
 echo "" >> "$REFERENCE_DOC"

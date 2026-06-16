@@ -189,6 +189,27 @@ Key decisions in this scenario:
 
 ## Step 5: Validate the Scenario
 
+Check the scenario YAML for schema errors before running:
+
+```bash
+ax-eval validate --scenario fixtures/todo_tutorial.yaml
+```
+
+You should see:
+
+```
+  ✓ todo_tutorial
+
+Validated 1 scenario(s), 0 warning(s)
+```
+
+If there are YAML errors, missing fields, or misconfigured gates, they will
+appear here with helpful messages (including typo suggestions for gate types).
+Fix them before proceeding.
+
+You can also use `--dry-run` to validate scenario loading, fixture setup, and
+run planning without launching an agent:
+
 ```bash
 ax-eval run --scenario fixtures/todo_tutorial.yaml --dry-run
 ```

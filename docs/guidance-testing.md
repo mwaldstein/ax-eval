@@ -16,6 +16,14 @@ Both use the same `notes` mock tool, task prompt, and evaluation gates.
 
 ## Running The Comparison
 
+Validate your scenarios first to catch schema errors before spending LLM credits:
+
+```bash
+ax-eval validate --all
+```
+
+Then run the comparison:
+
 ```bash
 ax-eval run --all --tags guidance-test --tier 1
 ```

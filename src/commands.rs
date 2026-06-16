@@ -5,7 +5,9 @@ use crate::output;
 use crate::results::{Cache, ResultsDB};
 use crate::run;
 use crate::scenario::catalog::ScenarioCatalog;
+use crate::scenario::validation;
 use chrono::{Duration, Utc};
+use std::io::IsTerminal;
 use std::path::Path;
 use tracing::debug;
 
@@ -467,3 +469,102 @@ cat <<JSON
 }
 JSON
 "#;
+
+pub fn handle_validate_command(scenario: &Option<String>, all: bool) -> anyhow::Result<()> {
+    let catalog = ScenarioCatalog::from_default_fixtures();
+    let paths = if all {
+        catalog.yaml_paths()
+    } else if let Some(path) = scenario {
+        vec![catalog.resolve_path(path)]
+    } else {
+        anyhow::bail!("Specify --scenario <path> or --all");
+    };
+
+    if paths.is_empty() {
+        println!("No scenarios found to validate.");
+        return Ok(());
+    }
+
+    let mut error_count = 0;
+    let mut warning_count = 0;
+
+    for path in &paths {
+        match validation::validate_scenario_file(path) {
+            Ok(result) => {
+                let location = if paths.len() > 1 {
+                    format!(" ({})", result.path)
+                } else {
+                    String::new()
+                };
+                if result.warnings.is_empty() {
+                    println!("  {} {}{}", green_check(), result.name, location);
+                } else {
+                    println!(
+                        "  {} {}{} (with warnings)",
+                        yellow_bang(),
+                        result.name,
+                        location
+                    );
+                    for warning in &result.warnings {
+                        println!("    {}: {}", dim(&warning.field), warning.message);
+                        warning_count += 1;
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  {} {}", red_x(), e);
+                error_count += 1;
+            }
+        }
+    }
+
+    println!();
+    if error_count == 0 {
+        println!(
+            "Validated {} scenario(s), {} warning(s)",
+            paths.len(),
+            warning_count
+        );
+        Ok(())
+    } else {
+        println!(
+            "Validated {} scenario(s): {} error(s), {} warning(s)",
+            paths.len(),
+            error_count,
+            warning_count
+        );
+        anyhow::bail!("{error_count} scenario(s) failed validation");
+    }
+}
+
+fn green_check() -> &'static str {
+    if supports_color() {
+        "\x1b[32m\u{2713}\x1b[0m"
+    } else {
+        "ok"
+    }
+}
+fn red_x() -> &'static str {
+    if supports_color() {
+        "\x1b[31m\u{2717}\x1b[0m"
+    } else {
+        "FAIL"
+    }
+}
+fn yellow_bang() -> &'static str {
+    if supports_color() {
+        "\x1b[33m!\x1b[0m"
+    } else {
+        "WARN"
+    }
+}
+fn dim(s: &str) -> String {
+    if supports_color() {
+        format!("\x1b[2m{s}\x1b[0m")
+    } else {
+        s.to_string()
+    }
+}
+fn supports_color() -> bool {
+    std::io::stdout().is_terminal()
+}

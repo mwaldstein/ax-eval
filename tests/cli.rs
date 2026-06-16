@@ -1191,6 +1191,213 @@ fn snapshot_help_clean() {
 }
 
 #[test]
+fn snapshot_help_validate() {
+    assert_help_snapshot(Some("validate"), "validate");
+}
+
+#[test]
+fn test_validate_valid_scenario() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let scenario_content = r#"
+name: test_scenario
+description: "A valid scenario"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario_path = fixtures_dir.join("test_scenario.yaml");
+    fs::write(&scenario_path, scenario_content).unwrap();
+
+    ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--scenario", "fixtures/test_scenario.yaml"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test_scenario"))
+        .stdout(predicate::str::contains("Validated 1 scenario(s)"));
+}
+
+#[test]
+fn test_validate_invalid_yaml() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let scenario_content = r#"
+name: test_bad
+description: "Missing target"
+template_folder: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let scenario_path = fixtures_dir.join("bad.yaml");
+    fs::write(&scenario_path, scenario_content).unwrap();
+
+    ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--scenario", "fixtures/bad.yaml"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("missing required field"));
+}
+
+#[test]
+fn test_validate_unknown_gate_type_suggests_correction() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let scenario_content = r#"
+name: typo_gate
+description: "Gate type typo"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: file_exits
+      path: out.txt
+"#;
+    let scenario_path = fixtures_dir.join("typo.yaml");
+    fs::write(&scenario_path, scenario_content).unwrap();
+
+    ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--scenario", "fixtures/typo.yaml"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("did you mean file_exists"));
+}
+
+#[test]
+fn test_validate_requires_scenario_or_all() {
+    ax_eval()
+        .args(["validate"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--scenario").or(predicate::str::contains("--all")));
+}
+
+#[test]
+fn test_validate_all_with_multiple_scenarios() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let valid = r#"
+name: valid_one
+description: "Valid"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    let invalid = r#"
+name: invalid_one
+description: "Missing target"
+task:
+  prompt: "Do something"
+evaluation:
+  gates: []
+"#;
+    fs::write(fixtures_dir.join("valid.yaml"), valid).unwrap();
+    fs::write(fixtures_dir.join("invalid.yaml"), invalid).unwrap();
+
+    let result = ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--all"])
+        .output()
+        .unwrap();
+
+    assert!(!result.status.success());
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        stdout.contains("valid_one") || stderr.contains("valid_one"),
+        "should mention valid_one"
+    );
+    assert!(
+        stderr.contains("invalid_one") || stderr.contains("missing required field"),
+        "should report invalid_one error"
+    );
+    assert!(
+        stdout.contains("Validated 2 scenario(s)"),
+        "should count both scenarios"
+    );
+}
+
+#[test]
+fn test_validate_nonexistent_file() {
+    ax_eval()
+        .args(["validate", "--scenario", "fixtures/nonexistent.yaml"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Failed to read"));
+}
+
+#[test]
+fn test_validate_warnings_exit_zero() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let scenario = r#"
+name: warn_me
+description: "Has warnings"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "   "
+evaluation:
+  gates: []
+"#;
+    fs::write(fixtures_dir.join("warn.yaml"), scenario).unwrap();
+
+    ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--scenario", "fixtures/warn.yaml"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("warn_me"))
+        .stdout(predicate::str::contains("warning(s)"));
+}
+
+#[test]
+fn test_validate_all_empty_fixtures() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--all"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No scenarios found"));
+}
+
+#[test]
 fn snapshot_help_guidance() {
     assert_help_snapshot(Some("guidance"), "guidance");
 }
