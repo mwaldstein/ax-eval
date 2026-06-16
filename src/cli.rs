@@ -168,7 +168,7 @@ pub enum Commands {
         #[arg(long)]
         all: bool,
     },
-    /// Print copyable scenario, config, and script templates
+    /// Print copyable scenario, config, rubric, and script templates
     Template {
         /// Template to print
         #[arg(value_enum)]
@@ -201,4 +201,6 @@ pub enum TemplateKind {
     ScriptGate,
     /// Custom evaluator script that reports metrics, score, and summary JSON
     Evaluator,
+    /// Rubric YAML with weighted criteria and judge output contract
+    Rubric,
 }

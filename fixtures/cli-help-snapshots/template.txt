@@ -1,4 +1,4 @@
-Print copyable scenario, config, and script templates
+Print copyable scenario, config, rubric, and script templates
 
 Usage: ax-eval template [OPTIONS] <KIND>
 
@@ -11,6 +11,7 @@ Arguments:
           - config:      ax-eval-config.toml with supported config fields and valid profiles
           - script-gate: Shell script gate that reports pass/fail JSON
           - evaluator:   Custom evaluator script that reports metrics, score, and summary JSON
+          - rubric:      Rubric YAML with weighted criteria and judge output contract
 
 Options:
   -v, --verbose

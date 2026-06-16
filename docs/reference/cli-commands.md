@@ -32,7 +32,7 @@ Commands:
   clean      Clean cache and legacy transcript artifacts
   guidance   Show guidance for building LLM-usable tools and docs
   validate   Validate scenario YAML without running
-  template   Print copyable scenario, config, and script templates
+  template   Print copyable scenario, config, rubric, and script templates
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -273,7 +273,7 @@ Options:
 ## ax-eval template
 
 ```
-Print copyable scenario, config, and script templates
+Print copyable scenario, config, rubric, and script templates
 
 Usage: ax-eval template [OPTIONS] <KIND>
 
@@ -286,6 +286,7 @@ Arguments:
           - config:      ax-eval-config.toml with supported config fields and valid profiles
           - script-gate: Shell script gate that reports pass/fail JSON
           - evaluator:   Custom evaluator script that reports metrics, score, and summary JSON
+          - rubric:      Rubric YAML with weighted criteria and judge output contract
 
 Options:
   -v, --verbose

@@ -308,6 +308,7 @@ pub fn handle_template_command(kind: TemplateKind) {
         TemplateKind::Config => CONFIG_TEMPLATE,
         TemplateKind::ScriptGate => SCRIPT_GATE_TEMPLATE,
         TemplateKind::Evaluator => EVALUATOR_TEMPLATE,
+        TemplateKind::Rubric => RUBRIC_TEMPLATE,
     };
     print!("{}", template);
 }
@@ -389,10 +390,12 @@ evaluation:
       timeout_secs: 30
   judge:
     enabled: false
+    # Optional: path to a rubric YAML. Omit to use the default criteria
+    # (goal completion 0.50, tool usage correctness 0.30, efficiency 0.20).
+    # Paths resolve relative to the fixture workspace (copied from template_folder),
+    # falling back to fixtures_path if not found in the workspace.
+    rubric: rubrics/example.yaml
     pass_threshold: 0.70
-    # Rubric paths resolve relative to the fixture workspace (copied from template_folder).
-    # If the rubric is not in the workspace, resolution falls back to fixtures_path.
-    # rubric: rubrics/example.yaml
 
 tool_matrix:
   - tool: opencode
@@ -471,6 +474,31 @@ cat <<JSON
   "summary": "Export contains ${note_count} item(s)"
 }
 JSON
+"#;
+
+const RUBRIC_TEMPLATE: &str = r#"# Rubric for LLM-as-judge evaluation. Referenced from a scenario via:
+#   evaluation:
+#     judge:
+#       enabled: true
+#       rubric: rubrics/example.yaml
+#       pass_threshold: 0.70
+# A rubric is optional; omit it to use the default criteria below.
+# Criterion weights must sum to 1.0 (within 0.01 tolerance).
+criteria:
+  - id: task_completion
+    weight: 0.50
+    description: "The agent achieved the user's requested goal and produced the intended outcome"
+  - id: tool_usage_correctness
+    weight: 0.30
+    description: "The agent used the CLI tool correctly with valid commands and arguments"
+  - id: efficiency
+    weight: 0.20
+    description: "The agent completed the task without unnecessary commands or avoidable confusion"
+
+# Output contract the judge response must satisfy.
+output:
+  format: json
+  require_fields: [scores, weighted_score, confidence, issues, highlights, rationale]
 "#;
 
 fn looks_like_scenario(path: &std::path::Path) -> bool {

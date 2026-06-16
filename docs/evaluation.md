@@ -325,6 +325,9 @@ evaluation:
     pass_threshold: 0.70
 ```
 
+To define custom criteria in a reusable rubric file, run `ax-eval template rubric`
+for a copyable starting point and reference it via `evaluation.judge.rubric`.
+
 ---
 
 ## Composite Scoring

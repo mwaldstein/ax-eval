@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `--verbose` flag and `RUST_LOG` environment variable for fine-grained debug output
 - CLI help snapshot tests and auto-generated reference documentation (`docs/reference/cli-commands.md`)
+- `ax-eval template rubric` prints a copyable rubric schema (weighted criteria and judge output contract) for LLM-as-judge evaluation
+
+### Changed
+
+- `ax-eval template scenario` now documents the optional `evaluation.judge.rubric` field instead of hiding it in a comment
 
 ### Fixed
 

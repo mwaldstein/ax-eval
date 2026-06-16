@@ -161,6 +161,7 @@ when creating scenarios or scripts from an agent session:
 ```bash
 ax-eval template scenario > fixtures/my_scenario.yaml
 ax-eval template config > ax-eval-config.toml
+ax-eval template rubric > fixtures/my_scenario/rubrics/example.yaml
 ```
 
 Templates are examples, not generated project scaffolds. After printing one,
