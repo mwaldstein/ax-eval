@@ -97,7 +97,7 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
     ```
 
    ```bash
-     ax-eval validate --scenario fixtures/example_basic.yaml
+     ax-eval validate --scenario ax-eval-fixtures/example_basic.yaml
     ```
 
 2. **Enable real-run consent.** `AX_EVAL_ENABLED=1` is required only for
@@ -114,7 +114,7 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
 
 4. **Print a scenario template**: Start from a schema-valid YAML example.
    ```bash
-    ax-eval template scenario > fixtures/my_scenario.yaml
+    ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml
    ```
 
 5. **Run evaluation**:

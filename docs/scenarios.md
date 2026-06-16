@@ -232,7 +232,7 @@ target:
   command_pattern: "taskmgr\\s+(add|list|done|priority|show|search)"
   health_check: "taskmgr --version"
 
-template_folder: fixtures/task_manager_organize
+template_folder: ax-eval-fixtures/task_manager_organize
 
 task:
   prompt: |
@@ -311,7 +311,7 @@ Each scenario references a `template_folder` containing the initial workspace st
 ### Layout
 
 ```
-fixtures/task_manager_organize/
+ax-eval-fixtures/task_manager_organize/
 ├── AGENTS.md              # Guidance for the LLM — tool docs, patterns, examples
 ├── README.md              # Project context the LLM should read
 ├── scripts/               # Custom scripts for gates and evaluators (optional)
@@ -371,10 +371,10 @@ Provides project context. The LLM reads this to understand what it's working on.
 
 ### Default Location
 
-Scenarios live in the `fixtures/` directory at the project root. Each scenario is a `.yaml` file.
+Scenarios live in the `ax-eval-fixtures/` directory at the project root. Each scenario is a `.yaml` file.
 
 ```
-fixtures/
+ax-eval-fixtures/
 ├── task_manager_organize/         # Fixture directory
 │   ├── AGENTS.md
 │   └── README.md
@@ -406,11 +406,11 @@ misconfigured judge or composite weights. No fixture setup, no LLM spend, no
 agent execution.
 
 ```bash
-ax-eval validate --scenario fixtures/my_scenario.yaml
+ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
 ax-eval validate --all
 ```
 
-`validate --all` scans the fixtures directory recursively, skipping the
+`validate --all` scans the ax-eval-fixtures directory recursively, skipping the
 `templates/` subdirectory and any YAML files that do not appear to be scenarios.
 
 A YAML file is considered scenario-like if it is a top-level mapping containing at
@@ -509,7 +509,7 @@ Create multiple fixture variants with different AGENTS.md content, run the same 
 ### Setup
 
 ```
-fixtures/
+ax-eval-fixtures/
 ├── notes_guidance_minimal/
 │   ├── AGENTS.md              # Bare minimum: just command names
 │   ├── README.md

@@ -43,10 +43,10 @@ You will see the built-in examples. These are your reference for authoring your 
 Create a simple CLI tool that we will evaluate. This tutorial uses a `todo` CLI — a minimal task manager.
 
 ```bash
-mkdir -p fixtures/todo_tutorial
+mkdir -p ax-eval-fixtures/todo_tutorial
 ```
 
-Create the mock CLI at `fixtures/todo_tutorial/todo`:
+Create the mock CLI at `ax-eval-fixtures/todo_tutorial/todo`:
 
 ```bash
 #!/usr/bin/env bash
@@ -91,14 +91,14 @@ esac
 ```
 
 ```bash
-chmod +x fixtures/todo_tutorial/todo
+chmod +x ax-eval-fixtures/todo_tutorial/todo
 ```
 
 ## Step 3: Write AGENTS.md
 
 The AGENTS.md file is the primary documentation the agent receives about your tool. This is what you are testing.
 
-Create `fixtures/todo_tutorial/AGENTS.md`:
+Create `ax-eval-fixtures/todo_tutorial/AGENTS.md`:
 
 ```markdown
 # Todo CLI (todo)
@@ -128,7 +128,7 @@ todo help           Show available commands.
 
 ## Step 4: Write the Scenario
 
-Create `fixtures/todo_tutorial.yaml`:
+Create `ax-eval-fixtures/todo_tutorial.yaml`:
 
 ```yaml
 name: todo_tutorial
@@ -192,7 +192,7 @@ Key decisions in this scenario:
 Check the scenario YAML for schema errors before running:
 
 ```bash
-ax-eval validate --scenario fixtures/todo_tutorial.yaml
+ax-eval validate --scenario ax-eval-fixtures/todo_tutorial.yaml
 ```
 
 You should see:
@@ -211,7 +211,7 @@ You can also use `--dry-run` to validate scenario loading, fixture setup, and
 run planning without launching an agent:
 
 ```bash
-ax-eval run --scenario fixtures/todo_tutorial.yaml --dry-run
+ax-eval run --scenario ax-eval-fixtures/todo_tutorial.yaml --dry-run
 ```
 
 You should see:
@@ -229,7 +229,7 @@ When you are ready to run with a real agent:
 
 ```bash
 export AX_EVAL_ENABLED=1
-ax-eval run --scenario fixtures/todo_tutorial.yaml --tool opencode
+ax-eval run --scenario ax-eval-fixtures/todo_tutorial.yaml --tool opencode
 ```
 
 The agent will:
@@ -312,7 +312,7 @@ Run again:
 
 ```bash
 export AX_EVAL_ENABLED=1
-ax-eval run --scenario fixtures/todo_tutorial.yaml --tool opencode
+ax-eval run --scenario ax-eval-fixtures/todo_tutorial.yaml --tool opencode
 ```
 
 Compare the two `metrics.json` files. Did the richer guidance reduce:

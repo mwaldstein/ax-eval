@@ -96,7 +96,7 @@ After editing a scenario YAML, run `validate` to catch errors before spending
 time on fixture setup or LLM credits:
 
 ```bash
-ax-eval validate --scenario fixtures/my_scenario.yaml
+ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
 ax-eval validate --all
 ```
 
@@ -159,9 +159,9 @@ The `template` command prints schema-valid starting points to stdout. Use it
 when creating scenarios or scripts from an agent session:
 
 ```bash
-ax-eval template scenario > fixtures/my_scenario.yaml
+ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml
 ax-eval template config > ax-eval-config.toml
-ax-eval template rubric > fixtures/my_scenario/rubrics/example.yaml
+ax-eval template rubric > ax-eval-fixtures/my_scenario/rubrics/example.yaml
 ```
 
 Templates are examples, not generated project scaffolds. After printing one,
@@ -242,7 +242,7 @@ See the [CLI reference](reference/cli-commands.md) for all `run` options.
 An optional `ax-eval-config.toml` can define fixture/result paths, tool/model validation, and matrix profiles.
 
 ```toml
-fixtures_path = "fixtures"
+fixtures_path = "ax-eval-fixtures"
 results_path = "ax-eval-results"
 
 [tools.claude-code]
@@ -300,7 +300,7 @@ Use CI gates for catastrophic regressions. Use the evaluation profile to underst
 validate without an LLM, or set `AX_EVAL_ENABLED=1` to consent to real
 agent execution.
 
-**Scenario not found**: check that the scenario exists in `fixtures/`, then run `ax-eval scenarios`.
+**Scenario not found**: check that the scenario exists in `ax-eval-fixtures/`, then run `ax-eval scenarios`.
 
 **Gate failures**: treat these as guardrail failures, then inspect `evaluation.md`, `metrics.json`, and `artifacts/transcript.raw.txt` to understand the full interaction profile.
 

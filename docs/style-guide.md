@@ -56,7 +56,7 @@ Always use inline backticks for commands, flags, environment variables, file pat
 ```
 Good: Set AX_EVAL_ENABLED=1 before running.
 Good: The --tool flag selects the adapter.
-Good: Write the scenario to fixtures/my_scenario.yaml.
+Good: Write the scenario to ax-eval-fixtures/my_scenario.yaml.
 Bad: Set AX_EVAL_ENABLED=1 before running.
 Bad: The --tool flag selects the adapter.
 ```

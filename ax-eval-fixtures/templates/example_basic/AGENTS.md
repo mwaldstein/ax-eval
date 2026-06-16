@@ -30,4 +30,4 @@ The `taskmgr` script is a simple shell-based mock CLI that:
 
 ## Testing
 
-This fixture is used by `fixtures/example_basic.yaml` to demonstrate the complete scripts system.
+This fixture is used by `ax-eval-fixtures/example_basic.yaml` to demonstrate the complete scripts system.

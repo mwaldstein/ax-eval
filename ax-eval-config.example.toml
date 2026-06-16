@@ -3,7 +3,7 @@
 # Copy this file to `ax-eval-config.toml` in your working directory
 # to customize tool configurations and test profiles.
 
-fixtures_path = "fixtures"
+fixtures_path = "ax-eval-fixtures"
 results_path = "ax-eval-results"
 
 # Tool configurations define known LLM tools and their supported models.

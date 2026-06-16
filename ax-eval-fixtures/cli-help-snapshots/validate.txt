@@ -12,7 +12,7 @@ Options:
           Path to scenario file or name (always validated, even if not scenario-like)
 
       --all
-          Validate all scenario-like YAML files in fixtures directory
+          Validate all scenario-like YAML files in ax-eval-fixtures directory
 
   -v, --verbose
           Enable verbose output (or set RUST_LOG for fine-grained control)
@@ -21,6 +21,6 @@ Options:
           Print help (see a summary with '-h')
 
 Examples:
-  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
   ax-eval validate --all
-  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml --verbose

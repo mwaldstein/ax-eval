@@ -406,7 +406,7 @@ run:
   timeout_secs: 300
 "#;
 
-const CONFIG_TEMPLATE: &str = r#"fixtures_path = "fixtures"
+const CONFIG_TEMPLATE: &str = r#"fixtures_path = "ax-eval-fixtures"
 results_path = "ax-eval-results"
 
 [tools.opencode]

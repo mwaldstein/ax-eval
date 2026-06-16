@@ -29,7 +29,7 @@ cargo test <test_name> -- --nocapture
 
 ## Fixture Scenario Regression Tests
 
-Every example scenario in `fixtures/` has an automated regression test in
+Every example scenario in `ax-eval-fixtures/` has an automated regression test in
 `src/fixture_tests.rs`. These run mock-tool commands directly without a real
 LLM, execute setup and post scripts, and verify evaluation gates pass.
 

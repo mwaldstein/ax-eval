@@ -80,7 +80,7 @@ fn test_e2e_dry_run() {
         .args([
             "run",
             "--scenario",
-            "fixtures/example_e2e.yaml",
+            "ax-eval-fixtures/example_e2e.yaml",
             "--dry-run",
         ])
         .env("AX_EVAL_ENABLED", "1")
@@ -116,7 +116,7 @@ fn test_e2e_with_real_llm_opencode() {
     cmd.args([
         "run",
         "--scenario",
-        "fixtures/example_e2e.yaml",
+        "ax-eval-fixtures/example_e2e.yaml",
         "--tool",
         "opencode",
         "--model",
@@ -157,7 +157,7 @@ fn test_e2e_with_real_llm_claude() {
     cmd.args([
         "run",
         "--scenario",
-        "fixtures/example_e2e.yaml",
+        "ax-eval-fixtures/example_e2e.yaml",
         "--tool",
         "claude",
         "--timeout-secs",
@@ -204,7 +204,7 @@ fn test_e2e_with_real_llm_codex() {
     cmd.args([
         "run",
         "--scenario",
-        "fixtures/example_e2e.yaml",
+        "ax-eval-fixtures/example_e2e.yaml",
         "--tool",
         "codex",
         "--model",
@@ -256,7 +256,7 @@ fn test_e2e_reports_results_artifacts() {
     cmd.args([
         "run",
         "--scenario",
-        "fixtures/example_e2e.yaml",
+        "ax-eval-fixtures/example_e2e.yaml",
         "--tool",
         &tool,
         "--model",

@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 BINARY="${REPO_ROOT}/target/debug/ax-eval"
-SNAPSHOT_DIR="${REPO_ROOT}/fixtures/cli-help-snapshots"
+SNAPSHOT_DIR="${REPO_ROOT}/ax-eval-fixtures/cli-help-snapshots"
 REFERENCE_DOC="${REPO_ROOT}/docs/reference/cli-commands.md"
 
 if [ ! -x "$BINARY" ]; then

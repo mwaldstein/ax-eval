@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn example_basic_passes_all_gates() {
         let metrics = run_fixture(
-            "fixtures/example_basic.yaml",
+            "ax-eval-fixtures/example_basic.yaml",
             &["./taskmgr create \"Implement scripts system\""],
         );
         assert_eq!(metrics.gates_passed, metrics.gates_total);
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn example_gates_comprehensive_passes_all_gates() {
         let metrics = run_fixture(
-            "fixtures/example_gates_comprehensive.yaml",
+            "ax-eval-fixtures/example_gates_comprehensive.yaml",
             &[
                 "./demo_tool init",
                 "./demo_tool create \"test item\"",
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn example_full_config_passes_all_gates() {
         let metrics = run_fixture(
-            "fixtures/example_full_config.yaml",
+            "ax-eval-fixtures/example_full_config.yaml",
             &["./config_tool write \"Hello from full config\""],
         );
         assert_eq!(metrics.gates_passed, metrics.gates_total);
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn example_judge_passes_all_gates() {
         let metrics = run_fixture(
-            "fixtures/example_judge.yaml",
+            "ax-eval-fixtures/example_judge.yaml",
             &["./simple_tool create \"Hello World\""],
         );
         assert_eq!(metrics.gates_passed, metrics.gates_total);
@@ -238,7 +238,7 @@ mod tests {
     // ------------------------------------------------------------------
     #[test]
     fn example_e2e_passes_all_gates() {
-        let metrics = run_fixture("fixtures/example_e2e.yaml", &["./hello run"]);
+        let metrics = run_fixture("ax-eval-fixtures/example_e2e.yaml", &["./hello run"]);
         assert_eq!(metrics.gates_passed, metrics.gates_total);
     }
 
@@ -260,7 +260,7 @@ mod tests {
         commands.push("./notes search design");
         commands.push("./notes export --format json");
 
-        let metrics = run_fixture("fixtures/example_guidance_minimal.yaml", &commands);
+        let metrics = run_fixture("ax-eval-fixtures/example_guidance_minimal.yaml", &commands);
         assert_eq!(metrics.gates_passed, metrics.gates_total);
     }
 
@@ -281,7 +281,7 @@ mod tests {
         commands.push("./notes search design");
         commands.push("./notes export --format json");
 
-        let metrics = run_fixture("fixtures/example_guidance_rich.yaml", &commands);
+        let metrics = run_fixture("ax-eval-fixtures/example_guidance_rich.yaml", &commands);
         assert_eq!(metrics.gates_passed, metrics.gates_total);
     }
 }

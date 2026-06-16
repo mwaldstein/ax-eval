@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     version,
     arg_required_else_help = true,
     about = "Evaluate how coding agents use CLI tools",
-    long_about = "ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval guidance list\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>\n\nUse `ax-eval template <kind>` for copyable schema examples.",
-    after_help = "Common commands:\n  ax-eval scenarios\n  ax-eval template scenario > fixtures/my_scenario.yaml\n  ax-eval template config > ax-eval-config.toml\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>"
+    long_about = "ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.\n\nUse it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.\n\nCommon commands:\n  ax-eval scenarios\n  ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml\n  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml\n  ax-eval guidance list\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>\n\nUse `ax-eval template <kind>` for copyable schema examples.",
+    after_help = "Common commands:\n  ax-eval scenarios\n  ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml\n  ax-eval template config > ax-eval-config.toml\n  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml\n  ax-eval guidance start\n  AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode\n  ax-eval show <run-id>"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -35,14 +35,14 @@ pub enum Commands {
     /// Run a test scenario
     #[command(
         long_about = "Run one scenario, all selected scenarios, or a configured tool/model matrix.\n\nReal agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.\n\nRubric paths in `evaluation.judge.rubric` resolve in this order: relative to the scenario YAML, then the workspace (after fixture copy), then fixtures_path.\n\nArtifacts are written under ax-eval-results/ by default, including reports, transcripts, metrics, and the isolated fixture workspace.",
-        after_help = "Examples:\n  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode\n  PATH=\"$PWD/target/debug:$PATH\" AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --all --tags smoke --tier 1 --tool claude-code\n  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --profile quick\n  ax-eval run --scenario fixtures/my_scenario.yaml --dry-run\n\nStart with `ax-eval template scenario` for a copyable scenario schema."
+        after_help = "Examples:\n  AX_EVAL_ENABLED=1 ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --tool opencode\n  PATH=\"$PWD/target/debug:$PATH\" AX_EVAL_ENABLED=1 ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --tool opencode\n  AX_EVAL_ENABLED=1 ax-eval run --all --tags smoke --tier 1 --tool claude-code\n  AX_EVAL_ENABLED=1 ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --profile quick\n  ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --dry-run\n\nStart with `ax-eval template scenario` for a copyable scenario schema."
     )]
     Run {
         /// Path to scenario file or name
         #[arg(long, short)]
         scenario: Option<String>,
 
-        /// Run all scenarios in fixtures directory
+        /// Run all scenarios in ax-eval-fixtures directory
         #[arg(long)]
         all: bool,
 
@@ -157,14 +157,14 @@ pub enum Commands {
     /// Validate scenario YAML without running
     #[command(
         long_about = "Validate one or more scenario files for schema correctness.\n\nChecks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.\n\nWith --scenario, the given file is always validated regardless of whether it looks like a scenario.\nWith --all, YAML files are scanned recursively and a lightweight heuristic (at least two distinctive scenario keys: name, target, task, evaluation, or template_folder) is used to skip non-scenario files such as rubrics. This matches the discovery logic used by `run --all`.",
-        after_help = "Examples:\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval validate --all\n  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose"
+        after_help = "Examples:\n  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml\n  ax-eval validate --all\n  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml --verbose"
     )]
     Validate {
         /// Path to scenario file or name (always validated, even if not scenario-like)
         #[arg(long, short)]
         scenario: Option<String>,
 
-        /// Validate all scenario-like YAML files in fixtures directory
+        /// Validate all scenario-like YAML files in ax-eval-fixtures directory
         #[arg(long)]
         all: bool,
     },

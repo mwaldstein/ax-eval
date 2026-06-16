@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default `fixtures_path` is now `ax-eval-fixtures` (was the generic `fixtures`), matching the `ax-eval-results` namespace and avoiding collisions with other tools' `fixtures/` directories. The repo's own fixtures directory was renamed to match. Set `fixtures_path = "fixtures"` in `ax-eval-config.toml` to keep the previous default.
+
 ## [0.3.0-beta.3] - 2026-06-16
 
 ### Added

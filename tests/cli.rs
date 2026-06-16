@@ -6,7 +6,10 @@ use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
 
-const SNAPSHOTS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cli-help-snapshots");
+const SNAPSHOTS: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/ax-eval-fixtures/cli-help-snapshots"
+);
 
 fn assert_help_snapshot(subcommand: Option<&str>, snapshot_name: &str) {
     let mut cmd = ax_eval();
@@ -36,7 +39,7 @@ fn assert_help_snapshot(subcommand: Option<&str>, snapshot_name: &str) {
              Help text in src/cli.rs no longer matches the committed fixture.\n\
              If this change is intentional:\n\
                1. Run: scripts/generate-cli-reference.sh\n\
-               2. Commit the updated fixtures/cli-help-snapshots/ and docs/reference/cli-commands.md\n\
+               2. Commit the updated ax-eval-fixtures/cli-help-snapshots/ and docs/reference/cli-commands.md\n\
              \n\
              Diff (expected vs actual):\n\
              {}\n",
@@ -46,7 +49,7 @@ fn assert_help_snapshot(subcommand: Option<&str>, snapshot_name: &str) {
 }
 
 fn create_qipu_template(root: &std::path::Path) {
-    let templates_dir = root.join("fixtures/templates/qipu");
+    let templates_dir = root.join("ax-eval-fixtures/templates/qipu");
     fs::create_dir_all(&templates_dir).unwrap();
     fs::write(templates_dir.join("README.md"), "fixture").unwrap();
 }
@@ -92,7 +95,7 @@ fn test_run_help_documents_safety_and_examples() {
         .success()
         .stdout(predicate::str::contains("AX_EVAL_ENABLED=1"))
         .stdout(predicate::str::contains(
-            "ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode",
+            "ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --tool opencode",
         ))
         .stdout(predicate::str::contains("Artifacts are written"));
 }
@@ -253,7 +256,7 @@ fn test_cli_version() {
 #[test]
 fn test_run_command_requires_env_var() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -275,7 +278,7 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["run", "--scenario", "fixtures/qipu/test_basic.yaml"])
+        .args(["run", "--scenario", "ax-eval-fixtures/qipu/test_basic.yaml"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("AX_EVAL_ENABLED"))
@@ -310,7 +313,7 @@ fn test_scenarios_command_no_fixtures() {
 fn test_scenarios_command_with_fixtures() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario_content = r#"
@@ -345,7 +348,7 @@ evaluation:
 fn test_scenarios_command_with_tags_filter() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario1_content = r#"
@@ -399,7 +402,7 @@ evaluation:
 fn test_scenarios_command_with_tags_filter_matches_any_tag() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let smoke_scenario = r#"
@@ -474,7 +477,7 @@ evaluation:
 fn test_run_command_dry_run() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -499,7 +502,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/dry_run_test.yaml",
+            "ax-eval-fixtures/qipu/dry_run_test.yaml",
             "--dry-run",
         ])
         .env("AX_EVAL_ENABLED", "1")
@@ -511,7 +514,7 @@ evaluation:
 fn test_run_command_dry_run_does_not_require_safety_env_var() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -540,7 +543,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/dry_run_without_env_test.yaml",
+            "ax-eval-fixtures/qipu/dry_run_without_env_test.yaml",
             "--dry-run",
         ])
         .env_remove("AX_EVAL_ENABLED")
@@ -552,7 +555,7 @@ evaluation:
 fn test_run_command_with_tags() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -604,7 +607,7 @@ evaluation:
 fn test_run_command_with_tags_matches_any_tag() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -693,7 +696,7 @@ evaluation:
 fn test_run_command_with_tool_option() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -718,7 +721,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/tool_test.yaml",
+            "ax-eval-fixtures/qipu/tool_test.yaml",
             "--tool",
             "mock",
         ])
@@ -731,7 +734,7 @@ evaluation:
 fn test_run_command_single_combination_reports_run_errors() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -757,7 +760,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/single_error_test.yaml",
+            "ax-eval-fixtures/qipu/single_error_test.yaml",
             "--tool",
             "mock",
         ])
@@ -772,7 +775,7 @@ evaluation:
 fn test_run_command_with_model_option() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -797,7 +800,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/model_test.yaml",
+            "ax-eval-fixtures/qipu/model_test.yaml",
             "--tool",
             "mock",
             "--model",
@@ -812,7 +815,7 @@ evaluation:
 fn test_run_command_with_tier_filter() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -861,7 +864,7 @@ evaluation:
 fn test_run_command_with_timeout() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -886,7 +889,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/timeout_test.yaml",
+            "ax-eval-fixtures/qipu/timeout_test.yaml",
             "--tool",
             "mock",
             "--timeout-secs",
@@ -901,7 +904,7 @@ evaluation:
 fn test_run_command_with_no_cache() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -926,7 +929,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/no_cache_test.yaml",
+            "ax-eval-fixtures/qipu/no_cache_test.yaml",
             "--tool",
             "mock",
             "--no-cache",
@@ -940,7 +943,7 @@ evaluation:
 fn test_run_command_matrix_multiple_tools() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -967,7 +970,11 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["run", "--scenario", "fixtures/qipu/matrix_test.yaml"])
+        .args([
+            "run",
+            "--scenario",
+            "ax-eval-fixtures/qipu/matrix_test.yaml",
+        ])
         .env("AX_EVAL_ENABLED", "1")
         .assert()
         .success()
@@ -978,7 +985,7 @@ evaluation:
 fn test_run_command_matrix_reports_errors_and_fails() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
     create_qipu_template(dir.path());
@@ -1006,7 +1013,11 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["run", "--scenario", "fixtures/qipu/matrix_error_test.yaml"])
+        .args([
+            "run",
+            "--scenario",
+            "ax-eval-fixtures/qipu/matrix_error_test.yaml",
+        ])
         .env("AX_EVAL_ENABLED", "1")
         .assert()
         .failure()
@@ -1094,7 +1105,7 @@ fn find_file_recursive(dir: &std::path::Path, filename: &str) -> Option<std::pat
 fn test_run_command_with_post_scripts() {
     let dir = tempdir().unwrap();
 
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     let qipu_dir = fixtures_dir.join("qipu");
     fs::create_dir_all(&qipu_dir).unwrap();
 
@@ -1121,12 +1132,12 @@ evaluation:
     fs::write(qipu_dir.join("post_script_test.yaml"), scenario_content).unwrap();
 
     // Create required template folder structure
-    let templates_dir = dir.path().join("fixtures/templates/qipu");
+    let templates_dir = dir.path().join("ax-eval-fixtures/templates/qipu");
     fs::create_dir_all(&templates_dir).unwrap();
     fs::write(templates_dir.join("test.txt"), "test content").unwrap();
 
     // Copy scenario to the expected location for setup_scenario_env
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::write(fixtures_dir.join("post_script_test.yaml"), scenario_content).unwrap();
 
     ax_eval()
@@ -1134,7 +1145,7 @@ evaluation:
         .args([
             "run",
             "--scenario",
-            "fixtures/qipu/post_script_test.yaml",
+            "ax-eval-fixtures/qipu/post_script_test.yaml",
             "--tool",
             "mock",
         ])
@@ -1198,7 +1209,7 @@ fn snapshot_help_validate() {
 #[test]
 fn test_validate_valid_scenario() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario_content = r#"
@@ -1219,7 +1230,11 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["validate", "--scenario", "fixtures/test_scenario.yaml"])
+        .args([
+            "validate",
+            "--scenario",
+            "ax-eval-fixtures/test_scenario.yaml",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("test_scenario"))
@@ -1229,7 +1244,7 @@ evaluation:
 #[test]
 fn test_validate_invalid_yaml() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario_content = r#"
@@ -1248,7 +1263,7 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["validate", "--scenario", "fixtures/bad.yaml"])
+        .args(["validate", "--scenario", "ax-eval-fixtures/bad.yaml"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("missing required field"));
@@ -1257,7 +1272,7 @@ evaluation:
 #[test]
 fn test_validate_unknown_gate_type_suggests_correction() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario_content = r#"
@@ -1278,7 +1293,7 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["validate", "--scenario", "fixtures/typo.yaml"])
+        .args(["validate", "--scenario", "ax-eval-fixtures/typo.yaml"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("did you mean file_exists"));
@@ -1296,7 +1311,7 @@ fn test_validate_requires_scenario_or_all() {
 #[test]
 fn test_validate_all_with_multiple_scenarios() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let valid = r#"
@@ -1349,7 +1364,7 @@ evaluation:
 #[test]
 fn test_validate_all_skips_non_scenarios() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario = r#"
@@ -1398,7 +1413,7 @@ evaluation:
 #[test]
 fn test_validate_all_reports_malformed_scenarios() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     // malformed scenario: has 2 scenario keys (name, target) but missing required fields
@@ -1431,7 +1446,7 @@ target:
 #[test]
 fn test_validate_explicit_path_always_validates_even_non_scenarios() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     // A rubric file is clearly not a scenario, but if passed explicitly,
@@ -1444,7 +1459,7 @@ fn test_validate_explicit_path_always_validates_even_non_scenarios() {
 
     let result = ax_eval()
         .current_dir(dir.path())
-        .args(["validate", "--scenario", "fixtures/rubric.yaml"])
+        .args(["validate", "--scenario", "ax-eval-fixtures/rubric.yaml"])
         .output()
         .unwrap();
 
@@ -1462,7 +1477,11 @@ fn test_validate_explicit_path_always_validates_even_non_scenarios() {
 #[test]
 fn test_validate_nonexistent_file() {
     ax_eval()
-        .args(["validate", "--scenario", "fixtures/nonexistent.yaml"])
+        .args([
+            "validate",
+            "--scenario",
+            "ax-eval-fixtures/nonexistent.yaml",
+        ])
         .assert()
         .failure()
         .stderr(predicate::str::contains("Failed to read"));
@@ -1471,7 +1490,7 @@ fn test_validate_nonexistent_file() {
 #[test]
 fn test_validate_warnings_exit_zero() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     let scenario = r#"
@@ -1489,7 +1508,7 @@ evaluation:
 
     ax_eval()
         .current_dir(dir.path())
-        .args(["validate", "--scenario", "fixtures/warn.yaml"])
+        .args(["validate", "--scenario", "ax-eval-fixtures/warn.yaml"])
         .assert()
         .success()
         .stdout(predicate::str::contains("warn_me"))
@@ -1499,7 +1518,7 @@ evaluation:
 #[test]
 fn test_validate_all_empty_fixtures() {
     let dir = tempdir().unwrap();
-    let fixtures_dir = dir.path().join("fixtures");
+    let fixtures_dir = dir.path().join("ax-eval-fixtures");
     fs::create_dir_all(&fixtures_dir).unwrap();
 
     ax_eval()

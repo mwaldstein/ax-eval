@@ -202,7 +202,7 @@ target:
   command_pattern: "taskmgr\\s+(add|list|done|priority|show|search)"
   health_check: "taskmgr --version"
 
-template_folder: fixtures/task_manager_organize
+template_folder: ax-eval-fixtures/task_manager_organize
 
 task:
   prompt: |
@@ -238,7 +238,7 @@ evaluation:
 ### Fixture with Scripts
 
 ```
-fixtures/task_manager_organize/
+ax-eval-fixtures/task_manager_organize/
 ├── AGENTS.md
 ├── README.md
 └── scripts/

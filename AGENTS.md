@@ -61,7 +61,7 @@ Follow `src/adapter/README.md`.
 ### Updating Scenario Schema
 
 1. Modify types in `src/scenario/types.rs`.
-2. Update YAML fixtures under `fixtures/`.
+2. Update YAML fixtures under `ax-eval-fixtures/`.
 3. Update the relevant spec in `specs/`.
 4. Run `cargo test`.
 
@@ -69,7 +69,7 @@ Follow `src/adapter/README.md`.
 
 1. Run a specific test: `cargo test <test_name>`.
 2. Run with output: `cargo test <test_name> -- --nocapture`.
-3. Check the scenario fixture under `fixtures/`.
+3. Check the scenario fixture under `ax-eval-fixtures/`.
 4. Review generated artifacts under `ax-eval-results/`.
 
 ## Code Conventions

@@ -12,8 +12,8 @@ Use it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agent
 
 Common commands:
   ax-eval scenarios
-  ax-eval template scenario > fixtures/my_scenario.yaml
-  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
   ax-eval guidance list
   ax-eval guidance start
   AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
@@ -47,9 +47,9 @@ Options:
 
 Common commands:
   ax-eval scenarios
-  ax-eval template scenario > fixtures/my_scenario.yaml
+  ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml
   ax-eval template config > ax-eval-config.toml
-  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
   ax-eval guidance start
   AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
   AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode
@@ -74,7 +74,7 @@ Options:
           Path to scenario file or name
 
       --all
-          Run all scenarios in fixtures directory
+          Run all scenarios in ax-eval-fixtures directory
 
       --tags <TAGS>
           Filter scenarios by tags
@@ -120,11 +120,11 @@ Options:
           Print help (see a summary with '-h')
 
 Examples:
-  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode
-  PATH="$PWD/target/debug:$PATH" AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --tool opencode
+  AX_EVAL_ENABLED=1 ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --tool opencode
+  PATH="$PWD/target/debug:$PATH" AX_EVAL_ENABLED=1 ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --tool opencode
   AX_EVAL_ENABLED=1 ax-eval run --all --tags smoke --tier 1 --tool claude-code
-  AX_EVAL_ENABLED=1 ax-eval run --scenario fixtures/my_scenario.yaml --profile quick
-  ax-eval run --scenario fixtures/my_scenario.yaml --dry-run
+  AX_EVAL_ENABLED=1 ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --profile quick
+  ax-eval run --scenario ax-eval-fixtures/my_scenario.yaml --dry-run
 
 Start with `ax-eval template scenario` for a copyable scenario schema.
 ```
@@ -239,7 +239,7 @@ Options:
           Path to scenario file or name (always validated, even if not scenario-like)
 
       --all
-          Validate all scenario-like YAML files in fixtures directory
+          Validate all scenario-like YAML files in ax-eval-fixtures directory
 
   -v, --verbose
           Enable verbose output (or set RUST_LOG for fine-grained control)
@@ -248,9 +248,9 @@ Options:
           Print help (see a summary with '-h')
 
 Examples:
-  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
   ax-eval validate --all
-  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml --verbose
 ```
 
 ## ax-eval guidance

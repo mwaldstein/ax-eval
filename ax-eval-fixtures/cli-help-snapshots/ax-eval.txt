@@ -4,8 +4,8 @@ Use it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agent
 
 Common commands:
   ax-eval scenarios
-  ax-eval template scenario > fixtures/my_scenario.yaml
-  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
   ax-eval guidance list
   ax-eval guidance start
   AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
@@ -39,9 +39,9 @@ Options:
 
 Common commands:
   ax-eval scenarios
-  ax-eval template scenario > fixtures/my_scenario.yaml
+  ax-eval template scenario > ax-eval-fixtures/my_scenario.yaml
   ax-eval template config > ax-eval-config.toml
-  ax-eval validate --scenario fixtures/my_scenario.yaml
+  ax-eval validate --scenario ax-eval-fixtures/my_scenario.yaml
   ax-eval guidance start
   AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode
   AX_EVAL_ENABLED=1 ax-eval run --scenario my_scenario --tool opencode

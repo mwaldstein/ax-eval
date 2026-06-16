@@ -539,7 +539,7 @@ mod tests {
         std::fs::create_dir_all(&workspace).expect("workspace dir");
 
         // Create a rubric next to the scenario file
-        let scenario_dir = dir.path().join("fixtures");
+        let scenario_dir = dir.path().join("ax-eval-fixtures");
         std::fs::create_dir_all(&scenario_dir).expect("scenario dir");
         std::fs::create_dir_all(scenario_dir.join("rubrics")).expect("rubrics dir");
         std::fs::write(

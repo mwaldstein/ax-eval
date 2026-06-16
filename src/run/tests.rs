@@ -28,7 +28,7 @@ run:
   timeout_secs: 120
 "#;
     let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
-    let scenario_path = PathBuf::from("fixtures/request_timeout_test.yaml");
+    let scenario_path = PathBuf::from("ax-eval-fixtures/request_timeout_test.yaml");
     let base_dir = PathBuf::from("target/test_timeout");
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
@@ -77,7 +77,7 @@ evaluation:
       command: "true"
 "#;
     let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
-    let scenario_path = PathBuf::from("fixtures/request_results_dir_test.yaml");
+    let scenario_path = PathBuf::from("ax-eval-fixtures/request_results_dir_test.yaml");
     let base_dir = PathBuf::from("target/test_results_dir");
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
@@ -142,7 +142,7 @@ run:
   timeout_secs: 90
 "#;
     let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
-    let scenario_path = PathBuf::from("fixtures/request_plan_test.yaml");
+    let scenario_path = PathBuf::from("ax-eval-fixtures/request_plan_test.yaml");
     let base_dir = PathBuf::from("target/test_plan");
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
@@ -185,7 +185,7 @@ evaluation:
       command: "true"
 "#;
     let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
-    let scenario_path = PathBuf::from("fixtures/request_cache_policy_test.yaml");
+    let scenario_path = PathBuf::from("ax-eval-fixtures/request_cache_policy_test.yaml");
     let base_dir = tempfile::tempdir().expect("base dir");
     let results_db = ResultsDB::new(base_dir.path());
     let cache = Cache::new(base_dir.path());
@@ -245,7 +245,7 @@ evaluation:
       command: "true"
 "#;
     let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
-    let scenario_path = PathBuf::from("fixtures/request_dry_run_policy_test.yaml");
+    let scenario_path = PathBuf::from("ax-eval-fixtures/request_dry_run_policy_test.yaml");
     let base_dir = tempfile::tempdir().expect("base dir");
     let results_db = ResultsDB::new(base_dir.path());
     let cache = Cache::new(base_dir.path());
@@ -300,12 +300,12 @@ run:
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
 
-    let fixtures_dir = PathBuf::from("fixtures");
+    let fixtures_dir = PathBuf::from("ax-eval-fixtures");
     std::fs::create_dir_all(&fixtures_dir).unwrap();
     let fixture_file = fixtures_dir.join("timeout_test_override.yaml");
     std::fs::write(&fixture_file, scenario_yaml).unwrap();
 
-    let template_dir = PathBuf::from("fixtures/templates/qipu");
+    let template_dir = PathBuf::from("ax-eval-fixtures/templates/qipu");
     std::fs::create_dir_all(&template_dir).unwrap();
 
     let cli_timeout = 300;
@@ -357,12 +357,12 @@ evaluation:
     let results_db = ResultsDB::new(&base_dir);
     let cache = Cache::new(&base_dir);
 
-    let fixtures_dir = PathBuf::from("fixtures");
+    let fixtures_dir = PathBuf::from("ax-eval-fixtures");
     std::fs::create_dir_all(&fixtures_dir).unwrap();
     let fixture_file = fixtures_dir.join("timeout_test_cli.yaml");
     std::fs::write(&fixture_file, scenario_yaml).unwrap();
 
-    let template_dir = PathBuf::from("fixtures/templates/qipu");
+    let template_dir = PathBuf::from("ax-eval-fixtures/templates/qipu");
     std::fs::create_dir_all(&template_dir).unwrap();
 
     let cli_timeout = 60;
