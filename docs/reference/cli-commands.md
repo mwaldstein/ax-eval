@@ -227,16 +227,17 @@ Validate one or more scenario files for schema correctness.
 
 Checks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.
 
-Use it after editing a scenario to catch errors before running.
+With --scenario, the given file is always validated regardless of whether it looks like a scenario.
+With --all, YAML files are scanned recursively and a lightweight heuristic (at least two distinctive scenario keys: name, target, task, evaluation, or template_folder) is used to skip non-scenario files such as rubrics. This matches the discovery logic used by `run --all`.
 
 Usage: ax-eval validate [OPTIONS]
 
 Options:
   -s, --scenario <SCENARIO>
-          Path to scenario file or name
+          Path to scenario file or name (always validated, even if not scenario-like)
 
       --all
-          Validate all scenarios in fixtures directory
+          Validate all scenario-like YAML files in fixtures directory
 
   -v, --verbose
           Enable verbose output (or set RUST_LOG for fine-grained control)

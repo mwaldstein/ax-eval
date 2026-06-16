@@ -156,15 +156,15 @@ pub enum Commands {
     },
     /// Validate scenario YAML without running
     #[command(
-        long_about = "Validate one or more scenario files for schema correctness.\n\nChecks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.\n\nUse it after editing a scenario to catch errors before running.",
+        long_about = "Validate one or more scenario files for schema correctness.\n\nChecks YAML syntax, required fields, gate configuration, regex compilation, and judge setup. No fixture setup, no LLM spend, no agent execution.\n\nWith --scenario, the given file is always validated regardless of whether it looks like a scenario.\nWith --all, YAML files are scanned recursively and a lightweight heuristic (at least two distinctive scenario keys: name, target, task, evaluation, or template_folder) is used to skip non-scenario files such as rubrics. This matches the discovery logic used by `run --all`.",
         after_help = "Examples:\n  ax-eval validate --scenario fixtures/my_scenario.yaml\n  ax-eval validate --all\n  ax-eval validate --scenario fixtures/my_scenario.yaml --verbose"
     )]
     Validate {
-        /// Path to scenario file or name
+        /// Path to scenario file or name (always validated, even if not scenario-like)
         #[arg(long, short)]
         scenario: Option<String>,
 
-        /// Validate all scenarios in fixtures directory
+        /// Validate all scenario-like YAML files in fixtures directory
         #[arg(long)]
         all: bool,
     },

@@ -1347,6 +1347,119 @@ evaluation:
 }
 
 #[test]
+fn test_validate_all_skips_non_scenarios() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    let scenario = r#"
+name: real_scenario
+description: "A real scenario"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates:
+    - type: command_succeeds
+      command: "true"
+"#;
+    fs::write(fixtures_dir.join("scenario.yaml"), scenario).unwrap();
+    fs::write(
+        fixtures_dir.join("rubric.yaml"),
+        "criteria: []\npass_threshold: 0.7\n",
+    )
+    .unwrap();
+
+    let result = ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--all"])
+        .output()
+        .unwrap();
+
+    assert!(result.status.success());
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        stdout.contains("real_scenario"),
+        "should mention real_scenario, got stdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("rubric"),
+        "should not report rubric as error, got stderr:\n{stderr}"
+    );
+    assert!(
+        stdout.contains("Validated 1 scenario(s)"),
+        "should count only 1 scenario, got stdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn test_validate_all_reports_malformed_scenarios() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    // malformed scenario: has 2 scenario keys (name, target) but missing required fields
+    let malformed = r#"
+name: malformed_scenario
+description: "Missing task and evaluation"
+template_folder: qipu
+target:
+  binary: qipu
+"#;
+    fs::write(fixtures_dir.join("malformed.yaml"), malformed).unwrap();
+
+    let result = ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--all"])
+        .output()
+        .unwrap();
+
+    assert!(
+        !result.status.success(),
+        "should fail because malformed scenario has validation errors"
+    );
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        stderr.contains("missing required field"),
+        "should report missing required field for malformed scenario, got stderr:\n{stderr}"
+    );
+}
+
+#[test]
+fn test_validate_explicit_path_always_validates_even_non_scenarios() {
+    let dir = tempdir().unwrap();
+    let fixtures_dir = dir.path().join("fixtures");
+    fs::create_dir_all(&fixtures_dir).unwrap();
+
+    // A rubric file is clearly not a scenario, but if passed explicitly,
+    // validate should try anyway and report the error.
+    fs::write(
+        fixtures_dir.join("rubric.yaml"),
+        "criteria: []\npass_threshold: 0.7\n",
+    )
+    .unwrap();
+
+    let result = ax_eval()
+        .current_dir(dir.path())
+        .args(["validate", "--scenario", "fixtures/rubric.yaml"])
+        .output()
+        .unwrap();
+
+    assert!(
+        !result.status.success(),
+        "should fail because explicit non-scenario file is still validated"
+    );
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        stderr.contains("missing required field"),
+        "should report missing required field for explicit non-scenario, got stderr:\n{stderr}"
+    );
+}
+
+#[test]
 fn test_validate_nonexistent_file() {
     ax_eval()
         .args(["validate", "--scenario", "fixtures/nonexistent.yaml"])

@@ -470,10 +470,34 @@ cat <<JSON
 JSON
 "#;
 
+fn looks_like_scenario(path: &std::path::Path) -> bool {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let value: yaml_serde::Value = match yaml_serde::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let Some(mapping) = value.as_mapping() else {
+        return false;
+    };
+    let keys = ["name", "target", "task", "evaluation", "template_folder"];
+    let scenario_key_count = mapping
+        .keys()
+        .filter(|k| k.as_str().is_some_and(|s| keys.contains(&s)))
+        .count();
+    scenario_key_count >= 2
+}
+
 pub fn handle_validate_command(scenario: &Option<String>, all: bool) -> anyhow::Result<()> {
     let catalog = ScenarioCatalog::from_default_fixtures();
     let paths = if all {
-        catalog.yaml_paths()
+        catalog
+            .yaml_paths()
+            .into_iter()
+            .filter(|p| looks_like_scenario(p))
+            .collect()
     } else if let Some(path) = scenario {
         vec![catalog.resolve_path(path)]
     } else {

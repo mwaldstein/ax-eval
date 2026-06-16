@@ -407,7 +407,17 @@ ax-eval validate --all
 ```
 
 `validate --all` scans the fixtures directory recursively, skipping the
-`templates/` subdirectory which contains non-scenario YAMLs such as rubrics.
+`templates/` subdirectory and any YAML files that do not appear to be scenarios.
+
+A YAML file is considered scenario-like if it is a top-level mapping containing at
+least two of the following distinctive keys: `name`, `target`, `task`, `evaluation`,
+or `template_folder`. Files that do not meet this threshold are silently skipped
+(e.g. rubrics and other config files). Files that do meet the threshold are always
+validated, even if they are malformed, so that errors are reported rather than
+hidden.
+
+When a specific file is passed with `--scenario`, the heuristic is bypassed and
+the file is always validated regardless of whether it looks like a scenario.
 
 The command exits 0 when all scenarios parse successfully (warnings are
 informational). It exits non-zero when any scenario fails to parse or is missing
