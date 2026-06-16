@@ -392,8 +392,8 @@ evaluation:
     enabled: false
     # Optional: path to a rubric YAML. Omit to use the default criteria
     # (goal completion 0.50, tool usage correctness 0.30, efficiency 0.20).
-    # Paths resolve relative to the fixture workspace (copied from template_folder),
-    # falling back to fixtures_path if not found in the workspace.
+    # Relative paths resolve: scenario YAML dir, then workspace (template_folder),
+    # then fixtures_path.
     rubric: rubrics/example.yaml
     pass_threshold: 0.70
 
