@@ -123,6 +123,17 @@ fn extract_command_events(output: &str) -> Vec<CommandEvent> {
         .collect()
 }
 
+fn text_event_payload(event: &Value) -> Option<&str> {
+    if event.get("type").and_then(Value::as_str) != Some("text") {
+        return None;
+    }
+    let part = event.get("part")?;
+    if part.get("type").and_then(Value::as_str) != Some("text") {
+        return None;
+    }
+    part.get("text").and_then(Value::as_str)
+}
+
 fn synthesize_transcript(output: &str) -> String {
     let mut transcript = String::new();
 
@@ -130,6 +141,15 @@ fn synthesize_transcript(output: &str) -> String {
         let Ok(event) = serde_json::from_str::<Value>(line) else {
             continue;
         };
+
+        if let Some(text) = text_event_payload(&event) {
+            if !text.is_empty() {
+                transcript.push_str(text);
+                transcript.push_str("\n\n");
+            }
+            continue;
+        }
+
         let Some(command_event) = command_event(&event) else {
             continue;
         };
@@ -161,67 +181,135 @@ fn synthesize_transcript(output: &str) -> String {
 mod tests {
     use super::*;
 
+    const SESSION: &str = "ses_test0000000000000000000000000";
+
+    /// Build NDJSON from events, one per line — the format opencode emits on stdout.
+    fn ndjson(events: &[serde_json::Value]) -> String {
+        events
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn step_start(n: u64) -> serde_json::Value {
+        serde_json::json!({
+            "type": "step_start",
+            "timestamp": 1000 * n,
+            "sessionID": SESSION,
+            "part": {
+                "id": format!("prt_step_start_{n}"),
+                "messageID": format!("msg_{n}"),
+                "sessionID": SESSION,
+                "snapshot": "abc123",
+                "type": "step-start"
+            }
+        })
+    }
+
+    fn text_event(n: u64, text: &str, phase: &str) -> serde_json::Value {
+        serde_json::json!({
+            "type": "text",
+            "timestamp": 1000 * n + 100,
+            "sessionID": SESSION,
+            "part": {
+                "id": format!("prt_text_{n}"),
+                "messageID": format!("msg_{n}"),
+                "sessionID": SESSION,
+                "type": "text",
+                "text": text,
+                "time": {"start": 1000 * n + 50, "end": 1000 * n + 90},
+                "metadata": {"openai": {"itemId": format!("msg_item_{n}"), "phase": phase}}
+            }
+        })
+    }
+
+    fn bash_event(
+        n: u64,
+        command: &str,
+        output: &str,
+        exit: i64,
+        description: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "type": "tool_use",
+            "timestamp": 1000 * n + 200,
+            "sessionID": SESSION,
+            "part": {
+                "type": "tool",
+                "tool": "bash",
+                "callID": format!("call_{n}"),
+                "state": {
+                    "status": "completed",
+                    "input": {"command": command, "timeout": 120000, "workdir": "/workspace", "description": description},
+                    "output": output,
+                    "metadata": {"output": output, "exit": exit, "description": description, "truncated": false},
+                    "title": description,
+                    "time": {"start": 1000 * n + 150, "end": 1000 * n + 180}
+                },
+                "metadata": {"openai": {"itemId": format!("fc_item_{n}")}},
+                "id": format!("prt_tool_{n}"),
+                "sessionID": SESSION,
+                "messageID": format!("msg_{n}")
+            }
+        })
+    }
+
+    fn step_finish(
+        n: u64,
+        input: u64,
+        output: u64,
+        reasoning: u64,
+        cost: f64,
+        reason: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "type": "step_finish",
+            "timestamp": 1000 * n + 300,
+            "sessionID": SESSION,
+            "part": {
+                "id": format!("prt_finish_{n}"),
+                "reason": reason,
+                "snapshot": "abc123",
+                "messageID": format!("msg_{n}"),
+                "sessionID": SESSION,
+                "type": "step-finish",
+                "tokens": {
+                    "total": input + output + reasoning,
+                    "input": input,
+                    "output": output,
+                    "reasoning": reasoning,
+                    "cache": {"write": 0, "read": 0}
+                },
+                "cost": cost
+            }
+        })
+    }
+
+    /// Realistic multi-step opencode run: 3 steps with commentary text and bash commands.
     fn sample_opencode_json() -> String {
-        format!(
-            "{}\n{}\n{}\n{}\n{}\n{}\n",
-            serde_json::json!({
-                "type": "step_finish",
-                "part": {
-                    "type": "step-finish",
-                    "tokens": {"input": 10, "output": 20, "reasoning": 5, "total": 35},
-                    "cost": 0.042
-                }
-            }),
-            serde_json::json!({
-                "type": "step_finish",
-                "part": {
-                    "type": "step-finish",
-                    "tokens": {"input": 5, "output": 15, "reasoning": 0, "total": 20},
-                    "cost": 0.058
-                }
-            }),
-            serde_json::json!({
-                "type": "step_finish",
-                "part": {
-                    "type": "step-finish",
-                    "tokens": {"input": 8, "output": 25, "reasoning": 0, "total": 33},
-                    "cost": 0.067
-                }
-            }),
-            serde_json::json!({
-                "type": "tool_use",
-                "part": {
-                    "type": "tool",
-                    "tool": "bash",
-                    "state": {
-                        "input": {"command": "./notes init", "description": "init db"},
-                        "metadata": {"output": "Initialized", "exit": 0, "description": "init db"}
-                    }
-                }
-            }),
-            serde_json::json!({
-                "type": "tool_use",
-                "part": {
-                    "type": "tool",
-                    "tool": "bash",
-                    "state": {
-                        "input": {"command": "./notes add \"Hello\"", "description": "add"},
-                        "metadata": {"output": "Created note 1", "exit": 0, "description": "add"}
-                    }
-                }
-            }),
-            serde_json::json!({
-                "type": "tool_use",
-                "part": {
-                    "type": "tool",
-                    "tool": "bash",
-                    "state": {
-                        "input": {"command": "./notes badcmd", "description": "bad"},
-                        "metadata": {"output": "Error: unknown command", "exit": 1, "description": "bad"}
-                    }
-                }
-            }),
-        )
+        ndjson(&[
+            // Step 1: init
+            step_start(1),
+            text_event(1, "I'll initialize the database first.", "commentary"),
+            bash_event(1, "./notes init", "Initialized", 0, "init db"),
+            step_finish(1, 10, 20, 5, 0.042, "tool-calls"),
+            // Step 2: add note
+            step_start(2),
+            text_event(2, "Now I'll add a note.", "commentary"),
+            bash_event(2, "./notes add \"Hello\"", "Created note 1", 0, "add note"),
+            step_finish(2, 5, 15, 0, 0.058, "tool-calls"),
+            // Step 3: bad command
+            step_start(3),
+            bash_event(
+                3,
+                "./notes badcmd",
+                "Error: unknown command",
+                1,
+                "bad command",
+            ),
+            step_finish(3, 8, 25, 0, 0.067, "stop"),
+        ])
     }
 
     #[test]
@@ -237,19 +325,39 @@ mod tests {
         assert_eq!(command_events[2].command, "./notes badcmd");
         assert_eq!(command_events[2].exit_code, Some(1));
         assert!(output.transcript.contains("Error: unknown command"));
+        assert!(
+            output
+                .transcript
+                .contains("I'll initialize the database first."),
+            "transcript should include model text events: {}",
+            output.transcript
+        );
+        assert!(
+            output.transcript.contains("$ ./notes init"),
+            "transcript should include command events: {}",
+            output.transcript
+        );
     }
 
     #[test]
     fn skips_non_bash_tools() {
         let json_output = serde_json::json!({
             "type": "tool_use",
+            "timestamp": 1000,
+            "sessionID": SESSION,
             "part": {
                 "type": "tool",
                 "tool": "read",
+                "callID": "call_read_1",
                 "state": {
+                    "status": "completed",
                     "input": {"filePath": "/foo"},
-                    "metadata": {"output": "bar"}
-                }
+                    "output": "file contents",
+                    "metadata": {"truncated": false}
+                },
+                "id": "prt_read_1",
+                "sessionID": SESSION,
+                "messageID": "msg_1"
             }
         })
         .to_string();
@@ -269,5 +377,45 @@ mod tests {
         assert!(output.token_usage.is_none());
         assert!(output.cost_usd.is_none());
         assert!(output.transcript.is_empty());
+    }
+
+    /// Regression test: a judge run emits only text (no bash commands). The
+    /// `<judge_result>` JSON is escaped inside the text event's "text" field.
+    /// The normalizer must extract the unescaped text into the transcript so
+    /// `parse_judge_response` can find the envelope.
+    #[test]
+    fn extracts_judge_result_from_text_only_run() {
+        let judge_json = serde_json::json!({
+            "scores": {"task_completion": 0.9},
+            "weighted_score": 0.9,
+            "confidence": 0.85,
+            "issues": [],
+            "highlights": ["Clean work"],
+            "rationale": "Good."
+        });
+
+        let ndjson = ndjson(&[
+            step_start(1),
+            text_event(
+                1,
+                &format!("<judge_result>{judge_json}</judge_result>"),
+                "final_answer",
+            ),
+            step_finish(1, 100, 200, 0, 0.05, "stop"),
+        ]);
+
+        let output = normalize(ndjson, 0);
+
+        assert!(
+            output.transcript.contains("<judge_result>"),
+            "transcript should contain unescaped judge_result tag: {}",
+            output.transcript
+        );
+        assert!(
+            output.transcript.contains("\"weighted_score\":0.9"),
+            "transcript should contain unescaped judge JSON: {}",
+            output.transcript
+        );
+        assert!(output.command_events().unwrap().is_empty());
     }
 }

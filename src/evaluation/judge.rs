@@ -202,12 +202,16 @@ fn judge_scenario(source: &Scenario, prompt: String) -> Scenario {
 }
 
 fn judge_output_text(output: &ToolRunOutput) -> String {
-    output
-        .raw_output
-        .as_ref()
-        .filter(|raw| !raw.trim().is_empty())
-        .unwrap_or(&output.transcript)
-        .to_string()
+    if !output.transcript.trim().is_empty() {
+        output.transcript.clone()
+    } else {
+        output
+            .raw_output
+            .as_ref()
+            .filter(|raw| !raw.trim().is_empty())
+            .unwrap_or(&output.transcript)
+            .to_string()
+    }
 }
 
 fn resolve_judge_rubric(
@@ -712,13 +716,13 @@ This is not JSON.
     }
 
     #[test]
-    fn judge_evaluation_runs_through_adapter_and_parses_raw_output() {
+    fn judge_evaluation_prefers_transcript_over_raw_output() {
         let source = scenario();
         let judge_scenario = judge_scenario(&source, "Return only valid JSON".to_string());
         let adapter = JudgeOutputAdapter {
             output: ToolRunOutput {
-                transcript: "transcript without judge json".to_string(),
-                raw_output: Some(judge_json(0.84)),
+                transcript: judge_json(0.84),
+                raw_output: Some("raw NDJSON with escaped content".to_string()),
                 exit_code: 0,
                 cost_usd: None,
                 token_usage: None,
@@ -738,13 +742,13 @@ This is not JSON.
     }
 
     #[test]
-    fn judge_evaluation_falls_back_to_transcript_when_raw_output_is_absent() {
+    fn judge_evaluation_falls_back_to_raw_output_when_transcript_is_empty() {
         let source = scenario();
         let judge_scenario = judge_scenario(&source, "Return only valid JSON".to_string());
         let adapter = JudgeOutputAdapter {
             output: ToolRunOutput {
-                transcript: judge_json(0.73),
-                raw_output: None,
+                transcript: String::new(),
+                raw_output: Some(judge_json(0.73)),
                 exit_code: 0,
                 cost_usd: None,
                 token_usage: None,
@@ -761,5 +765,72 @@ This is not JSON.
         .expect("judge evaluation");
 
         assert_eq!(result.score, Some(0.73));
+    }
+
+    #[test]
+    fn judge_evaluation_parses_result_from_opencode_text_event_transcript() {
+        let judge_json = serde_json::json!({
+            "scores": {"task_completion": 0.88},
+            "weighted_score": 0.88,
+            "confidence": 0.9,
+            "issues": [],
+            "highlights": ["Used the tool well"],
+            "rationale": "Clean execution."
+        });
+
+        // Realistic opencode NDJSON stream for a judge run: step_start →
+        // text(final_answer with <judge_result>) → step_finish. The JSON is
+        // escaped inside the text event's "text" field — the bug scenario.
+        let ndjson = format!(
+            "{}\n{}\n{}\n",
+            serde_json::json!({
+                "type": "step_start",
+                "timestamp": 1000,
+                "sessionID": "ses_judge",
+                "part": {"id": "prt_1", "messageID": "msg_1", "type": "step-start", "snapshot": "abc"}
+            }),
+            serde_json::json!({
+                "type": "text",
+                "timestamp": 1100,
+                "sessionID": "ses_judge",
+                "part": {
+                    "id": "prt_2",
+                    "messageID": "msg_1",
+                    "type": "text",
+                    "text": format!("<judge_result>{judge_json}</judge_result>"),
+                    "metadata": {"openai": {"phase": "final_answer"}}
+                }
+            }),
+            serde_json::json!({
+                "type": "step_finish",
+                "timestamp": 1200,
+                "sessionID": "ses_judge",
+                "part": {
+                    "id": "prt_3",
+                    "reason": "stop",
+                    "messageID": "msg_1",
+                    "type": "step-finish",
+                    "snapshot": "abc",
+                    "tokens": {"total": 300, "input": 100, "output": 200, "reasoning": 0},
+                    "cost": 0.05
+                }
+            }),
+        );
+
+        let normalized = crate::adapter::opencode::normalize::normalize(ndjson, 0);
+
+        let source = scenario();
+        let judge_scenario = judge_scenario(&source, "Return only valid JSON".to_string());
+        let adapter = JudgeOutputAdapter { output: normalized };
+
+        let result = run_judge_evaluation_with_adapter(
+            &adapter,
+            Some("judge-model"),
+            &judge_scenario,
+            Path::new("."),
+        )
+        .expect("judge evaluation");
+
+        assert_eq!(result.score, Some(0.88));
     }
 }
