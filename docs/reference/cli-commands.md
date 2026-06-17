@@ -63,6 +63,8 @@ Run one scenario, all selected scenarios, or a configured tool/model matrix.
 
 Real agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.
 
+The harness does not execute the target binary — the LLM agent does. Ensure it is on PATH or in the fixture workspace so the agent can discover and use it naturally.
+
 Rubric paths in `evaluation.judge.rubric` resolve in this order: relative to the scenario YAML, then the workspace (after fixture copy), then fixtures_path.
 
 Artifacts are written under ax-eval-results/ by default, including reports, transcripts, metrics, and the isolated fixture workspace.

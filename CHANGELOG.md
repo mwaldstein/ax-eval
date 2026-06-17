@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - opencode adapter now passes `--dir <fixture>` so the agent anchors to the isolated fixture workspace. Previously it set the process cwd but not `--dir`, causing opencode to anchor to the git root and write outside the fixture, invalidating all opencode runs.
+- Judge runs now parse correctly with opencode. The opencode normalizer only captured bash command events, so text-only judge runs produced an empty transcript and fell back to raw NDJSON where `<judge_result>` JSON was escaped inside text-event strings. The normalizer now extracts text-event payloads into the transcript, and `judge_output_text` prefers the normalized transcript over raw output.
+
+### Changed
+
+- `run --help` now notes that the harness does not execute the target binary — the LLM agent does — and that it should be on PATH or in the fixture workspace.
 
 ## [0.3.0-beta.4] - 2026-06-16
 
