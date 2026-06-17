@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-beta.4] - 2026-06-16
+
+### Added
+
+- Agent-driven evaluation guidance: README and user guide now show how to point an AI coding tool at ax-eval so it self-discovers the CLI (`guidance`, `template`, `discover`) and runs the evaluate-modify-repeat loop
+
 ### Changed
 
 - Default `fixtures_path` is now `ax-eval-fixtures` (was the generic `fixtures`), matching the `ax-eval-results` namespace and avoiding collisions with other tools' `fixtures/` directories. The repo's own fixtures directory was renamed to match. Set `fixtures_path = "fixtures"` in `ax-eval-config.toml` to keep the previous default.
@@ -144,8 +150,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_prime_output` from fixture utilities
 - `SPLIT_PLAN.md` (superseded by completed implementation)
 
+[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.4...HEAD
+[0.3.0-beta.4]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.3...v0.3.0-beta.4
 [0.3.0-beta.3]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.2...v0.3.0-beta.3
-[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.3...HEAD
 [0.3.0-beta.2]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.1...v0.3.0-beta.2
 [0.3.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.2.0-beta.1...v0.3.0-beta.1
 [0.2.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.1.0...v0.2.0-beta.1
