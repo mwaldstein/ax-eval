@@ -37,12 +37,18 @@ impl ToolAdapter for OpenCodeAdapter {
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
-        let mut args = vec!["run", "--format", "json"];
+        let mut args: Vec<String> = vec![
+            "run".to_string(),
+            "--format".to_string(),
+            "json".to_string(),
+            "--dir".to_string(),
+            cwd.to_string_lossy().into_owned(),
+        ];
         if let Some(model) = model {
-            args.push("--model");
-            args.push(model);
+            args.push("--model".to_string());
+            args.push(model.to_string());
         }
-        args.push(&scenario.task.prompt);
+        args.push(scenario.task.prompt.clone());
 
         let xdg_config_dir = cwd
             .canonicalize()
@@ -55,8 +61,9 @@ impl ToolAdapter for OpenCodeAdapter {
         )];
         target_env.append_to_session_env(&mut env_vars);
 
+        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let (output, exit_code) =
-            runner.run_command_with_env("opencode", &args, cwd, timeout_secs, &env_vars)?;
+            runner.run_command_with_env("opencode", &arg_refs, cwd, timeout_secs, &env_vars)?;
 
         Ok(normalize::normalize(output, exit_code))
     }

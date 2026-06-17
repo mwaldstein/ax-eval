@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- opencode adapter now passes `--dir <fixture>` so the agent anchors to the isolated fixture workspace. Previously it set the process cwd but not `--dir`, causing opencode to anchor to the git root and write outside the fixture, invalidating all opencode runs.
+
 ## [0.3.0-beta.4] - 2026-06-16
 
 ### Added
