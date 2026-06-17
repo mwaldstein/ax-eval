@@ -35,6 +35,33 @@ The selected tool must be installed and authenticated before you run a scenario.
 
 The `mock` adapter is internal test support for adapter plumbing. It does not execute the target tool or mutate fixture state, so it is not intended for validating scenario outcomes.
 
+## Agent-Driven Workflow
+
+ax-eval is designed to be operated by agents, not just humans. The `guidance`, `template`, and `discover` commands are self-describing, so an AI coding tool can learn ax-eval and drive the evaluate-modify-repeat loop itself.
+
+The [README](../README.md#agent-driven-evaluation) has a copyable general-purpose prompt. This section covers the entry points and variants.
+
+### Self-Discovery Entry Points
+
+Hand these to your agent as its first moves:
+
+- `ax-eval guidance start` — capsule index of high-priority CLI design topics.
+- `ax-eval guidance list` — every topic slug.
+- `ax-eval --help` and `<command> --help` — commands, flags, and examples.
+- `ax-eval template scenario | config | rubric | script-gate | evaluator` — copyable, schema-valid starting points.
+
+### Prompt Variants
+
+- **Author scenarios yourself**: skip `discover`, scaffold from `ax-eval template scenario`, and run with `ax-eval run --scenario <name>`. Use this when you know the exact workflows to evaluate.
+- **Improve guidance only**: point the agent at `ax-eval guidance test-usage` and your `AGENTS.md`, then compare the built-in `example_guidance_minimal` and `example_guidance_rich` scenarios to see how guidance quality changes the metrics.
+- **Compare models or tools**: ask the agent to run the same scenarios across `--tool` and `--model` values and summarize the `metrics.json` deltas.
+
+### Operating Notes
+
+- Keep `AX_EVAL_ENABLED=1` set so the agent can execute real runs.
+- Have the agent commit scenario YAML so evaluations stay reproducible.
+- Run `--dry-run` first to validate fixture setup and run planning without LLM spend.
+
 ## Discover a Tool
 
 Use `discover` when you do not yet have scenarios for a target CLI and want an

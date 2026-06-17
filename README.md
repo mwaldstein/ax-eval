@@ -58,6 +58,14 @@ inspect your executable, write an understanding document, author five
 goal-oriented scenarios, run them, and summarize what the results reveal about
 your CLI's LLM usability.
 
+## Agent-Driven Evaluation
+
+ax-eval is self-documenting for agents. Point your AI coding tool at it instead of learning the CLI by hand, and let the agent run the evaluate-modify-repeat loop. Paste it a prompt like:
+
+> Evaluate how well AI coding agents can use my CLI tool `mytool`. Learn `ax-eval` from itself: run `ax-eval guidance start`, then read `ax-eval --help`, `ax-eval discover --help`, and `ax-eval template --help`. Run `AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode` to auto-generate and judge goal-oriented scenarios, or author scenarios from `ax-eval template scenario`. Read the profile under `ax-eval-results/` (`evaluation.md`, `metrics.json`) and propose changes to my CLI's help text, error messages, and `AGENTS.md`. Re-run to confirm the improvement.
+
+See the [user guide](docs/user-guide.md#agent-driven-workflow) for self-discovery entry points and prompt variants.
+
 ## Install
 
 Install via crates.io:
