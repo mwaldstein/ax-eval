@@ -20,7 +20,7 @@ pub struct ScenarioRunRequest<'a> {
     pub tool: &'a str,
     pub model: &'a str,
     pub dry_run: bool,
-    pub no_cache: bool,
+    pub use_cache: bool,
     pub timeout_secs: u64,
     pub no_judge: bool,
     pub judge_model: Option<&'a str>,
@@ -59,7 +59,7 @@ impl ScenarioRunRequest<'_> {
     }
 
     pub fn cached_record(&self, cache_key: &CacheKey) -> anyhow::Result<Option<ResultRecord>> {
-        if self.no_cache {
+        if !self.use_cache {
             return Ok(None);
         }
 

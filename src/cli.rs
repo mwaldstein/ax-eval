@@ -70,9 +70,9 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
 
-        /// Disable caching
+        /// Enable result caching (skip re-runs for unchanged scenario/tool/model)
         #[arg(long)]
-        no_cache: bool,
+        cache: bool,
 
         /// Judge model for LLM-as-judge evaluation
         #[arg(long)]

@@ -104,9 +104,12 @@ pub fn finalize_execution(
     record: &ResultRecord,
     results_dir: &Path,
     setup_success: bool,
+    use_cache: bool,
 ) -> anyhow::Result<ResultRecord> {
     results_db.append(record)?;
-    cache.put(cache_key, record)?;
+    if use_cache {
+        cache.put(cache_key, record)?;
+    }
 
     let metrics_json = serde_json::to_string_pretty(&record.metrics)?;
     std::fs::write(results_dir.join("metrics.json"), metrics_json)?;

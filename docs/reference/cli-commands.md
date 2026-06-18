@@ -98,8 +98,8 @@ Options:
       --dry-run
           Dry run (don't execute LLM calls)
 
-      --no-cache
-          Disable caching
+      --cache
+          Enable result caching (skip re-runs for unchanged scenario/tool/model)
 
   -v, --verbose
           Enable verbose output (or set RUST_LOG for fine-grained control)

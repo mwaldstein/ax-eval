@@ -155,6 +155,7 @@ impl<'a> ScenarioRunLifecycle<'a> {
             &record,
             &self.plan.results_dir,
             prepared.setup_success,
+            self.request.use_cache,
         )
     }
 }

@@ -77,8 +77,9 @@ Discovery runs one all-in-one workflow:
 1. An LLM agent inspects the target executable and writes `understanding.md`.
 2. The same discovery agent authors five complex, goal-oriented scenario YAML
    files, templates, and judge rubrics under the discovery result directory.
-3. The harness validates the generated scenarios, runs the valid set with
-   caching disabled, and keeps going across scenario-level failures.
+3. The harness validates the generated scenarios, runs the valid set (always
+   fresh — no result caching during discovery), and keeps going across
+   scenario-level failures.
 4. An agent writes `discovery-summary.md`, and the harness writes
    `discovery.json` with stable paths, run IDs, judge scores, failure
    classifications, token totals, and cost when available.
@@ -338,7 +339,7 @@ adapter's raw-output parser no longer matches the CLI output schema.
 
 **Timeout errors**: increase timeout with `--timeout-secs 600`.
 
-**Cache issues**: disable caching with `--no-cache` or run `ax-eval clean`.
+**Cache issues**: runs are fresh by default. Use `--cache` to enable result caching for development iteration, or `ax-eval clean` to remove old cache entries.
 
 **Composite score low**: review the interaction metrics, guardrail failures, and judge rationale to understand which dimension regressed.
 

@@ -901,7 +901,7 @@ evaluation:
 }
 
 #[test]
-fn test_run_command_with_no_cache() {
+fn test_run_command_with_cache_flag() {
     let dir = tempdir().unwrap();
 
     let fixtures_dir = dir.path().join("ax-eval-fixtures");
@@ -910,8 +910,8 @@ fn test_run_command_with_no_cache() {
     create_qipu_template(dir.path());
 
     let scenario_content = r#"
-name: no_cache_test
-description: "No cache test"
+name: cache_flag_test
+description: "Cache flag test"
 template_folder: qipu
 target:
   binary: qipu
@@ -922,17 +922,17 @@ evaluation:
     - type: command_succeeds
       command: "true"
 "#;
-    fs::write(qipu_dir.join("no_cache_test.yaml"), scenario_content).unwrap();
+    fs::write(qipu_dir.join("cache_flag_test.yaml"), scenario_content).unwrap();
 
     ax_eval()
         .current_dir(dir.path())
         .args([
             "run",
             "--scenario",
-            "ax-eval-fixtures/qipu/no_cache_test.yaml",
+            "ax-eval-fixtures/qipu/cache_flag_test.yaml",
             "--tool",
             "mock",
-            "--no-cache",
+            "--cache",
         ])
         .env("AX_EVAL_ENABLED", "1")
         .assert()

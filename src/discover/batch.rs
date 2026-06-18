@@ -30,7 +30,7 @@ pub(super) fn run_generated_scenarios(
                 tool: request.run_tool,
                 model: request.run_model,
                 dry_run: false,
-                no_cache: true,
+                use_cache: false,
                 timeout_secs: request.timeout_secs,
                 no_judge: false,
                 judge_model: request.judge_model,
