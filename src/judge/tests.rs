@@ -167,6 +167,7 @@ fn test_build_judge_prompt_for_mcp_includes_target_summary_and_structured_argume
             command: "todo-mcp".to_string(),
             args: vec![],
         },
+        auth: None,
         tools: vec![
             "add".to_string(),
             "list".to_string(),
@@ -205,6 +206,7 @@ fn test_build_judge_prompt_for_mcp_bounds_structured_excerpt() {
             command: "todo-mcp".to_string(),
             args: vec![],
         },
+        auth: None,
         tools: vec!["add".to_string()],
         env: None,
         health_check: None,

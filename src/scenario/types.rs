@@ -84,6 +84,9 @@ pub struct McpTarget {
     pub name: String,
     /// Agent-agnostic connection description.
     pub transport: McpTransport,
+    /// Optional HTTP authentication mode.
+    #[serde(default)]
+    pub auth: Option<McpAuth>,
     /// Declared tool surface for this server.
     pub tools: Vec<String>,
     /// Optional environment variables for the server process.
@@ -92,6 +95,20 @@ pub struct McpTarget {
     /// Optional shell command used to check server health/availability.
     #[serde(default)]
     pub health_check: Option<String>,
+}
+
+/// MCP HTTP authentication configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum McpAuth {
+    /// Explicitly no credentials; equivalent to omitting auth.
+    None,
+    /// Bearer token read from the named environment variable.
+    BearerEnv { env: String },
+    /// Static headers, whose values may reference environment variables.
+    Headers { headers: HashMap<String, String> },
+    /// Use the host's out-of-band cached MCP credential.
+    HostSession,
 }
 
 /// MCP transport configuration.

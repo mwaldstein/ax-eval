@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::{Gate, McpTransport, Scenario};
+use super::{Gate, McpAuth, McpTransport, Scenario};
 use crate::judge::load_rubric;
 use crate::utils::resolve_fixtures_path;
 
@@ -342,6 +342,12 @@ fn validate_scenario_hard_errors(scenario: &Scenario, path: &Path) -> anyhow::Re
                     path.display()
                 );
             }
+            McpTransport::Stdio { .. } if mcp.auth.is_some() => {
+                anyhow::bail!(
+                    "{}: stdio MCP servers authenticate via `env`, not `auth`; move credentials to target.env",
+                    path.display()
+                );
+            }
             McpTransport::Http { url, .. } if !is_valid_http_url(url) => {
                 anyhow::bail!(
                     "{}: target.transport.url must be a non-empty http:// or https:// URL",
@@ -350,9 +356,97 @@ fn validate_scenario_hard_errors(scenario: &Scenario, path: &Path) -> anyhow::Re
             }
             _ => {}
         }
+
+        validate_mcp_auth(mcp.auth.as_ref(), path)?;
     }
 
     Ok(())
+}
+
+fn validate_mcp_auth(auth: Option<&McpAuth>, path: &Path) -> anyhow::Result<()> {
+    let Some(auth) = auth else {
+        return Ok(());
+    };
+
+    match auth {
+        McpAuth::None | McpAuth::HostSession => Ok(()),
+        McpAuth::BearerEnv { env } => {
+            if env.trim().is_empty() {
+                anyhow::bail!("{}: target.auth.env cannot be empty", path.display());
+            }
+
+            if !is_valid_env_name(env) || looks_like_literal_secret(env) {
+                anyhow::bail!(
+                    "{}: target.auth.env looks like a literal secret; reference an environment variable with ${{env:NAME}} instead",
+                    path.display()
+                );
+            }
+
+            Ok(())
+        }
+        McpAuth::Headers { headers } => {
+            if headers.is_empty() {
+                anyhow::bail!(
+                    "{}: target.auth.headers must contain at least one header",
+                    path.display()
+                );
+            }
+
+            for value in headers.values() {
+                if value.trim().is_empty() || value.contains("${env:") {
+                    continue;
+                }
+                if looks_like_literal_secret(value) {
+                    anyhow::bail!(
+                        "{}: target.auth.headers value looks like a literal secret; reference an environment variable with ${{env:NAME}} instead",
+                        path.display()
+                    );
+                }
+            }
+
+            Ok(())
+        }
+    }
+}
+
+fn is_valid_env_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+
+    (first == '_' || first.is_ascii_alphabetic())
+        && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+}
+
+fn looks_like_literal_secret(value: &str) -> bool {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("bearer ")
+        || lower.starts_with("sk-")
+        || lower.starts_with("ghp_")
+        || lower.starts_with("xox")
+    {
+        return true;
+    }
+
+    let secret_chars = trimmed
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        .count();
+    if trimmed.len() < 32 || secret_chars != trimmed.len() {
+        return false;
+    }
+
+    let has_lower = trimmed.chars().any(|c| c.is_ascii_lowercase());
+    let has_upper = trimmed.chars().any(|c| c.is_ascii_uppercase());
+    let has_digit = trimmed.chars().any(|c| c.is_ascii_digit());
+    let unique_count = {
+        let mut unique = std::collections::HashSet::new();
+        trimmed.chars().filter(|c| unique.insert(*c)).count()
+    };
+
+    has_lower && has_upper && has_digit && unique_count >= 16
 }
 
 fn is_valid_http_url(url: &str) -> bool {

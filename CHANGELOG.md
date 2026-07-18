@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MCP auth schema for static credential modes. Scenarios can declare optional HTTP-only `target.auth` blocks for `none`, `bearer_env`, `headers`, and `host_session`, with validation that rejects stdio auth and obvious literal secrets in favor of `${env:NAME}` references.
+
 ## [0.4.0-beta.1] - 2026-07-18
 
 ### Added

@@ -305,6 +305,7 @@ mod tests {
                 command: "${AX_EVAL_FIXTURE_DIR}/todo-mcp-server".to_string(),
                 args: vec!["--root".to_string(), "${AX_EVAL_FIXTURE_DIR}".to_string()],
             },
+            auth: None,
             tools: vec!["add".to_string()],
             env: Some(HashMap::from([(
                 "TODO_DB".to_string(),
@@ -356,6 +357,7 @@ env = {{ TODO_DB = "{results}/todo.db" }}
                     "token-${AX_EVAL_FIXTURE_DIR}".to_string(),
                 )])),
             },
+            auth: None,
             tools: vec!["query".to_string()],
             env: None,
             health_check: None,

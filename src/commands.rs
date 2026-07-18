@@ -374,6 +374,9 @@ target:
 #   transport:
 #     type: http
 #     url: "https://mcp.example.com/mcp"
+#   auth:
+#     type: bearer_env
+#     env: MY_MCP_TOKEN
 #   tools: [query, index]
 #
 # MCP authoring tips (see docs/scenarios.md, "Authoring MCP scenarios"):
