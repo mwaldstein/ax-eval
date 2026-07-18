@@ -72,6 +72,48 @@ evaluation:
     }
 
     #[test]
+    fn test_mock_adapter_run_returns_mcp_events_for_mcp_target() {
+        let adapter = MockAdapter;
+
+        let scenario_yaml = r#"
+name: test
+description: "Test scenario"
+template_folder: mock_template
+target:
+  kind: mcp
+  name: todo
+  transport:
+    type: stdio
+    command: todo-mcp
+  tools: [add, list]
+task:
+  prompt: "Test prompt"
+evaluation:
+  gates: []
+"#;
+        let scenario: Scenario = yaml_serde::from_str(scenario_yaml).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let result = adapter.run(
+            &scenario,
+            temp_dir.path(),
+            Some("mock"),
+            30,
+            &TargetEnvironment::default(),
+        );
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        let InteractionInput::StructuredMcpToolCalls(events) = output.interaction_input else {
+            panic!("mock adapter should provide structured MCP tool calls");
+        };
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].server, "todo");
+        assert_eq!(events[0].tool, "add");
+        assert!(!events[0].is_error);
+    }
+
+    #[test]
     fn test_mock_adapter_run_with_gates() {
         let adapter = MockAdapter;
 

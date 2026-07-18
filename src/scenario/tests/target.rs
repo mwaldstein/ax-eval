@@ -56,7 +56,10 @@ fn explicit_cli_target_parses() {
     ))
     .expect("parse explicit cli target");
 
-    assert_eq!(scenario.target.binary(), Some("qipu"));
+    assert_eq!(
+        scenario.target.cli().map(|target| target.binary.as_str()),
+        Some("qipu")
+    );
     assert_eq!(scenario.target.display_name(), "qipu");
 }
 

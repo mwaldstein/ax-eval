@@ -136,6 +136,7 @@ mod tests {
             },
             evidence_source:
                 crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+            warnings: vec![],
         }
     }
 

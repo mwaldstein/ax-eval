@@ -2,10 +2,11 @@ mod evidence;
 mod target;
 
 use self::evidence::{extract_target_interaction_evidence, InteractionEvidenceInput};
+use self::target::{Outcome, TargetAction};
+use crate::interaction_evidence::InteractionInput;
 pub use crate::interaction_evidence::{
     AdapterEvidenceCapability, InteractionEvidenceSource, TargetInteractionSpec,
 };
-use crate::interaction_evidence::{CommandEvent, InteractionInput};
 use crate::scenario::TargetCommandPolicy;
 use crate::transcript::EfficiencyMetrics;
 use anyhow::Result;
@@ -17,6 +18,8 @@ use std::path::PathBuf;
 pub struct InteractionProfile {
     pub metrics: EfficiencyMetrics,
     pub evidence_source: InteractionEvidenceSource,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 pub struct InteractionProfileInput<'a> {
@@ -28,32 +31,31 @@ pub struct InteractionProfileInput<'a> {
     pub target_command_policy: TargetCommandPolicy,
 }
 
-pub(crate) fn reduce_command_events(events: &[CommandEvent]) -> EfficiencyMetrics {
-    let commands = events
+pub(crate) fn reduce_target_actions(actions: &[TargetAction]) -> EfficiencyMetrics {
+    let total_commands = actions.len();
+    let error_count = actions
         .iter()
-        .map(|event| {
-            let is_error = event.exit_code.map(|code| code != 0).unwrap_or(false);
-            (event.command.clone(), is_error)
-        })
-        .collect::<Vec<_>>();
-
-    let total_commands = commands.len();
-    let error_count = commands.iter().filter(|(_, e)| *e).count();
-    let help_invocations = commands.iter().filter(|(c, _)| c == "help").count();
-
-    let unique_commands = commands
+        .filter(|action| action.outcome == Outcome::Failure)
+        .count();
+    let help_invocations = actions
         .iter()
-        .map(|(c, _)| c.clone())
+        .filter(|action| action.action == "help")
+        .count();
+
+    let unique_commands = actions
+        .iter()
+        .map(|action| action.action.clone())
         .collect::<std::collections::HashSet<_>>();
     let retry_count = total_commands.saturating_sub(unique_commands.len());
 
     let mut seen_first: HashMap<String, bool> = HashMap::new();
     let mut first_try_success_count: usize = 0;
 
-    for (cmd, is_error) in &commands {
-        if !seen_first.contains_key(cmd) {
-            seen_first.insert(cmd.clone(), !is_error);
-            if !is_error {
+    for action in actions {
+        if !seen_first.contains_key(&action.action) {
+            let first_try_success = action.outcome != Outcome::Failure;
+            seen_first.insert(action.action.clone(), first_try_success);
+            if first_try_success {
                 first_try_success_count += 1;
             }
         }
@@ -86,7 +88,7 @@ pub(crate) fn reduce_command_events(events: &[CommandEvent]) -> EfficiencyMetric
 pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<InteractionProfile> {
     let structured_evidence = matches!(
         input.interaction_input,
-        InteractionInput::StructuredToolCalls(_)
+        InteractionInput::StructuredToolCalls(_) | InteractionInput::StructuredMcpToolCalls(_)
     );
     let extracted = extract_target_interaction_evidence(InteractionEvidenceInput {
         target: input.target,
@@ -94,7 +96,7 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
         adapter_capability: input.adapter_capability,
         transcript_path: input.transcript_path,
     })?;
-    let mut metrics = reduce_command_events(&extracted.target_events);
+    let mut metrics = reduce_target_actions(&extracted.target_actions.actions);
 
     metrics.completed = input.completed;
 
@@ -118,13 +120,14 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
     Ok(InteractionProfile {
         metrics,
         evidence_source: extracted.source,
+        warnings: extracted.target_actions.warnings,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interaction_evidence::CommandEvent;
+    use crate::interaction_evidence::{CommandEvent, McpToolCallEvent};
     use crate::scenario::types::TargetCommandPolicy;
 
     fn target() -> TargetInteractionSpec {
@@ -378,5 +381,121 @@ mod tests {
             structured.metrics.help_invocations,
             fallback.metrics.help_invocations
         );
+    }
+
+    #[test]
+    fn mcp_structured_evidence_reduces_shared_metrics() {
+        let target =
+            TargetInteractionSpec::mcp("todo", vec!["add".to_string(), "list".to_string()]);
+        let events = vec![
+            McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({"text":"a"}),
+                is_error: true,
+                duration_ms: Some(10),
+            },
+            McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({"text":"a"}),
+                is_error: false,
+                duration_ms: Some(9),
+            },
+            McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "list".to_string(),
+                arguments: serde_json::json!({}),
+                is_error: false,
+                duration_ms: None,
+            },
+        ];
+
+        let profile = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredMcpToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
+        })
+        .expect("profile");
+
+        assert_eq!(
+            profile.evidence_source,
+            InteractionEvidenceSource::StructuredMcpToolCalls
+        );
+        assert_eq!(profile.metrics.total_commands, 3);
+        assert_eq!(profile.metrics.unique_commands, 2);
+        assert_eq!(profile.metrics.error_count, 1);
+        assert_eq!(profile.metrics.retry_count, 1);
+        assert_eq!(profile.metrics.first_try_success_rate, 1.0 / 3.0);
+    }
+
+    #[test]
+    fn mcp_undeclared_tool_counts_and_warns() {
+        let target = TargetInteractionSpec::mcp("todo", vec!["add".to_string()]);
+        let events = vec![McpToolCallEvent {
+            server: "todo".to_string(),
+            tool: "delete".to_string(),
+            arguments: serde_json::json!({}),
+            is_error: false,
+            duration_ms: None,
+        }];
+
+        let profile = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredMcpToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
+        })
+        .expect("profile");
+
+        assert_eq!(profile.metrics.total_commands, 1);
+        assert_eq!(profile.warnings.len(), 1);
+        assert!(profile.warnings[0].contains("undeclared tool 'delete'"));
+    }
+
+    #[test]
+    fn mcp_target_matches_server_identity() {
+        let target = TargetInteractionSpec::mcp("todo", vec!["add".to_string()]);
+        let events = vec![McpToolCallEvent {
+            server: "other".to_string(),
+            tool: "add".to_string(),
+            arguments: serde_json::json!({}),
+            is_error: false,
+            duration_ms: None,
+        }];
+
+        let error = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredMcpToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
+        })
+        .unwrap_err();
+
+        assert!(error.to_string().contains("no usable structured"));
+    }
+
+    #[test]
+    fn completed_structured_mcp_run_requires_target_tool_events() {
+        let target = TargetInteractionSpec::mcp("todo", vec!["add".to_string()]);
+
+        let error = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredMcpToolCalls(vec![]),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
+        })
+        .unwrap_err();
+
+        assert!(error.to_string().contains("no usable structured"));
     }
 }

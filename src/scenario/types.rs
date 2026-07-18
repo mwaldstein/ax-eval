@@ -136,10 +136,6 @@ impl TargetConfig {
         }
     }
 
-    pub fn binary(&self) -> Option<&str> {
-        self.cli().map(|target| target.binary.as_str())
-    }
-
     pub fn command_pattern(&self) -> Option<&str> {
         self.cli()
             .and_then(|target| target.command_pattern.as_deref())

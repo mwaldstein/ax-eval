@@ -79,6 +79,9 @@ pub struct EvaluationMetricsRecord {
     /// Source used to build interaction metrics
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_evidence_source: Option<crate::interaction_profile::InteractionEvidenceSource>,
+    /// Non-fatal interaction profile warnings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
     /// Composite quality score (0.0-1.0), only present if scenario configures composite weights
     #[serde(skip_serializing_if = "Option::is_none")]
     pub composite_score: Option<f64>,
@@ -210,6 +213,7 @@ impl From<crate::evaluation::EvaluationMetrics> for EvaluationMetricsRecord {
             judge_threshold: value.judge_threshold,
             efficiency: value.efficiency.into(),
             interaction_evidence_source: Some(value.interaction_evidence_source),
+            warnings: value.warnings,
             composite_score: value.composite_score,
             evaluator_results: value
                 .evaluator_results

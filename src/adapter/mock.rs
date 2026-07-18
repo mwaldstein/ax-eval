@@ -1,6 +1,6 @@
-use super::{ToolAdapter, ToolRunOutput};
-use crate::interaction_evidence::{CommandEvent, InteractionInput};
-use crate::scenario::Scenario;
+use super::{TargetProvision, ToolAdapter, ToolRunOutput};
+use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
+use crate::scenario::{Scenario, TargetConfig};
 use crate::target_env::TargetEnvironment;
 use std::path::Path;
 
@@ -14,7 +14,32 @@ impl MockAdapter {
         }]
     }
 
+    pub fn generate_mcp_tool_call_events(&self, scenario: &Scenario) -> Vec<McpToolCallEvent> {
+        let TargetConfig::Mcp(target) = &scenario.target else {
+            return Vec::new();
+        };
+
+        vec![McpToolCallEvent {
+            server: target.name.clone(),
+            tool: target
+                .tools
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "mock".to_string()),
+            arguments: serde_json::json!({}),
+            is_error: false,
+            duration_ms: None,
+        }]
+    }
+
     pub fn generate_transcript(&self, scenario: &Scenario) -> String {
+        if scenario.target.is_mcp() {
+            return format!(
+                "Called MCP server {} successfully\n",
+                scenario.target.display_name()
+            );
+        }
+
         let mut transcript = String::new();
 
         for event in self.generate_command_events(scenario) {
@@ -41,6 +66,14 @@ impl ToolAdapter for MockAdapter {
         })
     }
 
+    fn provision_target(
+        &self,
+        _target: &TargetConfig,
+        _workspace: &Path,
+    ) -> anyhow::Result<TargetProvision> {
+        Ok(TargetProvision::none())
+    }
+
     fn run(
         &self,
         scenario: &Scenario,
@@ -50,14 +83,21 @@ impl ToolAdapter for MockAdapter {
         _target_env: &TargetEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let transcript = self.generate_transcript(scenario);
-        let command_events = self.generate_command_events(scenario);
+        let interaction_input = match &scenario.target {
+            TargetConfig::Cli(_) => {
+                InteractionInput::StructuredToolCalls(self.generate_command_events(scenario))
+            }
+            TargetConfig::Mcp(_) => InteractionInput::StructuredMcpToolCalls(
+                self.generate_mcp_tool_call_events(scenario),
+            ),
+        };
         Ok(ToolRunOutput {
             transcript,
             raw_output: None,
             exit_code: 0,
             cost_usd: None,
             token_usage: None,
-            interaction_input: InteractionInput::StructuredToolCalls(command_events),
+            interaction_input,
         })
     }
 }

@@ -178,6 +178,7 @@ fn test_result_record_json_round_trip() {
                 completed: true,
             },
             interaction_evidence_source: None,
+            warnings: vec![],
             composite_score: Some(0.95),
             evaluator_results: vec![],
         },
@@ -243,6 +244,7 @@ fn test_result_record_json_skip_none_cache_key() {
                 completed: true,
             },
             interaction_evidence_source: None,
+            warnings: vec![],
             composite_score: Some(0.85),
             evaluator_results: vec![],
         },
@@ -328,6 +330,7 @@ fn evaluation_metrics_record_preserves_full_evaluation_profile() {
         },
         interaction_evidence_source:
             crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+        warnings: vec![],
         composite_score: Some(0.58),
         evaluator_results: vec![crate::evaluation::EvaluatorResult {
             name: "quality".to_string(),

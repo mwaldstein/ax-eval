@@ -1,5 +1,5 @@
 use crate::evaluation::GateStatus;
-use crate::interaction_evidence::CommandEvent;
+use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
 use crate::transcript::redact::redact_sensitive;
 use crate::transcript::types::{EvaluationReport, RunMetadata, RunReport};
 use serde_json::json;
@@ -98,6 +98,18 @@ impl TranscriptWriter {
     pub fn write_command_events(&self, events: &[CommandEvent]) -> anyhow::Result<()> {
         let json = serde_json::to_string_pretty(events)?;
         fs::write(self.base_dir.join("command-events.json"), json)?;
+        Ok(())
+    }
+
+    pub fn write_mcp_events(&self, events: &[McpToolCallEvent]) -> anyhow::Result<()> {
+        let json = serde_json::to_string_pretty(events)?;
+        fs::write(self.base_dir.join("mcp-events.json"), json)?;
+        Ok(())
+    }
+
+    pub fn write_interaction_events(&self, input: &InteractionInput) -> anyhow::Result<()> {
+        let json = serde_json::to_string_pretty(input)?;
+        fs::write(self.base_dir.join("interaction-events.json"), json)?;
         Ok(())
     }
 

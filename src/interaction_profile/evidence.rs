@@ -1,4 +1,4 @@
-use crate::interaction_evidence::{CommandEvent, InteractionInput};
+use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
 use crate::interaction_profile::{
     AdapterEvidenceCapability, InteractionEvidenceSource, TargetInteractionSpec,
 };
@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ExtractedInteractionEvidence {
-    pub target_events: Vec<CommandEvent>,
+    pub target_actions: super::target::TargetActionProjection,
     pub source: InteractionEvidenceSource,
 }
 
@@ -20,6 +20,7 @@ pub(crate) struct InteractionEvidenceInput<'a> {
 
 enum RawInteractionEvidence {
     StructuredToolCalls(Vec<CommandEvent>),
+    StructuredMcpToolCalls(Vec<McpToolCallEvent>),
     TranscriptRegexFallback { transcript_path: PathBuf },
 }
 
@@ -35,11 +36,23 @@ impl RawInteractionEvidence {
                 AdapterEvidenceCapability::StructuredToolCalls,
             ) => Ok(Self::StructuredToolCalls(command_events.clone())),
             (
+                InteractionInput::StructuredMcpToolCalls(mcp_events),
+                AdapterEvidenceCapability::StructuredToolCalls,
+            ) => Ok(Self::StructuredMcpToolCalls(mcp_events.clone())),
+            (
                 InteractionInput::StructuredToolCalls(_),
                 AdapterEvidenceCapability::TranscriptRegexFallback,
             ) => {
                 anyhow::bail!(
                     "Adapter does not declare structured tool-call support but returned structured tool calls"
+                )
+            }
+            (
+                InteractionInput::StructuredMcpToolCalls(_),
+                AdapterEvidenceCapability::TranscriptRegexFallback,
+            ) => {
+                anyhow::bail!(
+                    "Adapter does not declare structured tool-call support but returned structured MCP tool calls"
                 )
             }
             (
@@ -69,18 +82,27 @@ pub(crate) fn extract_target_interaction_evidence(
     match evidence {
         RawInteractionEvidence::StructuredToolCalls(command_events) => {
             Ok(ExtractedInteractionEvidence {
-                target_events: super::target::structured_target_events(
+                target_actions: super::target::structured_target_actions(
                     &command_events,
                     input.target,
                 ),
                 source: InteractionEvidenceSource::StructuredToolCalls,
             })
         }
+        RawInteractionEvidence::StructuredMcpToolCalls(mcp_events) => {
+            Ok(ExtractedInteractionEvidence {
+                target_actions: super::target::structured_mcp_target_actions(
+                    &mcp_events,
+                    input.target,
+                ),
+                source: InteractionEvidenceSource::StructuredMcpToolCalls,
+            })
+        }
         RawInteractionEvidence::TranscriptRegexFallback { transcript_path } => {
             let content = std::fs::read_to_string(&transcript_path)
                 .with_context(|| "Failed to read transcript file for regex interaction profile")?;
             Ok(ExtractedInteractionEvidence {
-                target_events: super::target::transcript_target_events(&content, input.target),
+                target_actions: super::target::transcript_target_actions(&content, input.target),
                 source: InteractionEvidenceSource::TranscriptRegexFallback,
             })
         }
@@ -126,14 +148,19 @@ mod tests {
         .expect("evidence");
 
         let commands = extracted
-            .target_events
+            .target_actions
+            .actions
             .iter()
-            .map(|event| (event.command.as_str(), event.exit_code))
+            .map(|event| (event.action.as_str(), event.outcome))
             .collect::<Vec<_>>();
 
         assert_eq!(
             commands,
-            vec![("init", Some(0)), ("add", Some(1)), ("help", Some(0))]
+            vec![
+                ("init", super::super::target::Outcome::Success),
+                ("add", super::super::target::Outcome::Failure),
+                ("help", super::super::target::Outcome::Success)
+            ]
         );
     }
 }

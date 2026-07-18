@@ -67,6 +67,7 @@ mod tests {
                 completed: false,
             },
             interaction_evidence_source: InteractionEvidenceSource::StructuredToolCalls,
+            warnings: vec![],
             composite_score: None,
             evaluator_results: vec![],
         }

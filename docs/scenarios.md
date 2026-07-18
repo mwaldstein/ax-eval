@@ -442,7 +442,9 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
 │   ├── transcript.raw.txt  # Complete output from the LLM agent session
 │   ├── events.jsonl        # Structured event log
 │   ├── tool-output.raw.txt # Raw adapter output when available
-│   └── command-events.json # Normalized command events when available
+│   ├── interaction-events.json # Canonical structured CLI/MCP interaction events when available
+│   ├── command-events.json # Normalized command events for CLI runs when available
+│   └── mcp-events.json     # Structured MCP tool-call events for MCP runs when available
 └── fixture/                # The working directory, preserved after the run
     ├── AGENTS.md            # (from template)
     ├── README.md            # (from template)

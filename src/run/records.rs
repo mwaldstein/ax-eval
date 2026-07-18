@@ -82,6 +82,7 @@ pub fn handle_dry_run(
                 completed: false,
             },
             interaction_evidence_source: None,
+            warnings: vec![],
             composite_score: None,
             evaluator_results: vec![],
         },
@@ -174,6 +175,7 @@ mod tests {
                 completed: true,
             },
             interaction_evidence_source: InteractionEvidenceSource::StructuredToolCalls,
+            warnings: vec![],
             composite_score: Some(0.95),
             evaluator_results: vec![],
         }

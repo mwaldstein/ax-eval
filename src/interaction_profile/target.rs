@@ -1,29 +1,135 @@
-use crate::interaction_evidence::CommandEvent;
+use crate::interaction_evidence::{CommandEvent, McpToolCallEvent};
 use crate::interaction_profile::TargetInteractionSpec;
 use crate::transcript::TranscriptAnalyzer;
 use std::path::Path;
 
-pub(crate) fn structured_target_events(
-    events: &[CommandEvent],
-    target: &TargetInteractionSpec,
-) -> Vec<CommandEvent> {
-    normalize_target_events(events, target)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Outcome {
+    Success,
+    Failure,
+    Unknown,
 }
 
-pub(crate) fn transcript_target_events(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TargetAction {
+    pub action: String,
+    pub outcome: Outcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TargetActionProjection {
+    pub actions: Vec<TargetAction>,
+    pub warnings: Vec<String>,
+}
+
+pub(crate) fn structured_target_actions(
+    events: &[CommandEvent],
+    target: &TargetInteractionSpec,
+) -> TargetActionProjection {
+    let TargetInteractionSpec::Cli { .. } = target else {
+        return TargetActionProjection {
+            actions: Vec::new(),
+            warnings: vec!["CLI tool-call evidence was returned for an MCP target".to_string()],
+        };
+    };
+
+    let actions = normalize_target_events(events, target)
+        .into_iter()
+        .map(|event| TargetAction {
+            action: event.command,
+            outcome: cli_outcome(event.exit_code),
+        })
+        .collect();
+
+    TargetActionProjection {
+        actions,
+        warnings: Vec::new(),
+    }
+}
+
+pub(crate) fn structured_mcp_target_actions(
+    events: &[McpToolCallEvent],
+    target: &TargetInteractionSpec,
+) -> TargetActionProjection {
+    let TargetInteractionSpec::Mcp { server, tools } = target else {
+        return TargetActionProjection {
+            actions: Vec::new(),
+            warnings: vec!["MCP tool-call evidence was returned for a CLI target".to_string()],
+        };
+    };
+
+    let mut warnings = Vec::new();
+    let actions = events
+        .iter()
+        .filter(|event| event.server == *server)
+        .map(|event| {
+            if !tools.contains(&event.tool) {
+                warnings.push(format!(
+                    "MCP target server '{}' called undeclared tool '{}'",
+                    server, event.tool
+                ));
+            }
+            TargetAction {
+                action: event.tool.clone(),
+                outcome: if event.is_error {
+                    Outcome::Failure
+                } else {
+                    Outcome::Success
+                },
+            }
+        })
+        .collect();
+
+    TargetActionProjection { actions, warnings }
+}
+
+pub(crate) fn transcript_target_actions(
     transcript: &str,
     target: &TargetInteractionSpec,
-) -> Vec<CommandEvent> {
+) -> TargetActionProjection {
+    let TargetInteractionSpec::Cli { .. } = target else {
+        return TargetActionProjection {
+            actions: Vec::new(),
+            warnings: Vec::new(),
+        };
+    };
+
     if target
         .command_pattern()
         .is_none_or(|pattern| pattern.trim().is_empty())
     {
         let events = TranscriptAnalyzer::extract_command_lines_with_exit_codes(transcript);
-        return normalize_target_events(&events, target);
+        return TargetActionProjection {
+            actions: normalize_target_events(&events, target)
+                .into_iter()
+                .map(|event| TargetAction {
+                    action: event.command,
+                    outcome: cli_outcome(event.exit_code),
+                })
+                .collect(),
+            warnings: Vec::new(),
+        };
     }
 
     let pattern = resolve_command_pattern(target.binary(), target.command_pattern());
-    TranscriptAnalyzer::extract_commands_with_pattern(transcript, &pattern)
+    TargetActionProjection {
+        actions: TranscriptAnalyzer::extract_commands_with_pattern(transcript, &pattern)
+            .into_iter()
+            .map(|event| TargetAction {
+                action: event.command,
+                outcome: cli_outcome(event.exit_code),
+            })
+            .collect(),
+        warnings: Vec::new(),
+    }
+}
+
+fn cli_outcome(exit_code: Option<i32>) -> Outcome {
+    match exit_code {
+        Some(0) => Outcome::Success,
+        Some(_) => Outcome::Failure,
+        None => Outcome::Unknown,
+    }
 }
 
 fn normalize_target_events(
@@ -168,17 +274,18 @@ mod tests {
         ];
         let target = target();
 
-        let commands = structured_target_events(&events, &target)
+        let commands = structured_target_actions(&events, &target)
+            .actions
             .iter()
-            .map(|event| (event.command.clone(), event.exit_code))
+            .map(|event| (event.action.clone(), event.outcome))
             .collect::<Vec<_>>();
 
         assert_eq!(
             commands,
             vec![
-                ("init".to_string(), Some(0)),
-                ("add".to_string(), Some(1)),
-                ("help".to_string(), Some(0))
+                ("init".to_string(), Outcome::Success),
+                ("add".to_string(), Outcome::Failure),
+                ("help".to_string(), Outcome::Success)
             ]
         );
     }
@@ -190,17 +297,18 @@ mod tests {
                           $ bash -lc './notes add \"Hello\"'\nexit code: 1\n\
                           $ /tmp/work/notes list --help\nexit code: 0\n";
 
-        let commands = transcript_target_events(transcript, &target)
+        let commands = transcript_target_actions(transcript, &target)
+            .actions
             .iter()
-            .map(|event| (event.command.clone(), event.exit_code))
+            .map(|event| (event.action.clone(), event.outcome))
             .collect::<Vec<_>>();
 
         assert_eq!(
             commands,
             vec![
-                ("init".to_string(), Some(0)),
-                ("add".to_string(), Some(1)),
-                ("help".to_string(), Some(0))
+                ("init".to_string(), Outcome::Success),
+                ("add".to_string(), Outcome::Failure),
+                ("help".to_string(), Outcome::Success)
             ]
         );
     }
@@ -210,9 +318,56 @@ mod tests {
         let target = TargetInteractionSpec::new("notes", Some("tool:notes action=(\\S+)".into()));
         let transcript = "tool:notes action=sync\nexit code: 0\ntool:other action=skip\n";
 
-        let events = transcript_target_events(transcript, &target);
+        let events = transcript_target_actions(transcript, &target).actions;
 
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].command, "sync");
+        assert_eq!(events[0].action, "sync");
+    }
+
+    #[test]
+    fn mcp_events_match_server_and_tool_allow_list() {
+        let target =
+            TargetInteractionSpec::mcp("todo", vec!["add".to_string(), "list".to_string()]);
+        let events = vec![
+            McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({"text":"x"}),
+                is_error: false,
+                duration_ms: Some(10),
+            },
+            McpToolCallEvent {
+                server: "other".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({}),
+                is_error: false,
+                duration_ms: None,
+            },
+            McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "delete".to_string(),
+                arguments: serde_json::json!({}),
+                is_error: true,
+                duration_ms: None,
+            },
+        ];
+
+        let projection = structured_mcp_target_actions(&events, &target);
+
+        assert_eq!(
+            projection.actions,
+            vec![
+                TargetAction {
+                    action: "add".to_string(),
+                    outcome: Outcome::Success,
+                },
+                TargetAction {
+                    action: "delete".to_string(),
+                    outcome: Outcome::Failure,
+                }
+            ]
+        );
+        assert_eq!(projection.warnings.len(), 1);
+        assert!(projection.warnings[0].contains("undeclared tool 'delete'"));
     }
 }

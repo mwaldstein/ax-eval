@@ -694,7 +694,10 @@ This is not JSON.
         let scenario = judge_scenario(&source, "judge prompt".to_string());
 
         assert_eq!(scenario.name, "judge-source_judge");
-        assert_eq!(scenario.target.binary(), Some("notes"));
+        assert_eq!(
+            scenario.target.cli().map(|target| target.binary.as_str()),
+            Some("notes")
+        );
         assert_eq!(scenario.task.prompt, "judge prompt");
         assert_eq!(scenario.evaluation.gates.len(), 0);
         assert!(scenario.evaluation.judge.is_none());

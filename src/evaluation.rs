@@ -13,7 +13,7 @@ use crate::interaction_profile::{
     AdapterEvidenceCapability, InteractionProfile, InteractionProfileInput, TargetInteractionSpec,
 };
 use crate::judge::JudgeResponse;
-use crate::scenario::Scenario;
+use crate::scenario::{Scenario, TargetConfig};
 use crate::script_runner::ScriptRunner;
 use crate::target_env::TargetEnvironment;
 use anyhow::Result;
@@ -37,6 +37,7 @@ fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
     let judge_score = input.judge_score;
     let interaction_profile = input.interaction_profile;
     let evidence_source = interaction_profile.evidence_source;
+    let warnings = interaction_profile.warnings;
     let efficiency = interaction_profile.metrics;
     let composite_score = scenario.evaluation.composite.as_ref().and_then(|weights| {
         crate::eval_helpers::compute_composite_score(
@@ -56,6 +57,7 @@ fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
         judge_threshold: input.judge_threshold,
         efficiency,
         interaction_evidence_source: evidence_source,
+        warnings,
         composite_score,
         evaluator_results: Vec::new(),
     }
@@ -80,14 +82,14 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
     let scenario = input.scenario;
     debug!("evaluating scenario: {}", scenario.name);
 
-    let target = TargetInteractionSpec::new(
-        scenario
-            .target
-            .binary()
-            .expect("CLI target required by run validation")
-            .to_string(),
-        scenario.target.command_pattern().map(str::to_string),
-    );
+    let target = match &scenario.target {
+        TargetConfig::Cli(target) => {
+            TargetInteractionSpec::new(target.binary.clone(), target.command_pattern.clone())
+        }
+        TargetConfig::Mcp(target) => {
+            TargetInteractionSpec::mcp(target.name.clone(), target.tools.clone())
+        }
+    };
     let interaction_profile =
         crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
             target: &target,
@@ -219,6 +221,7 @@ mod tests {
             },
             evidence_source:
                 crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+            warnings: vec![],
         };
 
         let metrics = build_metrics(MetricsBuildInput {

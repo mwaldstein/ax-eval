@@ -57,6 +57,17 @@ fn persist_execution_transcript(input: ExecutionTranscriptInput<'_>) -> anyhow::
     if let Some(command_events) = input.run_output.command_events() {
         if !command_events.is_empty() {
             input.writer.write_command_events(command_events)?;
+            input
+                .writer
+                .write_interaction_events(&input.run_output.interaction_input)?;
+        }
+    }
+    if let Some(mcp_events) = input.run_output.mcp_tool_call_events() {
+        if !mcp_events.is_empty() {
+            input.writer.write_mcp_events(mcp_events)?;
+            input
+                .writer
+                .write_interaction_events(&input.run_output.interaction_input)?;
         }
     }
     // Also copy transcript to fixture directory for gate evaluators that read from env_root.
@@ -211,7 +222,7 @@ mod tests {
     use super::*;
     use crate::adapter::{AdapterError, TargetProvision, ToolStatus};
     use crate::fixture::TestEnv;
-    use crate::interaction_evidence::{CommandEvent, InteractionInput};
+    use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
     use crate::scenario::{Evaluation, Scenario, ScriptEntry, ScriptsConfig, TargetConfig, Task};
     use std::sync::{
         atomic::{AtomicBool, Ordering},
@@ -377,6 +388,55 @@ mod tests {
         assert_eq!(events[0]["tool"], "mock");
         assert_eq!(events[0]["exit_code"], 0);
         assert_eq!(events[0]["cost_usd"], 0.25);
+
+        assert!(artifacts
+            .artifacts_dir()
+            .join("interaction-events.json")
+            .exists());
+        assert!(artifacts
+            .artifacts_dir()
+            .join("command-events.json")
+            .exists());
+    }
+
+    #[test]
+    fn execution_transcript_input_persists_mcp_events() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        let artifacts = RunArtifacts::new(&dir.path().join("results"), &env);
+        let writer = artifacts.writer().expect("writer");
+        let run_output = ToolRunOutput {
+            transcript: "agent transcript".to_string(),
+            raw_output: None,
+            exit_code: 0,
+            cost_usd: None,
+            token_usage: None,
+            interaction_input: InteractionInput::StructuredMcpToolCalls(vec![McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({"text":"hello"}),
+                is_error: false,
+                duration_ms: Some(15),
+            }]),
+        };
+
+        persist_execution_transcript(ExecutionTranscriptInput {
+            writer: &writer,
+            artifacts: &artifacts,
+            tool: "mock",
+            run_output: &run_output,
+        })
+        .expect("persist execution transcript");
+
+        assert!(artifacts
+            .artifacts_dir()
+            .join("interaction-events.json")
+            .exists());
+        let mcp_events = std::fs::read_to_string(artifacts.artifacts_dir().join("mcp-events.json"))
+            .expect("mcp events");
+        assert!(mcp_events.contains("\"server\": \"todo\""));
+        assert!(mcp_events.contains("\"tool\": \"add\""));
     }
 
     #[test]

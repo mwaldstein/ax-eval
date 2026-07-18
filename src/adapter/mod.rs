@@ -8,7 +8,7 @@ pub mod registry;
 #[cfg(test)]
 mod mock_test;
 
-use crate::interaction_evidence::{CommandEvent, InteractionInput};
+use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
 use crate::scenario::{Scenario, TargetConfig};
 use crate::target_env::TargetEnvironment;
 use std::path::Path;
@@ -55,7 +55,15 @@ impl ToolRunOutput {
     pub fn command_events(&self) -> Option<&[CommandEvent]> {
         match &self.interaction_input {
             InteractionInput::StructuredToolCalls(events) => Some(events),
+            InteractionInput::StructuredMcpToolCalls(_) => None,
             InteractionInput::TranscriptRegex => None,
+        }
+    }
+
+    pub fn mcp_tool_call_events(&self) -> Option<&[McpToolCallEvent]> {
+        match &self.interaction_input {
+            InteractionInput::StructuredMcpToolCalls(events) => Some(events),
+            InteractionInput::StructuredToolCalls(_) | InteractionInput::TranscriptRegex => None,
         }
     }
 }

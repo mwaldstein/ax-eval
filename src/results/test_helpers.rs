@@ -59,6 +59,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
                 completed: true,
             },
             interaction_evidence_source: None,
+            warnings: vec![],
             composite_score: Some(0.9),
             evaluator_results: vec![],
         },
