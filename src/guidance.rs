@@ -16,6 +16,7 @@ const TOPICS: &[GuidanceTopic] = &[
             "structured-output",
             "typed-errors",
             "agent-instructions",
+            "mcp-server-design",
             "test-usage",
             "scenario-authoring",
         ],
@@ -27,6 +28,7 @@ Use this as the first page when authoring or evaluating a tool for LLM agents.
 - `structured-output`: expose JSON for state, search, status, and export.
 - `typed-errors`: make failures recoverable with stable codes, retryability, and next actions.
 - `agent-instructions`: put the happy path, constraints, and recovery table in AGENTS.md or CLAUDE.md.
+- `mcp-server-design`: if the tool is an MCP server, design tools, descriptions, and errors for agents.
 - `test-usage`: give agents realistic goals and measure whether they infer the tool's role and use it well.
 - `scenario-authoring`: evaluate outcomes, then use interaction metrics to improve tool ergonomics.
 
@@ -212,7 +214,12 @@ Sources:
         slug: "capability-discovery",
         title: "Capability Discovery",
         summary: "Give agents a small map of available commands, schemas, and docs.",
-        related: &["help-output", "structured-output", "agent-instructions"],
+        related: &[
+            "help-output",
+            "structured-output",
+            "agent-instructions",
+            "mcp-tool-descriptions",
+        ],
         body: r#"# Capability Discovery
 
 Agents need a cheap way to discover what the tool can do before spending turns on trial and error.
@@ -350,6 +357,89 @@ Sources:
 "#,
     },
     GuidanceTopic {
+        slug: "mcp-server-design",
+        title: "MCP Server Design",
+        summary: "Design MCP tools around agent goals: few well-named tools, bounded output, predictable side effects.",
+        related: &[
+            "mcp-tool-descriptions",
+            "mcp-errors",
+            "cli-design",
+            "workflow-commands",
+        ],
+        body: r#"# MCP Server Design
+
+An MCP server is an agent-facing protocol like a CLI, but the agent calls typed tools over a transport instead of shelling out. The same instinct applies — design for goals, not for your internal API shape.
+
+Do:
+
+- Prefer a small set of task-level tools over one tool per internal endpoint. Granularity should match what a user is trying to accomplish, not your database schema.
+- Name each tool for the action and object in the agent's vocabulary. The name is often the first thing the agent sees when choosing a tool.
+- Return structured content and stable identifiers the agent can reuse in later calls.
+- Bound output. Context is scarce; support paging or limits rather than returning everything.
+- Make side effects predictable and annotate them (read-only vs destructive/idempotent) where the host supports hints, so agents and hosts can reason about safety.
+- Treat the input schema as a contract: mark required vs optional explicitly and validate.
+
+Choosing MCP vs a CLI is itself a design decision: MCP fits when the host manages connection and discovery and you want structured, typed calls; a CLI fits when shell composition and ad-hoc scripting matter. ax-eval can evaluate the same task against both to compare.
+
+Sources:
+- Model Context Protocol introduction: https://modelcontextprotocol.io/docs/getting-started/intro
+- Anthropic tool guidance: https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools
+- Agent Experience Design: https://axd.md/
+"#,
+    },
+    GuidanceTopic {
+        slug: "mcp-tool-descriptions",
+        title: "MCP Tool Descriptions",
+        summary: "Tool names, descriptions, and input schemas are the docs the agent reads — write them for agents.",
+        related: &[
+            "mcp-server-design",
+            "capability-discovery",
+            "agent-instructions",
+            "help-output",
+        ],
+        body: r#"# MCP Tool Descriptions
+
+For a CLI, help text and error messages document usage. For an MCP server, the tool names, descriptions, and JSON input schemas the server advertises through `tools/list` are that documentation — the host injects them into the agent's context automatically. That authored metadata is the usage surface under evaluation.
+
+Write it for the agent:
+
+- Make each description answer when the agent should reach for this tool, and when it should not.
+- Put preconditions, sequencing, and units in the description or schema, not in an external doc the agent may never read.
+- Use per-field schema descriptions and enums. Mark required vs optional explicitly and give an example where a format is non-obvious.
+- Use tool annotations or hints (read-only, destructive, idempotent) where the host supports them.
+- Use server-level instructions for cross-tool workflow that no single tool owns.
+
+If an agent needs an external document to learn that a tool exists or how to call it, that is a gap in the descriptions, not a reason to write more external docs.
+
+Sources:
+- Model Context Protocol introduction: https://modelcontextprotocol.io/docs/getting-started/intro
+- Agent Experience Design: https://axd.md/
+"#,
+    },
+    GuidanceTopic {
+        slug: "mcp-errors",
+        title: "MCP Tool Errors",
+        summary: "Signal failure with structured, actionable tool results — MCP has no exit codes.",
+        related: &["typed-errors", "mcp-server-design", "recovery-guidance"],
+        body: r#"# MCP Tool Errors
+
+MCP has no exit codes. A tool call fails either by returning a result flagged `isError` or by a protocol-level error, and the error content is what the agent reads to recover. Apply the same discipline as typed CLI errors.
+
+Do:
+
+- Flag failures with `isError`. Do not return a success result whose content merely describes an error in prose the agent must interpret.
+- Make error content actionable: what went wrong, which argument or precondition caused it, and the next action to take.
+- Distinguish user-recoverable errors (bad argument, missing precondition) from transient ones, and say which are worth retrying.
+- Keep error content bounded and free of secrets. Evaluation artifacts may capture it.
+
+ax-eval maps `isError` to a failed action in the interaction profile, so honest error signaling is what makes error-rate and retry metrics meaningful for an MCP target.
+
+Sources:
+- Model Context Protocol introduction: https://modelcontextprotocol.io/docs/getting-started/intro
+- Agent Experience Design: https://axd.md/
+"#,
+    },
+    GuidanceTopic {
         slug: "scenario-authoring",
         title: "Scenario Authoring",
         summary: "Write scenarios that evaluate outcomes and expose interaction quality.",
@@ -358,6 +448,7 @@ Sources:
             "structured-output",
             "state-inspection",
             "evaluation-signals",
+            "mcp-server-design",
         ],
         body: r#"# Scenario Authoring
 
@@ -371,6 +462,8 @@ Good scenarios:
 - Keep the task prompt goal-based and avoid embedding every command in the prompt.
 - Add rich fixture guidance when the experiment is about tool capability rather than documentation discovery.
 - Compare minimal vs rich guidance when the experiment is about documentation quality.
+
+For MCP targets, a few instincts change: fixture guidance describes when and why to use each tool rather than call syntax (the server advertises its own descriptions); declare only the tools the task needs; verify server state with a script gate and probe since it is usually not workspace files; and prefer read-only or fixture-backed servers, because ax-eval cannot undo writes a remote server makes outside the fixture. See docs/scenarios.md, "Authoring MCP scenarios".
 
 Use gates for catastrophic failures. Use the interaction profile to understand whether the tool's role, workflow, and state model were legible to the agent.
 
@@ -388,12 +481,13 @@ Sources:
             "evaluation-signals",
             "agent-instructions",
             "workflow-commands",
+            "mcp-tool-descriptions",
         ],
         body: r#"# Test Usage Quality
 
 Use ax-eval to evaluate how well an agent can discover, understand, and use a tool. The scenario should usually give the agent a goal, not a command recipe.
 
-Goal-based prompts stress whether the agent understands the role the tool serves. Prescriptive prompts mostly test whether the agent can follow mechanics already supplied by the test author.
+Goal-based prompts stress whether the agent understands the role the tool serves. Prescriptive prompts mostly test whether the agent can follow mechanics already supplied by the test author. This matters even more for an MCP target: naming the tools and call order in the prompt bypasses the very thing under test — whether the server's own tool descriptions lead the agent to the right tool.
 
 Prefer:
 
@@ -504,6 +598,9 @@ mod tests {
         assert!(output.contains("cli-design"));
         assert!(output.contains("test-usage"));
         assert!(output.contains("typed-errors"));
+        assert!(output.contains("mcp-server-design"));
+        assert!(output.contains("mcp-tool-descriptions"));
+        assert!(output.contains("mcp-errors"));
         assert!(output.contains("Related:"));
     }
 
