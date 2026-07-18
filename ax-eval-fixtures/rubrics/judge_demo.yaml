@@ -1,0 +1,23 @@
+# Rubric for LLM-as-judge evaluation. Referenced from a scenario via:
+#   evaluation:
+#     judge:
+#       enabled: true
+#       rubric: rubrics/example.yaml
+#       pass_threshold: 0.70
+# A rubric is optional; omit it to use the default criteria below.
+# Criterion weights must sum to 1.0 (within 0.01 tolerance).
+criteria:
+  - id: task_completion
+    weight: 0.50
+    description: "The agent achieved the user's requested goal and produced the intended outcome"
+  - id: tool_usage_correctness
+    weight: 0.30
+    description: "The agent used the CLI tool correctly with valid commands and arguments"
+  - id: efficiency
+    weight: 0.20
+    description: "The agent completed the task without unnecessary commands or avoidable confusion"
+
+# Output contract the judge response must satisfy.
+output:
+  format: json
+  require_fields: [scores, weighted_score, confidence, issues, highlights, rationale]
