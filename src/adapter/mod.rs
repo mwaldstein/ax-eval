@@ -55,14 +55,15 @@ impl ToolRunOutput {
     pub fn command_events(&self) -> Option<&[CommandEvent]> {
         match &self.interaction_input {
             InteractionInput::StructuredToolCalls(events) => Some(events),
-            InteractionInput::StructuredMcpToolCalls(_) => None,
-            InteractionInput::TranscriptRegex => None,
+            InteractionInput::StructuredMixedToolCalls { commands, .. } => Some(commands),
+            InteractionInput::StructuredMcpToolCalls(_) | InteractionInput::TranscriptRegex => None,
         }
     }
 
     pub fn mcp_tool_call_events(&self) -> Option<&[McpToolCallEvent]> {
         match &self.interaction_input {
             InteractionInput::StructuredMcpToolCalls(events) => Some(events),
+            InteractionInput::StructuredMixedToolCalls { mcp, .. } => Some(mcp),
             InteractionInput::StructuredToolCalls(_) | InteractionInput::TranscriptRegex => None,
         }
     }

@@ -1,5 +1,5 @@
 use crate::adapter::{TokenUsage, ToolRunOutput};
-use crate::interaction_evidence::{CommandEvent, InteractionInput};
+use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
 
 pub(crate) fn json_lines(output: &str) -> impl Iterator<Item = &str> {
     output
@@ -7,21 +7,31 @@ pub(crate) fn json_lines(output: &str) -> impl Iterator<Item = &str> {
         .filter(|line| line.trim_start().starts_with('{'))
 }
 
-pub(crate) fn output_from_parts(
+pub(crate) fn output_from_structured_parts(
     raw_output: String,
     exit_code: i32,
     transcript: String,
     cost_usd: Option<f64>,
     token_usage: Option<TokenUsage>,
     command_events: Vec<CommandEvent>,
+    mcp_events: Vec<McpToolCallEvent>,
 ) -> ToolRunOutput {
+    let interaction_input = match (command_events.is_empty(), mcp_events.is_empty()) {
+        (false, true) => InteractionInput::StructuredToolCalls(command_events),
+        (true, false) => InteractionInput::StructuredMcpToolCalls(mcp_events),
+        _ => InteractionInput::StructuredMixedToolCalls {
+            commands: command_events,
+            mcp: mcp_events,
+        },
+    };
+
     ToolRunOutput {
         transcript,
         raw_output: Some(raw_output),
         exit_code,
         cost_usd,
         token_usage,
-        interaction_input: InteractionInput::StructuredToolCalls(command_events),
+        interaction_input,
     }
 }
 
@@ -50,8 +60,8 @@ mod tests {
     }
 
     #[test]
-    fn output_from_parts_uses_structured_command_events() {
-        let output = output_from_parts(
+    fn output_from_structured_parts_uses_structured_command_events() {
+        let output = output_from_structured_parts(
             "raw".to_string(),
             0,
             "transcript".to_string(),
@@ -64,6 +74,7 @@ mod tests {
                 command: "notes list".to_string(),
                 exit_code: Some(0),
             }],
+            Vec::new(),
         );
 
         assert_eq!(output.raw_output.as_deref(), Some("raw"));
@@ -73,6 +84,37 @@ mod tests {
         assert_eq!(
             output.command_events().expect("command events")[0].command,
             "notes list"
+        );
+    }
+
+    #[test]
+    fn output_from_structured_parts_preserves_mixed_events() {
+        let output = output_from_structured_parts(
+            "raw".to_string(),
+            0,
+            "transcript".to_string(),
+            None,
+            None,
+            vec![CommandEvent {
+                command: "notes list".to_string(),
+                exit_code: Some(0),
+            }],
+            vec![McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({"text": "hello"}),
+                is_error: false,
+                duration_ms: None,
+            }],
+        );
+
+        assert_eq!(output.command_events().expect("command events").len(), 1);
+        assert_eq!(
+            output
+                .mcp_tool_call_events()
+                .expect("mcp tool call events")
+                .len(),
+            1
         );
     }
 

@@ -1,20 +1,22 @@
-use crate::adapter::normalize::{json_lines, output_from_parts};
+use crate::adapter::normalize::{json_lines, output_from_structured_parts};
 use crate::adapter::{TokenUsage, ToolRunOutput};
-use crate::interaction_evidence::CommandEvent;
+use crate::interaction_evidence::{CommandEvent, McpToolCallEvent};
 use serde_json::Value;
 
 pub(crate) fn normalize(output: String, exit_code: i32) -> ToolRunOutput {
     let token_usage = parse_token_usage(&output);
     let command_events = extract_command_events(&output);
+    let mcp_events = extract_mcp_events(&output);
     let transcript = synthesize_transcript(&output);
 
-    output_from_parts(
+    output_from_structured_parts(
         output,
         exit_code,
         transcript,
         None,
         token_usage,
         command_events,
+        mcp_events,
     )
 }
 
@@ -91,6 +93,56 @@ fn command_item(event: &Value) -> Option<&Value> {
     Some(item)
 }
 
+fn mcp_item(event: &Value) -> Option<&Value> {
+    if event.get("type") != Some(&Value::String("item.completed".to_string())) {
+        return None;
+    }
+    let item = event.get("item")?;
+    if item_type(item)? != "mcp_tool_call" {
+        return None;
+    }
+    Some(item)
+}
+
+fn mcp_item_is_error(item: &Value) -> bool {
+    if let Some(success) = item.get("success").and_then(Value::as_bool) {
+        return !success;
+    }
+    if let Some(is_error) = item.get("is_error").and_then(Value::as_bool) {
+        return is_error;
+    }
+
+    matches!(
+        item.get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("completed"),
+        "failed" | "error"
+    ) || item.get("error").is_some()
+}
+
+fn mcp_event_from_item(item: &Value) -> Option<McpToolCallEvent> {
+    // upstream shape: Codex emits completed MCP calls as item.completed events
+    // whose item type/item_type is "mcp_tool_call" with server, tool,
+    // arguments/input, and success/is_error/status/error fields.
+    let server = item.get("server").and_then(Value::as_str)?;
+    let tool = item.get("tool").and_then(Value::as_str)?;
+    if server.trim().is_empty() || tool.trim().is_empty() {
+        return None;
+    }
+
+    Some(McpToolCallEvent {
+        server: server.to_string(),
+        tool: tool.to_string(),
+        arguments: item
+            .get("arguments")
+            .or_else(|| item.get("input"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        is_error: mcp_item_is_error(item),
+        duration_ms: item.get("duration_ms").and_then(Value::as_u64),
+    })
+}
+
 fn extract_command_events(output: &str) -> Vec<CommandEvent> {
     let mut events = Vec::new();
 
@@ -109,6 +161,24 @@ fn extract_command_events(output: &str) -> Vec<CommandEvent> {
             command: command.to_string(),
             exit_code: Some(effective_exit_code(item)),
         });
+    }
+
+    events
+}
+
+fn extract_mcp_events(output: &str) -> Vec<McpToolCallEvent> {
+    let mut events = Vec::new();
+
+    for line in json_lines(output) {
+        let Ok(event) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let Some(item) = mcp_item(&event) else {
+            continue;
+        };
+        if let Some(event) = mcp_event_from_item(item) {
+            events.push(event);
+        }
     }
 
     events
@@ -249,10 +319,132 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_successful_codex_mcp_tool_call() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "mcp_tool_call",
+                "server": "todo",
+                "tool": "add",
+                "arguments": {"text": "hello"},
+                "success": true,
+                "duration_ms": 12
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        let mcp_events = output
+            .mcp_tool_call_events()
+            .expect("structured mcp tool call events");
+        assert_eq!(mcp_events.len(), 1);
+        assert_eq!(mcp_events[0].server, "todo");
+        assert_eq!(mcp_events[0].tool, "add");
+        assert_eq!(
+            mcp_events[0].arguments,
+            serde_json::json!({"text": "hello"})
+        );
+        assert!(!mcp_events[0].is_error);
+        assert_eq!(mcp_events[0].duration_ms, Some(12));
+    }
+
+    #[test]
+    fn normalizes_failed_codex_mcp_tool_call() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "mcp_tool_call",
+                "server": "todo",
+                "tool": "complete",
+                "arguments": {"id": 99},
+                "status": "failed",
+                "error": "missing id"
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        let mcp_events = output
+            .mcp_tool_call_events()
+            .expect("structured mcp tool call events");
+        assert_eq!(mcp_events[0].tool, "complete");
+        assert!(mcp_events[0].is_error);
+    }
+
+    #[test]
+    fn normalizes_mixed_codex_bash_and_mcp_events() {
+        let jsonl_output = format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "type": "item.completed",
+                "item": {
+                    "id": "i1",
+                    "type": "command_execution",
+                    "command": "bash -lc 'notes list'",
+                    "aggregated_output": "[]",
+                    "exit_code": 0,
+                    "status": "completed"
+                }
+            }),
+            serde_json::json!({
+                "type": "item.completed",
+                "item": {
+                    "id": "i2",
+                    "type": "mcp_tool_call",
+                    "server": "todo",
+                    "tool": "add",
+                    "arguments": {"text": "hello"},
+                    "success": true
+                }
+            })
+        );
+
+        let output = normalize(jsonl_output, 0);
+        assert_eq!(
+            output.command_events().expect("structured command events")[0].command,
+            "bash -lc 'notes list'"
+        );
+        assert_eq!(
+            output
+                .mcp_tool_call_events()
+                .expect("structured mcp tool call events")[0]
+                .tool,
+            "add"
+        );
+    }
+
+    #[test]
+    fn ignores_non_mcp_codex_item_type() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "tool_use",
+                "server": "todo",
+                "tool": "add"
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        assert!(output.mcp_tool_call_events().unwrap().is_empty());
+    }
+
+    #[test]
     fn handles_plain_text_without_panicking() {
         let output = normalize("just plain text".to_string(), 0);
 
         assert!(output.token_usage.is_none());
         assert!(output.transcript.is_empty());
+    }
+
+    #[test]
+    fn handles_malformed_codex_json_without_panicking() {
+        let output = normalize("{\"type\":\"item.completed\"\nnot json".to_string(), 0);
+
+        assert!(output.command_events().unwrap().is_empty());
+        assert!(output.mcp_tool_call_events().unwrap().is_empty());
     }
 }

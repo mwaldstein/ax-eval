@@ -38,16 +38,43 @@ artifacts:
 
 - Transcript text for human review and fallback analysis.
 - Command events for interaction metrics.
+- MCP tool-call events for MCP target interaction metrics.
 - Token usage, if available.
 - Cost, if available.
 - Exit status.
 
 Adapters that can expose structured tool calls must return structured command
-events and set `supports_structured_tool_calls()` to `true` on their
-`ToolAdapter` implementation. For normal completed runs, those events must
-include at least one usable target-tool command. Evaluation fails when a
+events and/or structured MCP tool-call events and set
+`supports_structured_tool_calls()` to `true` on their `ToolAdapter`
+implementation. For normal completed runs, those events must include at least
+one usable target-tool action for the scenario target: a command event for CLI
+targets or an MCP tool-call event for MCP targets. Evaluation fails when a
 structured-capable adapter falls back to transcript regex evidence or returns no
 usable target-tool events.
+
+When a host transcript contains both shell commands and MCP calls, the adapter
+must preserve both event streams in the canonical interaction input. The
+interaction profile consumes the stream matching the scenario target kind.
+
+## MCP Normalization Shapes
+
+MCP parsing remains adapter-local. Keep each assumed upstream shape documented
+beside a small extraction helper in `normalize.rs` and covered by synthetic
+fixtures.
+
+- `opencode`: MCP invocations are `tool_use` events whose `part.type` is
+  `"tool"`, `part.tool` is `"mcp"`, and `part.state.input` carries `server`,
+  `tool`, and `arguments`/`input` JSON. Error state is read from
+  `part.state.status`, `part.state.error`, or `part.state.metadata` error
+  fields.
+- `claude-code`: stream-json MCP invocations are `tool_use` blocks whose
+  `name` is `mcp__<server>__<tool>`. The `tool_use.input` object is the
+  arguments JSON. The matching `tool_result.tool_use_id` block provides
+  `is_error`.
+- `codex`: MCP invocations are completed items whose `item.type` or
+  `item.item_type` is `"mcp_tool_call"`. The item carries `server`, `tool`,
+  `arguments`/`input`, and success or error fields such as `success`,
+  `is_error`, `status`, or `error`.
 
 Transcript regex analysis is only fallback evidence for adapters that cannot
 provide structured tool calls. See `docs/adr/0002-prefer-structured-interaction-evidence.md`.

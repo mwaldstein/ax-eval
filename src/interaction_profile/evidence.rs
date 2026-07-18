@@ -21,7 +21,13 @@ pub(crate) struct InteractionEvidenceInput<'a> {
 enum RawInteractionEvidence {
     StructuredToolCalls(Vec<CommandEvent>),
     StructuredMcpToolCalls(Vec<McpToolCallEvent>),
-    TranscriptRegexFallback { transcript_path: PathBuf },
+    StructuredMixedToolCalls {
+        commands: Vec<CommandEvent>,
+        mcp: Vec<McpToolCallEvent>,
+    },
+    TranscriptRegexFallback {
+        transcript_path: PathBuf,
+    },
 }
 
 impl RawInteractionEvidence {
@@ -40,6 +46,13 @@ impl RawInteractionEvidence {
                 AdapterEvidenceCapability::StructuredToolCalls,
             ) => Ok(Self::StructuredMcpToolCalls(mcp_events.clone())),
             (
+                InteractionInput::StructuredMixedToolCalls { commands, mcp },
+                AdapterEvidenceCapability::StructuredToolCalls,
+            ) => Ok(Self::StructuredMixedToolCalls {
+                commands: commands.clone(),
+                mcp: mcp.clone(),
+            }),
+            (
                 InteractionInput::StructuredToolCalls(_),
                 AdapterEvidenceCapability::TranscriptRegexFallback,
             ) => {
@@ -53,6 +66,14 @@ impl RawInteractionEvidence {
             ) => {
                 anyhow::bail!(
                     "Adapter does not declare structured tool-call support but returned structured MCP tool calls"
+                )
+            }
+            (
+                InteractionInput::StructuredMixedToolCalls { .. },
+                AdapterEvidenceCapability::TranscriptRegexFallback,
+            ) => {
+                anyhow::bail!(
+                    "Adapter does not declare structured tool-call support but returned mixed structured tool calls"
                 )
             }
             (
@@ -98,6 +119,26 @@ pub(crate) fn extract_target_interaction_evidence(
                 source: InteractionEvidenceSource::StructuredMcpToolCalls,
             })
         }
+        RawInteractionEvidence::StructuredMixedToolCalls { commands, mcp } => match input.target {
+            crate::interaction_evidence::TargetSpec::Cli { .. } => {
+                Ok(ExtractedInteractionEvidence {
+                    target_actions: super::target::structured_target_actions(
+                        &commands,
+                        input.target,
+                    ),
+                    source: InteractionEvidenceSource::StructuredToolCalls,
+                })
+            }
+            crate::interaction_evidence::TargetSpec::Mcp { .. } => {
+                Ok(ExtractedInteractionEvidence {
+                    target_actions: super::target::structured_mcp_target_actions(
+                        &mcp,
+                        input.target,
+                    ),
+                    source: InteractionEvidenceSource::StructuredMcpToolCalls,
+                })
+            }
+        },
         RawInteractionEvidence::TranscriptRegexFallback { transcript_path } => {
             let content = std::fs::read_to_string(&transcript_path)
                 .with_context(|| "Failed to read transcript file for regex interaction profile")?;

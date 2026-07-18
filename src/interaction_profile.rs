@@ -88,7 +88,9 @@ pub(crate) fn reduce_target_actions(actions: &[TargetAction]) -> EfficiencyMetri
 pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<InteractionProfile> {
     let structured_evidence = matches!(
         input.interaction_input,
-        InteractionInput::StructuredToolCalls(_) | InteractionInput::StructuredMcpToolCalls(_)
+        InteractionInput::StructuredToolCalls(_)
+            | InteractionInput::StructuredMcpToolCalls(_)
+            | InteractionInput::StructuredMixedToolCalls { .. }
     );
     let extracted = extract_target_interaction_evidence(InteractionEvidenceInput {
         target: input.target,
@@ -430,6 +432,41 @@ mod tests {
         assert_eq!(profile.metrics.error_count, 1);
         assert_eq!(profile.metrics.retry_count, 1);
         assert_eq!(profile.metrics.first_try_success_rate, 1.0 / 3.0);
+    }
+
+    #[test]
+    fn mixed_structured_evidence_uses_mcp_events_for_mcp_targets() {
+        let target = TargetInteractionSpec::mcp("todo", vec!["add".to_string()]);
+        let interaction_input = InteractionInput::StructuredMixedToolCalls {
+            commands: vec![CommandEvent {
+                command: "notes list".to_string(),
+                exit_code: Some(0),
+            }],
+            mcp: vec![McpToolCallEvent {
+                server: "todo".to_string(),
+                tool: "add".to_string(),
+                arguments: serde_json::json!({"text": "hello"}),
+                is_error: false,
+                duration_ms: None,
+            }],
+        };
+
+        let profile = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &interaction_input,
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
+        })
+        .expect("profile");
+
+        assert_eq!(
+            profile.evidence_source,
+            InteractionEvidenceSource::StructuredMcpToolCalls
+        );
+        assert_eq!(profile.metrics.total_commands, 1);
+        assert_eq!(profile.metrics.unique_commands, 1);
     }
 
     #[test]

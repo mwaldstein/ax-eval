@@ -19,6 +19,10 @@ pub struct McpToolCallEvent {
 pub enum InteractionInput {
     StructuredToolCalls(Vec<CommandEvent>),
     StructuredMcpToolCalls(Vec<McpToolCallEvent>),
+    StructuredMixedToolCalls {
+        commands: Vec<CommandEvent>,
+        mcp: Vec<McpToolCallEvent>,
+    },
     TranscriptRegex,
 }
 

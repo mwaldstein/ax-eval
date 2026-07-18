@@ -1,21 +1,23 @@
-use crate::adapter::normalize::{json_lines, output_from_parts};
+use crate::adapter::normalize::{json_lines, output_from_structured_parts};
 use crate::adapter::{TokenUsage, ToolRunOutput};
-use crate::interaction_evidence::CommandEvent;
+use crate::interaction_evidence::{CommandEvent, McpToolCallEvent};
 use serde_json::Value;
 
 pub(crate) fn normalize(output: String, exit_code: i32) -> ToolRunOutput {
     let token_usage = parse_token_usage(&output);
     let cost = parse_cost(&output);
     let command_events = extract_command_events(&output);
+    let mcp_events = extract_mcp_events(&output);
     let transcript = synthesize_transcript(&output);
 
-    output_from_parts(
+    output_from_structured_parts(
         output,
         exit_code,
         transcript,
         cost,
         token_usage,
         command_events,
+        mcp_events,
     )
 }
 
@@ -116,10 +118,80 @@ fn command_event(event: &Value) -> Option<CommandEvent> {
     })
 }
 
+fn mcp_is_error(part: &Value) -> bool {
+    let state = part.get("state");
+    let metadata = state.and_then(|s| s.get("metadata"));
+    let status = state
+        .and_then(|s| s.get("status"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+
+    matches!(status, "error" | "failed")
+        || state.and_then(|s| s.get("error")).is_some()
+        || metadata
+            .and_then(|m| m.get("is_error").or_else(|| m.get("isError")))
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        || metadata.and_then(|m| m.get("error")).is_some()
+}
+
+fn mcp_arguments(input: &Value) -> Value {
+    input
+        .get("arguments")
+        .or_else(|| input.get("args"))
+        .or_else(|| input.get("input"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+fn mcp_event(event: &Value) -> Option<McpToolCallEvent> {
+    let part = event.get("part")?;
+    if part.get("type").and_then(Value::as_str)? != "tool" {
+        return None;
+    }
+
+    // upstream shape: opencode emits MCP invocations as tool_use events whose
+    // part.tool is "mcp" and whose state.input carries server, tool, and
+    // arguments/input JSON; state/metadata carries status or error fields.
+    if part.get("tool").and_then(Value::as_str)? != "mcp" {
+        return None;
+    }
+
+    let input = part.get("state").and_then(|s| s.get("input"))?;
+    let server = input
+        .get("server")
+        .or_else(|| input.get("server_name"))
+        .and_then(Value::as_str)?;
+    let tool = input
+        .get("tool")
+        .or_else(|| input.get("tool_name"))
+        .or_else(|| input.get("name"))
+        .and_then(Value::as_str)?;
+
+    if server.trim().is_empty() || tool.trim().is_empty() {
+        return None;
+    }
+
+    Some(McpToolCallEvent {
+        server: server.to_string(),
+        tool: tool.to_string(),
+        arguments: mcp_arguments(input),
+        is_error: mcp_is_error(part),
+        duration_ms: None,
+    })
+}
+
 fn extract_command_events(output: &str) -> Vec<CommandEvent> {
     json_lines(output)
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
         .filter_map(|event| command_event(&event))
+        .collect()
+}
+
+fn extract_mcp_events(output: &str) -> Vec<McpToolCallEvent> {
+    json_lines(output)
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter_map(|event| mcp_event(&event))
         .collect()
 }
 
@@ -255,6 +327,35 @@ mod tests {
         })
     }
 
+    fn mcp_event(
+        n: u64,
+        server: &str,
+        tool: &str,
+        arguments: serde_json::Value,
+        status: &str,
+        is_error: bool,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "type": "tool_use",
+            "timestamp": 1000 * n + 250,
+            "sessionID": SESSION,
+            "part": {
+                "type": "tool",
+                "tool": "mcp",
+                "callID": format!("mcp_call_{n}"),
+                "state": {
+                    "status": status,
+                    "input": {"server": server, "tool": tool, "arguments": arguments},
+                    "output": if is_error { "tool failed" } else { "ok" },
+                    "metadata": {"is_error": is_error}
+                },
+                "id": format!("prt_mcp_{n}"),
+                "sessionID": SESSION,
+                "messageID": format!("msg_{n}")
+            }
+        })
+    }
+
     fn step_finish(
         n: u64,
         input: u64,
@@ -371,12 +472,115 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_successful_opencode_mcp_tool_call() {
+        let output = normalize(
+            ndjson(&[mcp_event(
+                1,
+                "todo",
+                "add",
+                serde_json::json!({"text": "hello"}),
+                "completed",
+                false,
+            )]),
+            0,
+        );
+
+        let mcp_events = output
+            .mcp_tool_call_events()
+            .expect("structured mcp tool call events");
+        assert_eq!(mcp_events.len(), 1);
+        assert_eq!(mcp_events[0].server, "todo");
+        assert_eq!(mcp_events[0].tool, "add");
+        assert_eq!(
+            mcp_events[0].arguments,
+            serde_json::json!({"text": "hello"})
+        );
+        assert!(!mcp_events[0].is_error);
+    }
+
+    #[test]
+    fn normalizes_failed_opencode_mcp_tool_call() {
+        let output = normalize(
+            ndjson(&[mcp_event(
+                1,
+                "todo",
+                "complete",
+                serde_json::json!({"id": 99}),
+                "failed",
+                true,
+            )]),
+            0,
+        );
+
+        let mcp_events = output
+            .mcp_tool_call_events()
+            .expect("structured mcp tool call events");
+        assert_eq!(mcp_events[0].tool, "complete");
+        assert!(mcp_events[0].is_error);
+    }
+
+    #[test]
+    fn normalizes_mixed_opencode_bash_and_mcp_events() {
+        let output = normalize(
+            ndjson(&[
+                bash_event(1, "./notes list", "[]", 0, "list notes"),
+                mcp_event(
+                    2,
+                    "todo",
+                    "add",
+                    serde_json::json!({"text": "hello"}),
+                    "completed",
+                    false,
+                ),
+            ]),
+            0,
+        );
+
+        assert_eq!(
+            output.command_events().expect("structured command events")[0].command,
+            "./notes list"
+        );
+        assert_eq!(
+            output
+                .mcp_tool_call_events()
+                .expect("structured mcp tool call events")[0]
+                .tool,
+            "add"
+        );
+    }
+
+    #[test]
+    fn does_not_treat_non_mcp_opencode_tool_as_mcp_event() {
+        let output = normalize(
+            ndjson(&[serde_json::json!({
+                "type": "tool_use",
+                "part": {
+                    "type": "tool",
+                    "tool": "read",
+                    "state": {"input": {"server": "todo", "tool": "add"}}
+                }
+            })]),
+            0,
+        );
+
+        assert!(output.mcp_tool_call_events().unwrap().is_empty());
+    }
+
+    #[test]
     fn handles_plain_text_without_panicking() {
         let output = normalize("just plain text".to_string(), 0);
 
         assert!(output.token_usage.is_none());
         assert!(output.cost_usd.is_none());
         assert!(output.transcript.is_empty());
+    }
+
+    #[test]
+    fn handles_malformed_opencode_json_without_panicking() {
+        let output = normalize("{\"type\":\"tool_use\"\nnot json".to_string(), 0);
+
+        assert!(output.command_events().unwrap().is_empty());
+        assert!(output.mcp_tool_call_events().unwrap().is_empty());
     }
 
     /// Regression test: a judge run emits only text (no bash commands). The
