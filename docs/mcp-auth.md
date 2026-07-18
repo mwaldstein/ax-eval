@@ -107,7 +107,9 @@ target:
 ```
 
 ```yaml
-# Rely on a token the operator established out of band via the host's own login
+# Pure-OAuth server: the operator runs the host's own login once, out of band
+# (e.g. `opencode mcp auth linear`); the host caches and refreshes the token.
+# ax-eval renders no credential. See "Choosing an Auth Mode".
 target:
   kind: mcp
   name: linear
@@ -137,6 +139,55 @@ Rules:
   instead`).
 - `bearer_env` and `headers` are mutually exclusive framings of the same static
   path; `bearer_env` is sugar for the common Bearer case.
+
+---
+
+## Choosing an Auth Mode
+
+The mode is determined by **what credential the server actually issues**, not by
+whether the server "uses OAuth" — most OAuth servers also issue static tokens,
+and that difference is what decides the mode.
+
+The critical distinction: **an OAuth access token is not an env-var value.** A
+static token (personal access token / API key) is a long-lived string you copy
+once from the service's web UI. An OAuth access token is short-lived (often ~1
+hour), obtained through an interactive browser redirect, and must be refreshed —
+so it cannot live statically in an env var. `bearer_env` is for the former only.
+
+| The server issues… | Mode | How the operator gets the credential |
+|---|---|---|
+| A personal access token / API key (most public servers offer this even when they also support OAuth) | `bearer_env` (or `headers` for non-Bearer schemes) | Create it once in the service's web UI (e.g. GitHub Settings → Developer settings → PAT; Linear API key; Notion integration token), then export it as the named env var. This is a manual settings step, **not** the OAuth redirect flow. |
+| OAuth only (no static token), on a local/dev runner | `host_session` | Run the host's own login once, out of band: `opencode mcp auth <name>`, `codex mcp login <name>`, or claude-code `/mcp`. The browser flow runs, the **host** caches and auto-refreshes the token, and ax-eval reuses it. The operator never handles a token string. |
+| OAuth only, on a headless CI runner | *(not cleanly supported)* | See the gap below. |
+
+Guidance:
+
+- **Reach for `bearer_env` first** when the target offers a PAT/API key — it is
+  fully reproducible and needs no browser. Check the service's developer/
+  integration settings; a static-token option is the common case (GitHub's
+  remote MCP, Linear, Notion, Sentry, and most others provide one).
+- **Use `host_session` for pure-OAuth servers.** ax-eval deliberately does not
+  run OAuth (ADR-0006); `host_session` delegates the whole flow — discovery,
+  consent, PKCE, refresh — to the harness, which is the OAuth client of record.
+- **Do not hand-extract an OAuth access token into `bearer_env`.** It is
+  technically possible (the token sits in the host's store) but wrong: it
+  expires with no refresh, so the run breaks mid-session or between runs.
+
+### The headless-CI gap
+
+Fully automated CI against a server that is **OAuth-only with no PAT option** is
+not cleanly supported today, and this is a direct, accepted consequence of
+making interactive per-run OAuth a non-goal (ADR-0006):
+
+- `bearer_env` needs a static token the server will not issue.
+- `host_session` needs a *prior interactive* login plus a persistent, refreshable
+  token store on the runner — and claude-code's localhost-only OAuth loopback
+  makes even the one-time login awkward on a headless box.
+
+In practice this rarely bites, because servers worth evaluating almost all offer
+PATs (Case 1). When it does bite, the operator must pre-seed the host's token
+store on the runner out of band; a future `mint-token` helper (Open Questions)
+could smooth this, but automating the browser flow itself remains out of scope.
 
 ---
 
