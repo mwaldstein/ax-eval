@@ -1,8 +1,10 @@
 //! Tests for judge module.
 
-use super::eval::build_judge_prompt;
+use super::eval::{build_judge_prompt, build_judge_prompt_for_target, JudgeTargetView};
 use super::rubric::load_rubric;
 use super::types::{Criterion, OutputFormat, Rubric};
+use crate::interaction_evidence::McpToolCallEvent;
+use crate::scenario::{McpTarget, McpTransport, TargetConfig};
 
 fn single_criterion_rubric() -> Rubric {
     Rubric {
@@ -25,6 +27,60 @@ fn test_build_judge_prompt_includes_tool_name() {
 
     assert!(prompt.contains("my-tool"));
     assert!(prompt.contains("how effectively an LLM agent used the CLI tool `my-tool`"));
+}
+
+#[test]
+fn test_build_judge_prompt_cli_wording_is_unchanged() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("my-tool", "Do the task", "/path/to/transcript.txt", &rubric);
+    let target_aware_prompt = build_judge_prompt_for_target(
+        &JudgeTargetView::from_target(&TargetConfig::cli_target("my-tool")),
+        "Do the task",
+        "/path/to/transcript.txt",
+        &rubric,
+        &[],
+    );
+
+    let expected = r#"You are evaluating how effectively an LLM agent used the CLI tool `my-tool`.
+
+Read the transcript at @/path/to/transcript.txt, then score the interaction against the criteria below.
+
+## Task the agent was given
+Do the task
+
+## Evaluation Criteria
+- test_criterion: Test description (weight: 1.00)
+
+## Scoring Guidelines
+- Score each criterion 0.0–1.0. 0.0 = complete failure, 0.5 = partial, 1.0 = excellent.
+- Compute `weighted_score` as the weighted average across all criteria.
+- `confidence` reflects how certain you are in your scores (0.0–1.0). Lower confidence if the transcript is ambiguous or incomplete.
+- `issues`: specific problems observed (e.g., "Retried `my-tool create` 3 times with same args").
+- `highlights`: specific good practices observed (e.g., "Used `my-tool search` to verify data before proceeding").
+- `rationale`: 2–4 sentence explanation of the overall assessment — why the scores are what they are, what the agent did well, and where it struggled.
+
+Return one valid JSON object with this exact structure:
+{
+  "scores": {
+    "criterion_id": <score_0_to_1>,
+    ...
+  },
+  "weighted_score": <weighted_average_0_to_1>,
+  "confidence": <confidence_0_to_1>,
+  "issues": ["issue1", "issue2", ...],
+  "highlights": ["good_practice1", "good_practice2", ...],
+  "rationale": "<2-4 sentence explanation of the overall assessment>"
+}
+
+Wrap only that JSON object in a single <judge_result> tag:
+<judge_result>
+{ ...the JSON object above... }
+</judge_result>
+
+Do not put prose, markdown, or code fences inside <judge_result>. If you need to say anything else, put it outside the tag."#;
+
+    assert_eq!(prompt, expected);
+    assert_eq!(target_aware_prompt, expected);
 }
 
 #[test]
@@ -100,6 +156,80 @@ fn test_build_judge_prompt_uses_tool_name_in_examples() {
 
     assert!(prompt.contains("`qipu create`"));
     assert!(prompt.contains("`qipu search`"));
+}
+
+#[test]
+fn test_build_judge_prompt_for_mcp_includes_target_summary_and_structured_arguments() {
+    let rubric = single_criterion_rubric();
+    let target = TargetConfig::Mcp(McpTarget {
+        name: "todo".to_string(),
+        transport: McpTransport::Stdio {
+            command: "todo-mcp".to_string(),
+            args: vec![],
+        },
+        tools: vec![
+            "add".to_string(),
+            "list".to_string(),
+            "complete".to_string(),
+        ],
+        env: None,
+        health_check: None,
+    });
+    let events = vec![McpToolCallEvent {
+        server: "todo".to_string(),
+        tool: "add".to_string(),
+        arguments: serde_json::json!({"text":"buy milk","priority":2}),
+        is_error: false,
+        duration_ms: Some(14),
+    }];
+
+    let prompt = build_judge_prompt_for_target(
+        &JudgeTargetView::from_target(&target),
+        "Create a todo",
+        "/tmp/transcript.txt",
+        &rubric,
+        &events,
+    );
+
+    assert!(prompt.contains("the MCP server `todo` exposing tools [add, list, complete]"));
+    assert!(prompt.contains("## Structured MCP tool-call excerpt"));
+    assert!(prompt.contains(r#"- add arguments={"priority":2,"text":"buy milk"} error=false"#));
+}
+
+#[test]
+fn test_build_judge_prompt_for_mcp_bounds_structured_excerpt() {
+    let rubric = single_criterion_rubric();
+    let target = TargetConfig::Mcp(McpTarget {
+        name: "todo".to_string(),
+        transport: McpTransport::Stdio {
+            command: "todo-mcp".to_string(),
+            args: vec![],
+        },
+        tools: vec!["add".to_string()],
+        env: None,
+        health_check: None,
+    });
+    let events = (0..52)
+        .map(|index| McpToolCallEvent {
+            server: "todo".to_string(),
+            tool: "add".to_string(),
+            arguments: serde_json::json!({ "index": index }),
+            is_error: index % 2 == 1,
+            duration_ms: None,
+        })
+        .collect::<Vec<_>>();
+
+    let prompt = build_judge_prompt_for_target(
+        &JudgeTargetView::from_target(&target),
+        "Create todos",
+        "/tmp/transcript.txt",
+        &rubric,
+        &events,
+    );
+
+    assert!(prompt.contains("First 50 of 52 captured MCP tool calls are shown (bound: 50):"));
+    assert!(prompt.contains(r#"- add arguments={"index":49} error=true"#));
+    assert!(!prompt.contains(r#"- add arguments={"index":50} error=false"#));
 }
 
 #[test]

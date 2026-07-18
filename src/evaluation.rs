@@ -124,6 +124,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         gate_status,
         input.judge_model,
         input.judge_tool,
+        input.interaction_input,
     )?;
     if let Some(score) = judge_result.score {
         debug!("judge score: {:.2}", score);

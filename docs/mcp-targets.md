@@ -330,7 +330,9 @@ bare name:
 - **MCP** — "the MCP server `{name}` exposing tools `[add, list, ...]`", and
   the evidence excerpt includes the structured `arguments` of each call rather
   than a flattened command string. This is where keeping `McpToolCallEvent`
-  structured pays off.
+  structured pays off. The excerpt is bounded to the first 50 captured MCP
+  calls so exploratory runs cannot produce unbounded judge prompts; the prompt
+  states the bound and total captured call count.
 
 The rubric format, `JudgeResponse` schema, and `pass_threshold` semantics are
 unchanged.

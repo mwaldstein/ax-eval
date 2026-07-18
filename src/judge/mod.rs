@@ -18,7 +18,7 @@ pub mod eval;
 pub mod rubric;
 pub mod types;
 
-pub use eval::build_judge_prompt;
+pub use eval::{build_judge_prompt_for_target, JudgeTargetView};
 pub use rubric::*;
 pub use types::*;
 

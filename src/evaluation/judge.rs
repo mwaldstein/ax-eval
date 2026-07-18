@@ -1,5 +1,6 @@
 use crate::adapter::{ToolAdapter, ToolRunOutput};
 use crate::evaluation::GateStatus;
+use crate::interaction_evidence::{InteractionInput, McpToolCallEvent};
 use crate::judge::{load_rubric, Criterion, JudgeResponse, OutputFormat, Rubric};
 use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
@@ -57,6 +58,7 @@ pub fn maybe_run_judge(
     gate_status: GateStatus,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
+    interaction_input: &InteractionInput,
 ) -> Result<JudgeEvaluationResult> {
     if let Some(judge_config) = &scenario.evaluation.judge {
         if judge_config.enabled {
@@ -78,6 +80,7 @@ pub fn maybe_run_judge(
                 scenario,
                 env_root,
                 scenario_path,
+                interaction_input,
             )?;
             let passed = execution.score.map(|s| s >= judge_config.pass_threshold);
             if let Some(s) = execution.score {
@@ -111,6 +114,7 @@ fn run_judge_evaluation(
     scenario: &Scenario,
     env_root: &Path,
     scenario_path: &Path,
+    interaction_input: &InteractionInput,
 ) -> Result<JudgeExecutionResult> {
     let tool = resolve_judge_tool(judge_config, judge_tool);
     debug!(
@@ -119,17 +123,26 @@ fn run_judge_evaluation(
     );
     let rubric = resolve_judge_rubric(judge_config, env_root, scenario_path)?;
     let transcript_path = env_root.join("transcript.raw.txt");
-    let prompt = crate::judge::build_judge_prompt(
-        scenario.target.display_name(),
+    let prompt = crate::judge::build_judge_prompt_for_target(
+        &crate::judge::JudgeTargetView::from_target(&scenario.target),
         &scenario.task.prompt,
         &transcript_path.display().to_string(),
         &rubric,
+        mcp_tool_call_events(interaction_input),
     );
 
     let mut adapter_registry = crate::adapter::registry::AdapterRegistry::new();
     let adapter = adapter_registry.resolve_checked(tool)?;
     let judge_scenario = judge_scenario(scenario, prompt);
     run_judge_evaluation_with_adapter(adapter.adapter(), judge_model, &judge_scenario, env_root)
+}
+
+fn mcp_tool_call_events(input: &InteractionInput) -> &[McpToolCallEvent] {
+    match input {
+        InteractionInput::StructuredMcpToolCalls(events) => events,
+        InteractionInput::StructuredMixedToolCalls { mcp, .. } => mcp,
+        InteractionInput::StructuredToolCalls(_) | InteractionInput::TranscriptRegex => &[],
+    }
 }
 
 fn run_judge_evaluation_with_adapter(
