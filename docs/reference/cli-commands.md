@@ -6,9 +6,9 @@ Run `scripts/generate-cli-reference.sh` to regenerate.
 ## ax-eval
 
 ```
-ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.
+ax-eval runs coding agents against reproducible scenarios — targeting a CLI tool or an MCP server — and writes evaluation profiles.
 
-Use it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.
+Use it to improve CLI help, MCP tool descriptions, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.
 
 Common commands:
   ax-eval scenarios
@@ -63,7 +63,7 @@ Run one scenario, all selected scenarios, or a configured tool/model matrix.
 
 Real agent execution is disabled unless AX_EVAL_ENABLED=1 is set, because real adapters may spend LLM API credits and execute agent-driven CLI commands. Use --dry-run without that environment variable to validate scenario loading, fixture setup, cache keys, and run planning without invoking an LLM agent.
 
-The harness does not execute the target binary — the LLM agent does. Ensure it is on PATH or in the fixture workspace so the agent can discover and use it naturally.
+The harness does not execute the target itself — the LLM agent does. For a CLI target, ensure the binary is on PATH or in the fixture workspace so the agent can discover it. For an MCP target, the harness provisions the server into the agent host's native MCP config before the run; the agent connects to it (see docs/mcp-targets.md).
 
 Rubric paths in `evaluation.judge.rubric` resolve in this order: relative to the scenario YAML, then the workspace (after fixture copy), then fixtures_path.
 

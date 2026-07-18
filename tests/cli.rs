@@ -70,7 +70,7 @@ fn test_cli_without_args_prints_guidance() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Use it to improve CLI help, docs, and AGENTS.md guidance",
+            "Use it to improve CLI help, MCP tool descriptions, docs, and AGENTS.md guidance",
         ))
         .stdout(predicate::str::contains("ax-eval template scenario"))
         .stdout(predicate::str::contains("AX_EVAL_ENABLED=1"));

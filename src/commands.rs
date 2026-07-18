@@ -352,7 +352,11 @@ target:
 
     MYTOOL_EXPORT: "${AX_EVAL_RESULTS_DIR}/mytool-export.json"
 
-# Alternative MCP target block for a stdio MCP server.
+# Alternative MCP target blocks (see docs/mcp-targets.md). `command_pattern` is
+# CLI-only; MCP targets declare a server `name`, a `transport`, and the `tools`
+# the agent is expected to use.
+#
+# stdio MCP server:
 # target:
 #   kind: mcp
 #   name: todo
@@ -362,6 +366,16 @@ target:
 #     args: ["--root", "${AX_EVAL_FIXTURE_DIR}"]
 #   tools: [add, list, complete, search]
 #   health_check: "./scripts/probe_todo.sh --health"
+#
+# remote (Streamable HTTP) MCP server:
+# target:
+#   kind: mcp
+#   name: search
+#   transport:
+#     type: http
+#     url: "https://mcp.example.com/mcp"
+#   tools: [query, index]
+
 interaction:
   target_commands: required
 

@@ -1,6 +1,6 @@
-ax-eval runs coding agents against reproducible CLI scenarios and writes evaluation profiles.
+ax-eval runs coding agents against reproducible scenarios — targeting a CLI tool or an MCP server — and writes evaluation profiles.
 
-Use it to improve CLI help, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.
+Use it to improve CLI help, MCP tool descriptions, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.
 
 Common commands:
   ax-eval scenarios
