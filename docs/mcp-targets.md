@@ -54,6 +54,12 @@ which explicitly defers MCP config provisioning as a non-goal.
   MCP *is* in scope (see Discovery for MCP below), but it is agent-mediated;
   the harness-side protocol client, and the declared-vs-understood delta
   report it enables, are follow-ups.
+- Authenticating to protected servers. This spec covers **unauthenticated**
+  http/stdio targets. Credentials for protected servers — static bearer/API-key
+  from the environment, or a host session established out of band — are
+  designed separately in [mcp-auth.md](mcp-auth.md)
+  ([ADR-0006](adr/0006-authenticated-mcp-targets.md)). ax-eval does not
+  implement OAuth; the harness is the OAuth client.
 
 ---
 
