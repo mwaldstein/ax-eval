@@ -9,7 +9,7 @@ pub mod registry;
 mod mock_test;
 
 use crate::interaction_evidence::{CommandEvent, InteractionInput};
-use crate::scenario::Scenario;
+use crate::scenario::{Scenario, TargetConfig};
 use crate::target_env::TargetEnvironment;
 use std::path::Path;
 
@@ -60,11 +60,50 @@ impl ToolRunOutput {
     }
 }
 
+pub struct TargetProvision {
+    cleanup: Option<Box<dyn FnOnce() -> anyhow::Result<()> + Send>>,
+}
+
+impl TargetProvision {
+    pub fn none() -> Self {
+        Self { cleanup: None }
+    }
+
+    pub fn with_cleanup(cleanup: impl FnOnce() -> anyhow::Result<()> + Send + 'static) -> Self {
+        Self {
+            cleanup: Some(Box::new(cleanup)),
+        }
+    }
+
+    pub fn cleanup(mut self) -> anyhow::Result<()> {
+        if let Some(cleanup) = self.cleanup.take() {
+            cleanup()?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Trait for tool adapters that execute LLM CLI tools.
 pub trait ToolAdapter: Send + Sync {
     /// Whether this adapter provides structured tool-call evidence for interaction profiles.
     fn supports_structured_tool_calls(&self) -> bool {
         false
+    }
+
+    /// Write agent-native config so the agent can discover target MCP servers.
+    fn provision_target(
+        &self,
+        target: &TargetConfig,
+        _workspace: &Path,
+    ) -> anyhow::Result<TargetProvision> {
+        match target {
+            TargetConfig::Cli(_) => Ok(TargetProvision::none()),
+            TargetConfig::Mcp(target) => anyhow::bail!(
+                "MCP target '{}' is not supported by this adapter",
+                target.name
+            ),
+        }
     }
 
     /// Check if tool is installed and authenticated.

@@ -33,12 +33,6 @@ impl<'a> ScenarioRunLifecycle<'a> {
     }
 
     pub fn run(self) -> anyhow::Result<ResultRecord> {
-        if self.request.scenario.target.is_mcp() {
-            anyhow::bail!(
-                "MCP targets are not runnable yet (Stage 2+); scenario parses and validates only"
-            );
-        }
-
         std::fs::create_dir_all(&self.plan.results_dir)?;
 
         let context = PreparedRunContext::new(

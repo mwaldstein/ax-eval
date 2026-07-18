@@ -44,7 +44,11 @@ impl TargetEnvironment {
     }
 }
 
-fn expand_target_env_value(value: &str, fixture_dir: &Path, results_dir: &Path) -> String {
+pub(crate) fn expand_target_env_value(
+    value: &str,
+    fixture_dir: &Path,
+    results_dir: &Path,
+) -> String {
     let fixture_dir = absolute_path(fixture_dir);
     let results_dir = absolute_path(results_dir);
 

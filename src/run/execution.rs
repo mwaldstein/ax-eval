@@ -112,13 +112,33 @@ pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResul
         "Running tool '{}' with model '{}'...",
         input.tool, input.model
     );
-    let run_output: ToolRunOutput = input.adapter.run(
+    let provision = input
+        .adapter
+        .provision_target(&input.scenario.target, &input.context.workspace.env.root)?;
+    let run_result = input.adapter.run(
         input.scenario,
         &input.context.workspace.env.root,
         Some(input.model),
         input.effective_timeout,
         &input.context.target_env,
-    )?;
+    );
+    let cleanup_result = provision.cleanup();
+    // A cleanup failure after a successful (paid) agent run must not discard
+    // the run's evidence; warn and continue so results are persisted.
+    let run_output: ToolRunOutput = match (run_result, cleanup_result) {
+        (Ok(run_output), Ok(())) => run_output,
+        (Err(run_error), Ok(())) => return Err(run_error),
+        (Ok(run_output), Err(cleanup_error)) => {
+            eprintln!(
+                "warning: target cleanup failed after a completed run; \
+                 host config may need manual restoration: {cleanup_error:#}"
+            );
+            run_output
+        }
+        (Err(run_error), Err(cleanup_error)) => {
+            return Err(run_error.context(format!("target cleanup also failed: {cleanup_error:#}")))
+        }
+    };
     let duration = start.elapsed();
     let exit_code = run_output.exit_code;
     let cost = run_output.cost_usd;
@@ -189,9 +209,14 @@ pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::{AdapterError, TargetProvision, ToolStatus};
     use crate::fixture::TestEnv;
     use crate::interaction_evidence::{CommandEvent, InteractionInput};
     use crate::scenario::{Evaluation, Scenario, ScriptEntry, ScriptsConfig, TargetConfig, Task};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
 
     fn scenario_with_scripts(scripts: Option<ScriptsConfig>) -> Scenario {
         Scenario {
@@ -215,6 +240,93 @@ mod tests {
             scripts,
             interaction: Default::default(),
         }
+    }
+
+    struct FailingProvisionedAdapter {
+        cleaned: Arc<AtomicBool>,
+    }
+
+    impl ToolAdapter for FailingProvisionedAdapter {
+        fn is_available(&self) -> Result<ToolStatus, AdapterError> {
+            Ok(ToolStatus {
+                available: true,
+                authenticated: true,
+            })
+        }
+
+        fn provision_target(
+            &self,
+            _target: &TargetConfig,
+            _workspace: &Path,
+        ) -> anyhow::Result<TargetProvision> {
+            let cleaned = Arc::clone(&self.cleaned);
+            Ok(TargetProvision::with_cleanup(move || {
+                cleaned.store(true, Ordering::SeqCst);
+                Ok(())
+            }))
+        }
+
+        fn run(
+            &self,
+            _scenario: &Scenario,
+            _cwd: &Path,
+            _model: Option<&str>,
+            _timeout_secs: u64,
+            _target_env: &TargetEnvironment,
+        ) -> anyhow::Result<ToolRunOutput> {
+            anyhow::bail!("agent run failed")
+        }
+    }
+
+    #[test]
+    fn run_attempt_cleans_up_when_adapter_run_fails() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        let results_dir = dir.path().join("results");
+        let artifacts = RunArtifacts::new(&results_dir, &env);
+        let writer = artifacts.writer().expect("writer");
+        let context = PreparedRunContext {
+            workspace: crate::run::setup::ScenarioWorkspace {
+                env,
+                scenario_yaml: "scenario yaml".to_string(),
+                prompt: "prompt".to_string(),
+            },
+            target_env: TargetEnvironment::default(),
+            artifacts: artifacts.clone(),
+        };
+        let prepared = PreparedScenarioRun {
+            artifacts,
+            writer,
+            setup_success: true,
+            setup_commands: vec![],
+        };
+        let scenario = scenario_with_scripts(None);
+        let cleaned = Arc::new(AtomicBool::new(false));
+        let adapter = FailingProvisionedAdapter {
+            cleaned: Arc::clone(&cleaned),
+        };
+
+        let result = run_attempt(RunAttemptInput {
+            adapter: &adapter,
+            scenario: &scenario,
+            scenario_path: Path::new("scenario.yaml"),
+            context: &context,
+            prepared: &prepared,
+            tool: "failing",
+            model: "model",
+            effective_timeout: 1,
+            no_judge: true,
+            judge_model: None,
+            judge_tool: None,
+        });
+
+        let error = match result {
+            Ok(_) => panic!("run should fail"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("agent run failed"));
+        assert!(cleaned.load(Ordering::SeqCst));
     }
 
     #[test]

@@ -30,6 +30,10 @@ inherited environment.
 - **Target tool state is uncontained.** The tool under test may read or write
   its own global config and caches outside the fixture, so the fixture does not
   fully determine target-tool state.
+- **Codex MCP provisioning touches global config.** MCP target runs for Codex
+  must write `~/.codex/config.toml` because Codex discovers MCP servers there,
+  not from a workspace-local file. ax-eval snapshots the prior file content and
+  restores it after the agent exits.
 - **Execution scope is the caller's.** Network access is unrestricted and the
   agent can run arbitrary commands with the caller's privileges.
 

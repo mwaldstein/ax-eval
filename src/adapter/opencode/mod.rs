@@ -1,9 +1,11 @@
 pub(crate) mod normalize;
 
-use super::{ToolAdapter, ToolRunOutput};
-use crate::scenario::Scenario;
+use super::{TargetProvision, ToolAdapter, ToolRunOutput};
+use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
+use crate::target_env::expand_target_env_value;
 use crate::target_env::TargetEnvironment;
+use serde_json::{Map, Value};
 use std::path::Path;
 
 pub struct OpenCodeAdapter;
@@ -25,6 +27,19 @@ impl ToolAdapter for OpenCodeAdapter {
                 e
             ))),
         }
+    }
+
+    fn provision_target(
+        &self,
+        target: &TargetConfig,
+        workspace: &Path,
+    ) -> anyhow::Result<TargetProvision> {
+        let Some(target) = target.mcp() else {
+            return Ok(TargetProvision::none());
+        };
+
+        provision_mcp_target(target, workspace)?;
+        Ok(TargetProvision::none())
     }
 
     fn run(
@@ -66,5 +81,237 @@ impl ToolAdapter for OpenCodeAdapter {
             runner.run_command_with_env("opencode", &arg_refs, cwd, timeout_secs, &env_vars)?;
 
         Ok(normalize::normalize(output, exit_code))
+    }
+}
+
+fn opencode_config_dir(workspace: &Path) -> std::path::PathBuf {
+    workspace
+        .canonicalize()
+        .unwrap_or_else(|_| workspace.to_path_buf())
+        .join(".opencode_config")
+}
+
+fn opencode_config_path(workspace: &Path) -> std::path::PathBuf {
+    opencode_config_dir(workspace).join("opencode.json")
+}
+
+fn results_dir_for_workspace(workspace: &Path) -> &Path {
+    workspace.parent().unwrap_or(workspace)
+}
+
+fn expanded_map(
+    values: &std::collections::HashMap<String, String>,
+    fixture_dir: &Path,
+    results_dir: &Path,
+) -> Map<String, Value> {
+    values
+        .iter()
+        .map(|(key, value)| {
+            (
+                key.clone(),
+                Value::String(expand_target_env_value(value, fixture_dir, results_dir)),
+            )
+        })
+        .collect()
+}
+
+fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<()> {
+    let config_path = opencode_config_path(workspace);
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut config = if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path)?;
+        serde_json::from_str::<Value>(&content)?
+    } else {
+        Value::Object(Map::new())
+    };
+
+    let object = config
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("opencode config must be a JSON object"))?;
+    let mcp = object
+        .entry("mcp")
+        .or_insert_with(|| Value::Object(Map::new()));
+    let mcp = mcp
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("opencode config field 'mcp' must be a JSON object"))?;
+
+    mcp.insert(
+        target.name.clone(),
+        render_mcp_target(target, workspace, results_dir_for_workspace(workspace)),
+    );
+
+    std::fs::write(config_path, serde_json::to_string_pretty(&config)? + "\n")?;
+    Ok(())
+}
+
+fn render_mcp_target(target: &McpTarget, fixture_dir: &Path, results_dir: &Path) -> Value {
+    match &target.transport {
+        McpTransport::Stdio { command, args } => {
+            let command = std::iter::once(command)
+                .chain(args.iter())
+                .map(|value| expand_target_env_value(value, fixture_dir, results_dir))
+                .map(Value::String)
+                .collect();
+            let mut entry = Map::new();
+            entry.insert("type".to_string(), Value::String("local".to_string()));
+            entry.insert("command".to_string(), Value::Array(command));
+            entry.insert("enabled".to_string(), Value::Bool(true));
+            if let Some(env) = &target.env {
+                entry.insert(
+                    "environment".to_string(),
+                    Value::Object(expanded_map(env, fixture_dir, results_dir)),
+                );
+            }
+            Value::Object(entry)
+        }
+        McpTransport::Http { url, headers } => {
+            let mut entry = Map::new();
+            entry.insert("type".to_string(), Value::String("remote".to_string()));
+            entry.insert(
+                "url".to_string(),
+                Value::String(expand_target_env_value(url, fixture_dir, results_dir)),
+            );
+            if let Some(headers) = headers {
+                entry.insert(
+                    "headers".to_string(),
+                    Value::Object(expanded_map(headers, fixture_dir, results_dir)),
+                );
+            }
+            entry.insert("enabled".to_string(), Value::Bool(true));
+            Value::Object(entry)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scenario::{McpTarget, McpTransport, TargetConfig};
+    use std::collections::HashMap;
+
+    fn stdio_target() -> TargetConfig {
+        TargetConfig::Mcp(McpTarget {
+            name: "todo".to_string(),
+            transport: McpTransport::Stdio {
+                command: "${AX_EVAL_FIXTURE_DIR}/todo-mcp-server".to_string(),
+                args: vec!["--root".to_string(), "${AX_EVAL_FIXTURE_DIR}".to_string()],
+            },
+            tools: vec!["add".to_string()],
+            env: Some(HashMap::from([(
+                "TODO_DB".to_string(),
+                "${AX_EVAL_RESULTS_DIR}/todo.db".to_string(),
+            )])),
+            health_check: None,
+        })
+    }
+
+    #[test]
+    fn provisions_stdio_mcp_config() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+
+        OpenCodeAdapter
+            .provision_target(&stdio_target(), &workspace)
+            .expect("provision");
+
+        let expected = format!(
+            r#"{{
+  "mcp": {{
+    "todo": {{
+      "command": [
+        "{fixture}/todo-mcp-server",
+        "--root",
+        "{fixture}"
+      ],
+      "enabled": true,
+      "environment": {{
+        "TODO_DB": "{results}/todo.db"
+      }},
+      "type": "local"
+    }}
+  }}
+}}
+"#,
+            fixture = workspace.to_string_lossy(),
+            results = workspace.parent().expect("results").to_string_lossy()
+        );
+
+        assert_eq!(
+            std::fs::read_to_string(opencode_config_path(&workspace)).expect("config"),
+            expected
+        );
+    }
+
+    #[test]
+    fn provisions_http_mcp_config_and_preserves_existing_keys() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        std::fs::create_dir_all(opencode_config_dir(&workspace)).expect("config dir");
+        std::fs::write(
+            opencode_config_path(&workspace),
+            r#"{
+  "theme": "system",
+  "mcp": {
+    "existing": {
+      "type": "remote",
+      "url": "https://existing.example/mcp",
+      "enabled": true
+    }
+  }
+}
+"#,
+        )
+        .expect("existing config");
+
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/${AX_EVAL_RESULTS_DIR}/mcp".to_string(),
+                headers: Some(HashMap::from([(
+                    "X-API-Key".to_string(),
+                    "token-${AX_EVAL_FIXTURE_DIR}".to_string(),
+                )])),
+            },
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        OpenCodeAdapter
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let expected = format!(
+            r#"{{
+  "mcp": {{
+    "existing": {{
+      "enabled": true,
+      "type": "remote",
+      "url": "https://existing.example/mcp"
+    }},
+    "search": {{
+      "enabled": true,
+      "headers": {{
+        "X-API-Key": "token-{fixture}"
+      }},
+      "type": "remote",
+      "url": "https://mcp.example.com/{results}/mcp"
+    }}
+  }},
+  "theme": "system"
+}}
+"#,
+            fixture = workspace.to_string_lossy(),
+            results = workspace.parent().expect("results").to_string_lossy()
+        );
+
+        assert_eq!(
+            std::fs::read_to_string(opencode_config_path(&workspace)).expect("config"),
+            expected
+        );
     }
 }

@@ -79,7 +79,7 @@ impl AdapterRegistry {
 pub fn create_adapter(tool: &str) -> Result<Box<dyn ToolAdapter>> {
     let adapter: Box<dyn ToolAdapter> = match tool {
         "claude" | "claude-code" => Box::new(ClaudeCodeAdapter),
-        "codex" => Box::new(CodexAdapter),
+        "codex" => Box::new(CodexAdapter::default()),
         "mock" => Box::new(MockAdapter),
         "opencode" => Box::new(OpenCodeAdapter),
         _ => anyhow::bail!("Unknown tool: {}", tool),
