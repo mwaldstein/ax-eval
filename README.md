@@ -32,8 +32,7 @@ Get an immediate, dimensional evaluation profile of the agent's execution:
     "score": 4,
     "rationale": "The agent correctly identified the right command but initially struggled with the syntax for the input file, eventually recovering after one retry."
   },
-  "gates_passed": 3,
-  "gates_total": 3
+  "gate_status": "passed"
 }
 ```
 
@@ -166,11 +165,11 @@ Each run appends a record to `ax-eval-results/results.jsonl` and generates a run
 ### Metrics Example
 ```json
 {
-  "gates_passed": 3,
-  "gates_total": 3,
+  "gate_status": "passed",
   "details": [
     {
       "gate_type": "file_exists",
+      "identifier": "file_exists(summary.md)",
       "passed": true,
       "message": "File exists: summary.md"
     }

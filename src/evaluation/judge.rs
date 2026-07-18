@@ -1,4 +1,5 @@
 use crate::adapter::{ToolAdapter, ToolRunOutput};
+use crate::evaluation::GateStatus;
 use crate::judge::{load_rubric, Criterion, JudgeResponse, OutputFormat, Rubric};
 use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
 use crate::target_env::TargetEnvironment;
@@ -53,8 +54,7 @@ pub fn maybe_run_judge(
     env_root: &Path,
     scenario_path: &Path,
     no_judge: bool,
-    gates_passed: usize,
-    gates_total: usize,
+    gate_status: GateStatus,
     judge_model: Option<&str>,
     judge_tool: Option<&str>,
 ) -> Result<JudgeEvaluationResult> {
@@ -65,12 +65,8 @@ pub fn maybe_run_judge(
                     judge_config.pass_threshold,
                 ));
             }
-            if gates_passed < gates_total {
-                debug!(
-                    "skipping judge: {}/{} gates failed",
-                    gates_total - gates_passed,
-                    gates_total,
-                );
+            if gate_status == GateStatus::Failed {
+                debug!("skipping judge: guardrail failed");
                 return Ok(JudgeEvaluationResult::skipped_with_threshold(
                     judge_config.pass_threshold,
                 ));

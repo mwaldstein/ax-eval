@@ -453,11 +453,11 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
 
 ```json
 {
-  "gates_passed": 4,
-  "gates_total": 4,
+  "gate_status": "passed",
   "details": [
     {
       "gate_type": "command_succeeds",
+      "identifier": "command_succeeds(my-tool list --format json)",
       "passed": true,
       "message": "Command succeeded: my-tool list --format json"
     },
@@ -532,7 +532,7 @@ ax-eval run --all --tags guidance-test --tier 1
 
 ### Comparing
 
-Compare `metrics.json` across variants. The primary signal is **interaction metrics** (Layer 1) and any configured qualitative judge results, not gate pass rate:
+Compare `metrics.json` across variants. The primary signal is **interaction metrics** (Layer 1) and any configured qualitative judge results, not guardrail arithmetic:
 
 | Metric | What it tells you |
 |--------|-------------------|
@@ -541,7 +541,7 @@ Compare `metrics.json` across variants. The primary signal is **interaction metr
 | **Help-seeking** | Lower with better docs. High help-seeking means the AGENTS.md lacks upfront information. |
 | **First-try success** | Higher with better docs. Measures how often the LLM gets commands right the first time. |
 | **Command count** | Lower with better docs (for the same outcome). Measures efficiency. |
-| **Gate pass rate** | Guardrail only. It should be similar across variants if the task is achievable. Differences here indicate the task itself may be too hard or too easy, not that one interaction was automatically better. |
+| **Gate outcome** | Guardrail only. It should be identical across variants if the task is achievable. Differences here indicate the task itself may be miscalibrated, not that one interaction was automatically better. |
 
 The `evaluation.md` reports are human-readable and can be compared side by side.
 

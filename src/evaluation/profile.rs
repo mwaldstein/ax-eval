@@ -36,10 +36,37 @@ impl fmt::Display for ScoreTier {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GateStatus {
+    NotConfigured,
+    Passed,
+    Failed,
+}
+
+impl GateStatus {
+    pub fn from_details(gate_count: usize, details: &[GateResult]) -> Self {
+        if gate_count == 0 {
+            Self::NotConfigured
+        } else if details.iter().any(|result| !result.passed) {
+            Self::Failed
+        } else {
+            Self::Passed
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotConfigured => "not_configured",
+            Self::Passed => "passed",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EvaluationMetrics {
-    pub gates_passed: usize,
-    pub gates_total: usize,
+    pub gate_status: GateStatus,
     pub details: Vec<GateResult>,
     pub judge_score: Option<f64>,
     pub judge_response: Option<JudgeResponse>,
@@ -58,8 +85,24 @@ pub struct EvaluationMetrics {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GateResult {
     pub gate_type: String,
+    #[serde(default)]
+    pub identifier: String,
     pub passed: bool,
     pub message: String,
+}
+
+pub fn failed_gate_identifiers(details: &[GateResult]) -> Vec<String> {
+    details
+        .iter()
+        .filter(|detail| !detail.passed)
+        .map(|detail| {
+            if detail.identifier.is_empty() {
+                detail.gate_type.clone()
+            } else {
+                detail.identifier.clone()
+            }
+        })
+        .collect()
 }
 
 /// Result from a custom evaluator script.

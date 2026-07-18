@@ -430,7 +430,7 @@ evaluation:
     })
     .expect("dry run");
 
-    assert_eq!(record.outcome, "Dry run");
+    assert_eq!(record.outcome, "dry run; not executed");
     assert!(results_db
         .load_all()
         .expect("load result records")
@@ -537,7 +537,7 @@ evaluation:
     )
     .expect("run with prechecked adapter");
 
-    assert_eq!(record.outcome, "Pass");
+    assert_eq!(record.outcome, "completed");
     assert_eq!(results_db.load_all().expect("load result records").len(), 1);
 }
 
@@ -635,6 +635,6 @@ evaluation:
     })
     .expect("run with failed setup");
 
-    assert_eq!(record.outcome, "Pass");
+    assert_eq!(record.outcome, "completed");
     assert_eq!(results_db.load_all().expect("load result records").len(), 1);
 }

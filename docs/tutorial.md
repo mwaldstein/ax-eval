@@ -266,8 +266,7 @@ Use this for programmatic comparison between runs. Key fields:
 
 ```json
 {
-  "gates_passed": 5,
-  "gates_total": 5,
+  "gate_status": "passed",
   "efficiency": {
     "total_commands": 6,
     "unique_commands": 5,

@@ -18,7 +18,7 @@
 
 **Judge** — An optional LLM-as-judge evaluation that scores the quality of an agent's tool usage against a rubric. Produces a weighted score, rationale, confidence, issues, and highlights. Encodes the tool author's intent about how the tool should be used.
 
-**Composite Score** — An optional single-number summary combining gate, judge, and interaction layer scores with explicit weights. Not reported by default; scenario authors must define weights.
+**Composite Score** — An optional single-number summary combining judge and interaction layer scores with explicit weights. Guardrails are never counted or weighted; a failed guardrail voids the composite. Not reported by default; scenario authors must define weights.
 
 **Discovery** — A top-level workflow (`ax-eval discover <target>`) that asks an agent to inspect a target executable, produce an understanding document, author five goal-oriented scenarios, run them, and summarize findings. Evaluates how self-describing a CLI is. See `docs/user-guide.md` for usage.
 

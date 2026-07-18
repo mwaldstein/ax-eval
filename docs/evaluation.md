@@ -334,12 +334,12 @@ for a copyable starting point and reference it via `evaluation.judge.rubric`.
 
 ### Recommendation: Report Layers Independently for Comparative Evaluation
 
-A single composite number obscures the dimensions that matter for comparative evaluation. If model A scores higher on gates but uses 3x more tokens than model B, collapsing that into one number loses the signal.
+A single composite number obscures the dimensions that matter for comparative evaluation. If model A has the same guardrail outcome as model B but uses 3x more tokens, collapsing that into one number loses the signal.
 
 The default behavior should be:
 
 1. **Report each layer independently.** The evaluation output shows interaction metrics, gate results, and judge score as separate dimensions — because they answer different questions and are compared independently.
-2. **Each layer can have a guardrail status.** Gates pass if all gates pass. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail). These statuses are filters and triage aids, not the primary evaluation output.
+2. **Guardrails have a status, not a score.** Gates are `not_configured`, `passed`, or `failed`; failures include the named guardrails that failed. Judge passes if `weighted_score >= pass_threshold`. Interaction metrics are informational (no automatic pass/fail). These statuses are filters and triage aids, not the primary evaluation output.
 3. **The evaluation profile is the primary output.** The set of scalar measurements across all layers is what enables comparisons across models, harnesses, and documentation variants.
 4. **Run status** is a triage label derived from execution completion, guardrails, and judge threshold state. It is not the evaluation conclusion.
 
@@ -350,12 +350,11 @@ If a scenario author wants a single number, they can define weights explicitly:
 ```yaml
 evaluation:
   composite:
-    judge_weight: 0.55
-    gate_weight: 0.35
-    interaction_weight: 0.10
+    judge_weight: 0.85
+    interaction_weight: 0.15
 ```
 
-When `composite` is present, a composite score is computed using the configured weights (defaults: judge 0.55, gate 0.35, interaction 0.10). When absent, no composite score is reported.
+When `composite` is present, a composite score is computed from judge and interaction signals only. The default active weights are judge 0.55 and interaction 0.10, renormalized to sum to 1.0. If the judge is absent, the composite is renormalized to interaction only. If any guardrail fails, the composite is voided and omitted. When `composite` is absent, no composite score is reported.
 
 ### Run Status
 
@@ -366,7 +365,7 @@ what needs attention:
 
 - `completed; judge threshold met`
 - `completed; judge not run`
-- `guardrail attention: N/M gates`
+- `guardrail failed: file_exists(summary.md), file_contains(summary.md)`
 - `judge threshold attention`
 - `agent did not complete`
 - `dry run; not executed`
@@ -379,8 +378,7 @@ not the evaluation conclusion.
 
 ```rust
 pub struct EvaluationMetrics {
-    pub gates_passed: usize,
-    pub gates_total: usize,
+    pub gate_status: GateStatus,
     pub details: Vec<GateResult>,
     pub judge_score: Option<f64>,
     pub judge_response: Option<JudgeResponse>,
@@ -393,16 +391,17 @@ pub struct EvaluationMetrics {
 }
 
 pub struct RunStatus {
-    pub gates_passed: bool,
+    pub gate_status: GateStatus,
+    pub failed_guardrails: Vec<String>,
     pub judge_passed: Option<bool>,
     pub judge_score: Option<f64>,
 }
 ```
 
-`RunStatus` is derived from `EvaluationMetrics` and projects a pass/fail outcome
-via `outcome(gates_passed, gates_total)`: `"Pass"`, `"Fail: N/M gates passed"`,
-or `"Fail: judge score X.XX below threshold"`. Human-facing status labels are
-produced separately by `format_run_status` in the output module.
+`RunStatus` is derived from `EvaluationMetrics` and projects a triage outcome:
+`"completed"`, `"guardrail failed: <names>"`, or
+`"judge score X.XX below threshold"`. Human-facing status labels are produced
+separately by `format_run_status` in the output module.
 
 Human review is a workflow concern layered on top of the profile, not a
 replacement for the dimensional evaluation data.
@@ -434,7 +433,7 @@ AGENTS.md v1: error_rate=0.35, first_try_success=0.55, tokens_out=4200, cost=$0.
 AGENTS.md v2: error_rate=0.10, first_try_success=0.82, tokens_out=1800, cost=$0.03
 ```
 
-This tells the author that v2 of their documentation is substantially better — the LLM used fewer tokens, made fewer errors, and cost less. The gate pass rate should be similar or identical across variants — the difference is in *how* the LLM got there, not *whether* it arrived.
+This tells the author that v2 of their documentation is substantially better — the LLM used fewer tokens, made fewer errors, and cost less. The gate outcome should be identical across variants; if it differs, the task is miscalibrated, not one variant automatically better.
 
 ### Qualitative Assessment of Guidance
 

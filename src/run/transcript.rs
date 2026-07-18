@@ -52,8 +52,7 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
                     output: t.output,
                 }
             }),
-            gates_passed: metrics.gates_passed,
-            gates_total: metrics.gates_total,
+            gate_status: metrics.gate_status,
             judge_score: metrics.judge_score,
             judge_passed: metrics.judge_passed,
             judge_threshold: metrics.judge_threshold,
@@ -63,6 +62,7 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
                 .iter()
                 .map(|d| crate::transcript::types::GateDetail {
                     gate_type: d.gate_type.clone(),
+                    identifier: d.identifier.clone(),
                     passed: d.passed,
                     message: d.message.clone(),
                 })
@@ -135,8 +135,17 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
         judge_score: metrics.judge_score,
         judge_passed: metrics.judge_passed,
         judge_threshold: metrics.judge_threshold,
-        gates_passed: metrics.gates_passed,
-        gates_total: metrics.gates_total,
+        gate_status: metrics.gate_status,
+        gate_details: metrics
+            .details
+            .iter()
+            .map(|d| crate::transcript::types::GateDetail {
+                gate_type: d.gate_type.clone(),
+                identifier: d.identifier.clone(),
+                passed: d.passed,
+                message: d.message.clone(),
+            })
+            .collect(),
         duration_secs: input.evaluation.duration.as_secs_f64(),
         cost_usd: input.evaluation.cost,
         composite_score: metrics.composite_score,

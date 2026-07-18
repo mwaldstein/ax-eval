@@ -1,3 +1,4 @@
+use crate::evaluation::GateStatus;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,8 +28,7 @@ pub struct RunReport {
     pub duration_secs: f64,
     pub cost_usd: Option<f64>,
     pub token_usage: Option<TokenUsage>,
-    pub gates_passed: usize,
-    pub gates_total: usize,
+    pub gate_status: GateStatus,
     pub judge_score: Option<f64>,
     pub judge_passed: Option<bool>,
     pub judge_threshold: Option<f64>,
@@ -42,6 +42,7 @@ pub struct RunReport {
 #[derive(Debug)]
 pub(crate) struct GateDetail {
     pub gate_type: String,
+    pub identifier: String,
     pub passed: bool,
     pub message: String,
 }
@@ -73,8 +74,8 @@ pub struct EvaluationReport {
     pub judge_score: Option<f64>,
     pub judge_passed: Option<bool>,
     pub judge_threshold: Option<f64>,
-    pub gates_passed: usize,
-    pub gates_total: usize,
+    pub gate_status: GateStatus,
+    pub gate_details: Vec<GateDetail>,
     pub duration_secs: f64,
     pub cost_usd: Option<f64>,
     pub composite_score: Option<f64>,

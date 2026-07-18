@@ -2,7 +2,6 @@ use crate::adapter::TokenUsage as AdapterTokenUsage;
 use crate::evaluation::EvaluationMetrics;
 use crate::output;
 use crate::results::{Cache, CacheKey, EvaluationMetricsRecord, ResultRecord, ResultsDB};
-use crate::run::status::RunStatus;
 use crate::scenario::Scenario;
 use std::path::Path;
 
@@ -22,7 +21,7 @@ pub struct ResultRecordInput<'a> {
 impl ResultRecordInput<'_> {
     pub fn build(self) -> ResultRecord {
         let metrics = self.metrics;
-        let gates_passed = RunStatus::from_metrics(&metrics).legacy_gates_passed();
+        let gate_status = metrics.gate_status.as_str().to_string();
         let judge_score = metrics.judge_score;
         let metrics_record = EvaluationMetricsRecord::from(metrics);
 
@@ -36,7 +35,7 @@ impl ResultRecordInput<'_> {
             duration_secs: self.duration_secs,
             cost_usd: self.cost,
             token_usage: self.token_usage.map(Into::into),
-            gates_passed,
+            gate_status,
             metrics: metrics_record,
             judge_score,
             outcome: self.outcome,
@@ -66,10 +65,9 @@ pub fn handle_dry_run(
         duration_secs: 0.0,
         cost_usd: None,
         token_usage: None,
-        gates_passed: true,
+        gate_status: "not_configured".to_string(),
         metrics: EvaluationMetricsRecord {
-            gates_passed: 0,
-            gates_total: 0,
+            gate_status: "not_configured".to_string(),
             details: vec![],
             judge_passed: None,
             judge_threshold: None,
@@ -88,7 +86,7 @@ pub fn handle_dry_run(
             evaluator_results: vec![],
         },
         judge_score: None,
-        outcome: "Dry run".to_string(),
+        outcome: "dry run; not executed".to_string(),
         transcript_path: String::new(),
         cache_key: Some(cache_key.as_string()),
     };
@@ -164,8 +162,7 @@ mod tests {
 
     fn metrics() -> EvaluationMetrics {
         EvaluationMetrics {
-            gates_passed: 1,
-            gates_total: 1,
+            gate_status: crate::evaluation::GateStatus::Passed,
             details: vec![],
             judge_score: Some(0.9),
             judge_response: None,
@@ -198,7 +195,7 @@ mod tests {
             model: "model",
             cache_key: &cache_key,
             metrics: metrics(),
-            outcome: "Pass".to_string(),
+            outcome: "completed".to_string(),
             duration_secs: 1.25,
             cost: None,
             token_usage: None,
@@ -210,9 +207,9 @@ mod tests {
         assert_eq!(record.tool, "mock");
         assert_eq!(record.model, "model");
         assert_eq!(record.duration_secs, 1.25);
-        assert_eq!(record.outcome, "Pass");
+        assert_eq!(record.outcome, "completed");
         assert_eq!(record.transcript_path, "artifacts");
         assert_eq!(record.cache_key, Some(cache_key.as_string()));
-        assert!(record.gates_passed);
+        assert_eq!(record.gate_status, "passed");
     }
 }

@@ -1,8 +1,9 @@
-use crate::evaluation::EvaluationMetrics;
+use crate::evaluation::{failed_gate_identifiers, EvaluationMetrics, GateStatus};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RunStatus {
-    pub gates_passed: bool,
+    pub gate_status: GateStatus,
+    pub failed_guardrails: Vec<String>,
     pub judge_passed: Option<bool>,
     pub judge_score: Option<f64>,
 }
@@ -10,32 +11,29 @@ pub struct RunStatus {
 impl RunStatus {
     pub fn from_metrics(metrics: &EvaluationMetrics) -> Self {
         Self {
-            gates_passed: metrics.gates_passed >= metrics.gates_total,
+            gate_status: metrics.gate_status,
+            failed_guardrails: failed_gate_identifiers(&metrics.details),
             judge_passed: metrics.judge_passed,
             judge_score: metrics.judge_score,
         }
     }
 
-    pub fn legacy_gates_passed(self) -> bool {
-        self.gates_passed && self.judge_passed.unwrap_or(true)
-    }
-
-    pub fn outcome(self, gates_passed: usize, gates_total: usize) -> String {
-        if !self.gates_passed {
-            format!("Fail: {gates_passed}/{gates_total} gates passed")
+    pub fn outcome(&self) -> String {
+        if self.gate_status == GateStatus::Failed {
+            format!("guardrail failed: {}", self.failed_guardrails.join(", "))
         } else if let Some(false) = self.judge_passed {
             format!(
-                "Fail: judge score {:.2} below threshold",
+                "judge score {:.2} below threshold",
                 self.judge_score.unwrap_or(0.0)
             )
         } else {
-            "Pass".to_string()
+            "completed".to_string()
         }
     }
 }
 
 pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
-    RunStatus::from_metrics(metrics).outcome(metrics.gates_passed, metrics.gates_total)
+    RunStatus::from_metrics(metrics).outcome()
 }
 
 #[cfg(test)]
@@ -46,15 +44,14 @@ mod tests {
     use crate::transcript::EfficiencyMetrics;
 
     fn metrics(
-        gates_passed: usize,
-        gates_total: usize,
+        gate_status: GateStatus,
+        details: Vec<crate::evaluation::GateResult>,
         judge_passed: Option<bool>,
         judge_score: Option<f64>,
     ) -> EvaluationMetrics {
         EvaluationMetrics {
-            gates_passed,
-            gates_total,
-            details: vec![],
+            gate_status,
+            details,
             judge_score,
             judge_response: None,
             judge_passed,
@@ -77,34 +74,41 @@ mod tests {
 
     #[test]
     fn status_projects_gate_failure_outcome() {
-        let metrics = metrics(1, 2, None, None);
-
-        let status = RunStatus::from_metrics(&metrics);
-
-        assert_eq!(status.outcome(1, 2), "Fail: 1/2 gates passed");
-        assert!(!status.legacy_gates_passed());
-    }
-
-    #[test]
-    fn status_projects_judge_failure_outcome() {
-        let metrics = metrics(2, 2, Some(false), Some(0.42));
+        let metrics = metrics(
+            GateStatus::Failed,
+            vec![crate::evaluation::GateResult {
+                gate_type: "FileExists".to_string(),
+                identifier: "file_exists(summary.md)".to_string(),
+                passed: false,
+                message: "missing".to_string(),
+            }],
+            None,
+            None,
+        );
 
         let status = RunStatus::from_metrics(&metrics);
 
         assert_eq!(
-            status.outcome(2, 2),
-            "Fail: judge score 0.42 below threshold"
+            status.outcome(),
+            "guardrail failed: file_exists(summary.md)"
         );
-        assert!(!status.legacy_gates_passed());
+    }
+
+    #[test]
+    fn status_projects_judge_failure_outcome() {
+        let metrics = metrics(GateStatus::Passed, vec![], Some(false), Some(0.42));
+
+        let status = RunStatus::from_metrics(&metrics);
+
+        assert_eq!(status.outcome(), "judge score 0.42 below threshold");
     }
 
     #[test]
     fn status_projects_pass_outcome() {
-        let metrics = metrics(2, 2, Some(true), Some(0.9));
+        let metrics = metrics(GateStatus::Passed, vec![], Some(true), Some(0.9));
 
         let status = RunStatus::from_metrics(&metrics);
 
-        assert_eq!(status.outcome(2, 2), "Pass");
-        assert!(status.legacy_gates_passed());
+        assert_eq!(status.outcome(), "completed");
     }
 }

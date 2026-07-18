@@ -41,6 +41,5 @@ evaluation:
     pass_threshold: 0.60
 
   composite:
-    judge_weight: 0.4
-    gate_weight: 0.4
-    interaction_weight: 0.2
+    judge_weight: 0.67
+    interaction_weight: 0.33

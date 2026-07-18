@@ -1,3 +1,4 @@
+use crate::evaluation::GateStatus;
 use crate::interaction_evidence::CommandEvent;
 use crate::transcript::redact::redact_sensitive;
 use crate::transcript::types::{EvaluationReport, RunMetadata, RunReport};
@@ -8,18 +9,15 @@ use std::path::PathBuf;
 
 fn report_status(
     completed: bool,
-    gates_passed: usize,
-    gates_total: usize,
+    gate_status: GateStatus,
+    failed_guardrails: &[String],
     judge_passed: Option<bool>,
 ) -> String {
     if !completed {
         return "agent did not complete".to_string();
     }
-    if gates_passed < gates_total {
-        return format!(
-            "guardrail attention: {}/{} gates",
-            gates_passed, gates_total
-        );
+    if gate_status == GateStatus::Failed {
+        return format!("guardrail failed: {}", failed_guardrails.join(", "));
     }
     if let Some(false) = judge_passed {
         return "judge threshold attention".to_string();
@@ -28,6 +26,31 @@ fn report_status(
         return "completed; judge not run".to_string();
     }
     "completed; judge threshold met".to_string()
+}
+
+fn failed_guardrails(details: &[crate::transcript::types::GateDetail]) -> Vec<String> {
+    details
+        .iter()
+        .filter(|detail| !detail.passed)
+        .map(|detail| {
+            if detail.identifier.is_empty() {
+                detail.gate_type.clone()
+            } else {
+                detail.identifier.clone()
+            }
+        })
+        .collect()
+}
+
+fn guardrails_text(
+    gate_status: GateStatus,
+    details: &[crate::transcript::types::GateDetail],
+) -> String {
+    match gate_status {
+        GateStatus::NotConfigured => "not configured".to_string(),
+        GateStatus::Passed => "passed".to_string(),
+        GateStatus::Failed => format!("failed: {}", failed_guardrails(details).join(", ")),
+    }
 }
 
 fn judge_score_text(score: Option<f64>, threshold: Option<f64>) -> String {
@@ -230,8 +253,8 @@ impl TranscriptWriter {
             "- **Run Status**: {}\n\n",
             report_status(
                 report.efficiency.completed,
-                report.gates_passed,
-                report.gates_total,
+                report.gate_status,
+                &failed_guardrails(&report.gate_details),
                 report.judge_passed
             )
         ));
@@ -252,8 +275,8 @@ impl TranscriptWriter {
             "- **Run Status**: {}\n",
             report_status(
                 report.efficiency.completed,
-                report.gates_passed,
-                report.gates_total,
+                report.gate_status,
+                &failed_guardrails(&report.gate_details),
                 report.judge_passed
             )
         ));
@@ -263,8 +286,8 @@ impl TranscriptWriter {
     fn write_guardrails_section(&self, report: &RunReport, content: &mut String) {
         content.push_str("## Guardrails\n\n");
         content.push_str(&format!(
-            "- **Gates Passed**: {}/{}\n\n",
-            report.gates_passed, report.gates_total
+            "- **Guardrails**: {}\n\n",
+            guardrails_text(report.gate_status, &report.gate_details)
         ));
         if !report.gate_details.is_empty() {
             content.push_str("### Gate Details\n\n");
@@ -337,8 +360,8 @@ impl TranscriptWriter {
             "- **Run Status**: {}\n\n",
             report_status(
                 evaluation.efficiency.completed,
-                evaluation.gates_passed,
-                evaluation.gates_total,
+                evaluation.gate_status,
+                &failed_guardrails(&evaluation.gate_details),
                 evaluation.judge_passed
             )
         ));
@@ -437,8 +460,8 @@ impl TranscriptWriter {
 
         content.push_str("## Guardrails\n\n");
         content.push_str(&format!(
-            "- **Gates Passed**: {}/{}\n\n",
-            evaluation.gates_passed, evaluation.gates_total
+            "- **Guardrails**: {}\n\n",
+            guardrails_text(evaluation.gate_status, &evaluation.gate_details)
         ));
 
         content.push_str("## Human Review\n\n");

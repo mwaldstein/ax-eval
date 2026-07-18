@@ -10,7 +10,7 @@ use crate::script_runner::ScriptRunner;
 use crate::target_env::TargetEnvironment;
 use std::path::Path;
 
-use super::GateResult;
+use super::{GateResult, GateStatus};
 
 /// Context passed to gate evaluators, containing environment and optional script runner.
 pub struct GateEvaluationContext<'a> {
@@ -71,23 +71,25 @@ impl GateEvaluator for Gate {
     }
 }
 
-pub fn evaluate_gates(gates: &[Gate], ctx: &GateEvaluationContext<'_>) -> (Vec<GateResult>, usize) {
+pub fn evaluate_gates(
+    gates: &[Gate],
+    ctx: &GateEvaluationContext<'_>,
+) -> (Vec<GateResult>, GateStatus) {
     let mut details = Vec::new();
-    let mut gates_passed = 0;
 
     for gate in gates {
         let result = gate.evaluate(ctx);
 
         if result.passed {
             println!("Gate {} passed: {}", result.gate_type, result.message);
-            gates_passed += 1;
         } else {
             println!("Gate {} FAILED: {}", result.gate_type, result.message);
         }
         details.push(result);
     }
 
-    (details, gates_passed)
+    let status = GateStatus::from_details(gates.len(), &details);
+    (details, status)
 }
 
 #[cfg(test)]
@@ -118,6 +120,83 @@ mod tests {
 
     fn empty_target_env() -> TargetEnvironment {
         TargetEnvironment::default()
+    }
+
+    fn interaction_profile() -> crate::interaction_profile::InteractionProfile {
+        crate::interaction_profile::InteractionProfile {
+            metrics: crate::transcript::EfficiencyMetrics {
+                total_commands: 0,
+                unique_commands: 0,
+                error_count: 0,
+                retry_count: 0,
+                help_invocations: 0,
+                first_try_success_rate: 0.0,
+                iteration_ratio: 0.0,
+                completed: true,
+            },
+            evidence_source:
+                crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+        }
+    }
+
+    #[test]
+    fn evaluate_gates_derives_not_configured_for_empty_gate_list() {
+        let env = temp_env();
+        let target_env = empty_target_env();
+        let interaction_profile = interaction_profile();
+        let ctx = GateEvaluationContext {
+            env_root: env.path(),
+            target_env: &target_env,
+            script_runner: None,
+            interaction_profile: &interaction_profile,
+        };
+
+        let (details, status) = evaluate_gates(&[], &ctx);
+
+        assert!(details.is_empty());
+        assert_eq!(status, GateStatus::NotConfigured);
+    }
+
+    #[test]
+    fn evaluate_gates_derives_passed_when_all_gates_pass() {
+        let env = temp_env();
+        fs::write(env.path().join("summary.md"), "done").expect("write fixture");
+        let target_env = empty_target_env();
+        let interaction_profile = interaction_profile();
+        let ctx = GateEvaluationContext {
+            env_root: env.path(),
+            target_env: &target_env,
+            script_runner: None,
+            interaction_profile: &interaction_profile,
+        };
+        let gates = vec![Gate::FileExists {
+            path: "summary.md".to_string(),
+        }];
+
+        let (_, status) = evaluate_gates(&gates, &ctx);
+
+        assert_eq!(status, GateStatus::Passed);
+    }
+
+    #[test]
+    fn evaluate_gates_derives_failed_when_any_gate_fails() {
+        let env = temp_env();
+        let target_env = empty_target_env();
+        let interaction_profile = interaction_profile();
+        let ctx = GateEvaluationContext {
+            env_root: env.path(),
+            target_env: &target_env,
+            script_runner: None,
+            interaction_profile: &interaction_profile,
+        };
+        let gates = vec![Gate::FileExists {
+            path: "summary.md".to_string(),
+        }];
+
+        let (details, status) = evaluate_gates(&gates, &ctx);
+
+        assert_eq!(status, GateStatus::Failed);
+        assert_eq!(details[0].identifier, "file_exists(summary.md)");
     }
 
     #[test]

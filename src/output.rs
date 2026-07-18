@@ -25,10 +25,30 @@ fn format_judge(record: &ResultRecord) -> String {
 }
 
 fn format_guardrails(record: &ResultRecord) -> String {
-    format!(
-        "{}/{} gates",
-        record.metrics.gates_passed, record.metrics.gates_total
-    )
+    if record.metrics.gate_status == "failed" {
+        format!(
+            "guardrails failed: {}",
+            failed_guardrails(record).join(", ")
+        )
+    } else {
+        "guardrails ok".to_string()
+    }
+}
+
+fn failed_guardrails(record: &ResultRecord) -> Vec<String> {
+    record
+        .metrics
+        .details
+        .iter()
+        .filter(|detail| !detail.passed)
+        .map(|detail| {
+            if detail.identifier.is_empty() {
+                detail.gate_type.clone()
+            } else {
+                detail.identifier.clone()
+            }
+        })
+        .collect()
 }
 
 fn format_evaluators(evaluators: &[EvaluatorResultRecord]) -> String {
@@ -55,16 +75,16 @@ fn format_evaluators(evaluators: &[EvaluatorResultRecord]) -> String {
 }
 
 fn format_run_status(record: &ResultRecord) -> String {
-    if record.outcome.eq_ignore_ascii_case("dry run") {
+    if record.outcome.eq_ignore_ascii_case("dry run; not executed") {
         return "dry run; not executed".to_string();
     }
     if !record.metrics.efficiency.completed {
         return "agent did not complete".to_string();
     }
-    if record.metrics.gates_passed < record.metrics.gates_total {
+    if record.metrics.gate_status == "failed" {
         return format!(
-            "guardrail attention: {}/{} gates",
-            record.metrics.gates_passed, record.metrics.gates_total
+            "guardrails failed: {}",
+            failed_guardrails(record).join(", ")
         );
     }
     if let Some(false) = record.metrics.judge_passed {

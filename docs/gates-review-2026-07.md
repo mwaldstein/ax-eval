@@ -16,7 +16,7 @@ The documentation is unusually explicit about what gates are supposed to be:
   they catch catastrophic failures … Gates are necessary but they are not the
   point. The point is the profile." (docs/evaluation.md)
 - "They are guardrails, not the primary evaluation signal." (CONTEXT.md)
-- "Gate pass rate is a sanity check, not the main signal."
+- "Gate outcome is a guardrail, not the main signal."
   (docs/guidance-testing.md)
 - "Keep gates minimal … verify the outcome, not the process."
   (docs/scenarios.md)
@@ -35,9 +35,9 @@ with six different semantics:
 |---|------|-------|-----------|
 | 1 | **Outcome assertion** (the intended job) | `evaluate_gates` (`src/evaluation.rs:111`) | Binary checks against post-run workspace state |
 | 2 | **Judge admission control** | `maybe_run_judge` (`src/evaluation/judge.rs:68`) | *Any* single gate failure suppresses the entire qualitative layer |
-| 3 | **Composite score component** | `compute_composite_score` (`src/eval_helpers.rs:16-20`) | `gates_passed / gates_total` as a scalar, weight 0.35 by default |
-| 4 | **Run verdict** | `RunStatus::outcome` (`src/run/status.rs:23-34`) | The literal string `"Fail: N/M gates passed"` vs `"Pass"` |
-| 5 | **DB roll-up flag** | `ResultRecordInput::build` (`src/run/records.rs:25`) | `results.jsonl`'s `gates_passed: bool` is actually `legacy_gates_passed()` = gates **AND** judge threshold |
+| 3 | **Composite score component** | `compute_composite_score` (`src/eval_helpers.rs:16-20`) | old gate-count fields as a scalar, weight 0.35 by default |
+| 4 | **Run verdict** | `RunStatus::outcome` (`src/run/status.rs:23-34`) | The literal string `"Fail: <count> gates passed"` vs `"Pass"` |
+| 5 | **DB roll-up flag** | `ResultRecordInput::build` (`src/run/records.rs:25`) | `results.jsonl`'s old gate roll-up boolean is actually gates **AND** judge threshold |
 | 6 | **Process/interaction assertion** | `no_transcript_errors` (`src/evaluation/gates/interaction.rs`) | A Layer-2 gate that reads Layer-1 evidence |
 
 Each role individually has a rationale. Together they mean the word "gate"
@@ -47,7 +47,7 @@ back to that.
 ## Confusion 1: guardrail vs. score input
 
 The doctrine says gates are binary guardrails. The composite score treats them
-as a *graded quantity*: `gates_passed / gates_total` at a default weight of
+as a *graded quantity*: old gate-count fields at a default weight of
 0.35 — more than triple the interaction layer's 0.10 (`src/eval_helpers.rs:11`).
 Two consequences:
 
@@ -108,22 +108,22 @@ The missing concept is **severity**. Two honest tiers would resolve it:
 ## Confusion 3: the verdict strings contradict the philosophy
 
 evaluation.md is emphatic that run status is "a triage label … not an absolute
-pass/fail verdict," and the human-facing labels (`guardrail attention: N/M
+pass/fail verdict," and the human-facing labels (`guardrail attention: <count>
 gates`) honor that. But `RunStatus::outcome` — the string persisted in every
-`results.jsonl` record — is literally `"Pass"` / `"Fail: N/M gates passed"`
+`results.jsonl` record — is literally `"Pass"` / `"Fail: <count> gates passed"`
 (`src/run/status.rs:23-34`). Whatever the docs say, the artifact users query
 and script against renders gates as the verdict. Anyone building dashboards on
-the DB will treat `outcome` and `gates_passed` as the result of the run,
+the DB will treat `outcome` and the old gate roll-up as the result of the run,
 reconstructing exactly the testing-tool mental model the project defines
 itself against.
 
-Compounding it, the DB field `gates_passed` does not mean gates passed: it is
-`gates && judge_threshold` (`src/run/records.rs:25`, `src/run/status.rs:19-21`).
-The method is honestly named `legacy_gates_passed`, but the serialized field
-keeps the misleading name forever. A judge-threshold miss shows up in the
+Compounding it, the DB's old gate roll-up field does not mean gates passed: it
+is `gates && judge_threshold` (`src/run/records.rs:25`,
+`src/run/status.rs:19-21`). The helper method was honestly named as legacy, but
+the serialized field kept the misleading name forever. A judge-threshold miss shows up in the
 database as a gate failure. This is a data-contract bug in the same sense as
 the audit's metric findings: the number is not what its name says. Dry runs
-additionally stamp `gates_passed: true` (`src/run/records.rs:69`; audit P2).
+additionally stamped a successful gate roll-up (`src/run/records.rs:69`; audit P2).
 
 Fix direction: persist the layers separately (`gate_status`, `judge_status`,
 `run_state`) and keep any combined verdict out of the record — or name it
@@ -218,16 +218,16 @@ file_contains(summary.md)` — which is simultaneously less metric-like and
 
 | Surface | Today | After removal |
 |---|---|---|
-| `metrics.json` (`EvaluationMetrics`, `src/evaluation/profile.rs:41-42`) | `gates_passed: usize`, `gates_total: usize` | `gate_status: not_configured \| passed \| failed` + existing `details` list |
+| `metrics.json` (`EvaluationMetrics`, `src/evaluation/profile.rs:41-42`) | old gate-count fields | `gate_status: not_configured \| passed \| failed` + existing `details` list |
 | `results.jsonl` (`EvaluationMetricsRecord`, `src/results/types/mod.rs:63-65`) | same counts | same status enum; failed gate names queryable from `details` |
-| `results.jsonl` roll-up (`ResultRecord.gates_passed: bool`, `src/results/types/mod.rs:42`) | gates AND judge conflated | delete; superseded by per-layer statuses (Confusion 3) |
-| Composite (`src/eval_helpers.rs:16-20`) | `gates_passed/gates_total` × 0.35 | no gate term. Composite = judge + interaction, renormalized; computed only when required gates pass. A failed guardrail voids the composite (absent), never scores it |
-| `CompositeConfig.gate_weight` (`src/scenario/types.rs:169-181`) | schema field, default 0.35 | remove field; reject with a migration hint in validation |
-| Outcome string (`src/run/status.rs:23-25`) | `"Fail: N/M gates passed"` | `"guardrail failed: <gate names>"` |
-| Status label (`src/transcript/writer.rs:18-21`, `src/output.rs:64-67`) | `guardrail attention: N/M gates` | `guardrail failed: <gate names>` |
-| `report.md` / `evaluation.md` (`src/transcript/writer.rs:266,440`) | `**Gates Passed**: N/M` | `**Guardrails**: passed` or the failure list |
-| CLI summary (`src/output.rs:29-30`) | `N/M gates` column | pass/fail marker; names on failure |
-| README metrics examples; scenarios.md "Gate pass rate" row; guidance-testing.md "gate pass rate is a sanity check" | rates and counts as vocabulary | strike the phrase "gate pass rate" from the project's vocabulary entirely; replace with "gate outcome should be *identical* across variants — if it differs, the task is miscalibrated, not one variant better" |
+| `results.jsonl` roll-up (`ResultRecord` old gate boolean, `src/results/types/mod.rs:42`) | gates AND judge conflated | delete; superseded by per-layer statuses (Confusion 3) |
+| Composite (`src/eval_helpers.rs:16-20`) | old gate fraction × 0.35 | no gate term. Composite = judge + interaction, renormalized; computed only when required gates pass. A failed guardrail voids the composite (absent), never scores it |
+| `CompositeConfig` old gate-weight field (`src/scenario/types.rs:169-181`) | schema field, default 0.35 | remove field; reject with a migration hint in validation |
+| Outcome string (`src/run/status.rs:23-25`) | `"Fail: <count> gates passed"` | `"guardrail failed: <gate names>"` |
+| Status label (`src/transcript/writer.rs:18-21`, `src/output.rs:64-67`) | `guardrail attention: <count> gates` | `guardrail failed: <gate names>` |
+| `report.md` / `evaluation.md` (`src/transcript/writer.rs:266,440`) | old gates-passed count line | `**Guardrails**: passed` or the failure list |
+| CLI summary (`src/output.rs:29-30`) | count-style gate column | pass/fail marker; names on failure |
+| README metrics examples; scenarios.md gate outcome row; guidance-testing.md guardrail wording | rates and counts as vocabulary | strike rate/count wording from the project's vocabulary entirely; replace with "gate outcome should be *identical* across variants — if it differs, the task is miscalibrated, not one variant better" |
 
 The per-gate `details` list (`GateResult { gate_type, passed, message }`) is
 **kept unchanged** — it is diagnostic evidence, exactly what the doctrine
@@ -246,7 +246,7 @@ wants gates to produce.
   fixes. It should land in the same CHANGELOG-flagged release as the
   metric-integrity cluster, and it makes the `schema_version` field (audit
   P2, strategic review rec 5) a prerequisite rather than a nicety.
-- **One count had a legitimate job**: `gates_total` distinguished "no gates
+- **One count had a legitimate job**: the old total distinguished "no gates
   defined" from "gates defined and passed." The three-valued status enum
   (`not_configured | passed | failed`) preserves that distinction without a
   number.
@@ -281,8 +281,8 @@ CHANGELOG-flagged release, alongside the audit's metric-integrity cluster
 (they touch the same functions).
 
 1. **Remove gate statistics** (see Resolution section): delete the
-   `gates_passed`/`gates_total` counts, the composite gate term and
-   `gate_weight` field, and every `N/M` rendering. Replace with a three-valued
+   gate counts, the composite gate term and old gate-weight field, and every
+   count-style rendering. Replace with a three-valued
    `gate_status`, the named-failure list, and a judge+interaction composite
    renormalized and computed only when required gates pass. This resolves
    Confusion 1 at the root and most of Confusion 3's surface.
@@ -292,7 +292,7 @@ CHANGELOG-flagged release, alongside the audit's metric-integrity cluster
    review. Informational checks are likewise reported as named facts, never
    counted.
 3. **Make persisted records layer-faithful**: delete the conflated DB
-   `gates_passed` boolean in favor of per-layer statuses; stop persisting
+   old gate boolean in favor of per-layer statuses; stop persisting
    `"Pass"/"Fail"` strings that the docs disavow; give dry runs a distinct
    status (audit P2). Ship 1–3 together behind a `schema_version` bump.
 4. **Relocate `no_transcript_errors`** to the `interaction:` block as a policy

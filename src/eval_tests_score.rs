@@ -14,9 +14,10 @@ fn test_compute_composite_score_with_judge() {
         completed: true,
     };
 
-    let composite = compute_composite_score(Some(0.9), 3, 3, &efficiency, None);
+    let composite = compute_composite_score(Some(0.9), GateStatus::Passed, &efficiency, None)
+        .expect("composite");
 
-    let expected = (0.55 * 0.9) + (0.35 * 1.0) + (0.10 * 0.8);
+    let expected = (0.55 / 0.65 * 0.9) + (0.10 / 0.65 * 0.8);
     assert!((composite - expected).abs() < 0.001);
 }
 
@@ -33,10 +34,10 @@ fn test_compute_composite_score_without_judge() {
         completed: true,
     };
 
-    let composite = compute_composite_score(None, 3, 3, &efficiency, None);
+    let composite =
+        compute_composite_score(None, GateStatus::Passed, &efficiency, None).expect("composite");
 
-    let expected = (0.55 * 0.0) + (0.35 * 1.0) + (0.10 * 0.8);
-    assert!((composite - expected).abs() < 0.001);
+    assert!((composite - 0.8).abs() < 0.001);
 }
 
 #[test]
@@ -52,7 +53,8 @@ fn test_compute_composite_score_empty_store() {
         completed: false,
     };
 
-    let composite = compute_composite_score(None, 0, 0, &efficiency, None);
+    let composite = compute_composite_score(None, GateStatus::NotConfigured, &efficiency, None)
+        .expect("composite");
 
     assert_eq!(composite, 0.0);
 }
@@ -70,10 +72,29 @@ fn test_compute_composite_score_clamped() {
         completed: true,
     };
 
-    let composite = compute_composite_score(Some(1.5), 3, 3, &efficiency, None);
+    let composite = compute_composite_score(Some(1.5), GateStatus::Passed, &efficiency, None)
+        .expect("composite");
 
     assert!(composite <= 1.0);
     assert!(composite >= 0.0);
+}
+
+#[test]
+fn test_compute_composite_score_voided_by_gate_failure() {
+    let efficiency = crate::transcript::EfficiencyMetrics {
+        total_commands: 5,
+        unique_commands: 3,
+        error_count: 0,
+        retry_count: 1,
+        help_invocations: 0,
+        first_try_success_rate: 0.8,
+        iteration_ratio: 1.5,
+        completed: true,
+    };
+
+    let composite = compute_composite_score(Some(0.9), GateStatus::Failed, &efficiency, None);
+
+    assert_eq!(composite, None);
 }
 
 #[test]

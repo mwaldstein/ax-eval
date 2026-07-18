@@ -156,12 +156,12 @@ fn test_result_record_json_round_trip() {
             input: 1500,
             output: 800,
         }),
-        gates_passed: true,
+        gate_status: "passed".to_string(),
         metrics: EvaluationMetricsRecord {
-            gates_passed: 2,
-            gates_total: 2,
+            gate_status: "passed".to_string(),
             details: vec![GateResultRecord {
                 gate_type: "min_notes".to_string(),
+                identifier: "min_notes".to_string(),
                 passed: true,
                 message: "Passed".to_string(),
             }],
@@ -199,10 +199,10 @@ fn test_result_record_json_round_trip() {
     assert_eq!(deserialized.duration_secs, original.duration_secs);
     assert_eq!(deserialized.cost_usd, original.cost_usd);
     assert_eq!(deserialized.token_usage, original.token_usage);
-    assert_eq!(deserialized.gates_passed, original.gates_passed);
+    assert_eq!(deserialized.gate_status, original.gate_status);
     assert_eq!(
-        deserialized.metrics.gates_passed,
-        original.metrics.gates_passed
+        deserialized.metrics.gate_status,
+        original.metrics.gate_status
     );
     assert_eq!(
         deserialized.metrics.efficiency.total_commands,
@@ -226,10 +226,9 @@ fn test_result_record_json_skip_none_cache_key() {
         duration_secs: 45.5,
         cost_usd: Some(0.01),
         token_usage: None,
-        gates_passed: true,
+        gate_status: "passed".to_string(),
         metrics: EvaluationMetricsRecord {
-            gates_passed: 2,
-            gates_total: 2,
+            gate_status: "passed".to_string(),
             details: vec![],
             judge_passed: None,
             judge_threshold: None,
@@ -259,12 +258,57 @@ fn test_result_record_json_skip_none_cache_key() {
 }
 
 #[test]
+fn old_format_result_record_deserializes_with_unknown_gate_status() {
+    let json = r#"{
+        "id": "old-run-id",
+        "scenario_id": "old-scenario",
+        "scenario_hash": "hash123",
+        "tool": "opencode",
+        "model": "gpt-4o",
+        "timestamp": "2026-07-18T12:00:00Z",
+        "duration_secs": 12.0,
+        "cost_usd": null,
+        "token_usage": null,
+        "gates_passed": true,
+        "metrics": {
+            "gates_passed": 2,
+            "gates_total": 2,
+            "details": [],
+            "judge_passed": null,
+            "judge_threshold": null,
+            "efficiency": {
+                "total_commands": 1,
+                "unique_commands": 1,
+                "error_count": 0,
+                "retry_count": 0,
+                "help_invocations": 0,
+                "first_try_success_rate": 1.0,
+                "iteration_ratio": 1.0,
+                "completed": true
+            },
+            "interaction_evidence_source": null,
+            "composite_score": null,
+            "evaluator_results": []
+        },
+        "judge_score": null,
+        "outcome": "PASS",
+        "transcript_path": "transcript.raw.txt",
+        "cache_key": null
+    }"#;
+
+    let record: ResultRecord = serde_json::from_str(json).expect("old result row");
+
+    assert_eq!(record.gate_status, "unknown");
+    assert_eq!(record.metrics.gate_status, "unknown");
+}
+
+#[test]
 fn evaluation_metrics_record_preserves_full_evaluation_profile() {
     let metrics = crate::evaluation::EvaluationMetrics {
-        gates_passed: 1,
-        gates_total: 2,
+        gate_status: crate::evaluation::GateStatus::Failed,
         details: vec![crate::evaluation::GateResult {
             gate_type: "file_contains".to_string(),
+            identifier: "file_contains(summary.md)".to_string(),
             passed: false,
             message: "missing expected text".to_string(),
         }],
@@ -296,9 +340,9 @@ fn evaluation_metrics_record_preserves_full_evaluation_profile() {
 
     let record = EvaluationMetricsRecord::from(metrics);
 
-    assert_eq!(record.gates_passed, 1);
-    assert_eq!(record.gates_total, 2);
+    assert_eq!(record.gate_status, "failed");
     assert_eq!(record.details[0].gate_type, "file_contains");
+    assert_eq!(record.details[0].identifier, "file_contains(summary.md)");
     assert_eq!(record.details[0].message, "missing expected text");
     assert_eq!(record.judge_passed, Some(false));
     assert_eq!(record.judge_threshold, Some(0.7));

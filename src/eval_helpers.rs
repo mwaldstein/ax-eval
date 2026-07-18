@@ -1,29 +1,37 @@
-/// Computes a composite score from judge score, gates, and efficiency metrics.
+/// Computes a composite score from judge score and efficiency metrics.
 pub fn compute_composite_score(
     judge_score: Option<f64>,
-    gates_passed: usize,
-    gates_total: usize,
+    gate_status: crate::evaluation::GateStatus,
     efficiency: &crate::transcript::EfficiencyMetrics,
     weights: Option<&crate::scenario::CompositeConfig>,
-) -> f64 {
-    let (judge_weight, gates_weight, efficiency_weight) = match weights {
-        Some(w) => (w.judge_weight, w.gate_weight, w.interaction_weight),
-        None => (0.55, 0.35, 0.10), // Default weights
-    };
+) -> Option<f64> {
+    if gate_status == crate::evaluation::GateStatus::Failed {
+        return None;
+    }
 
-    let judge_component = judge_score.unwrap_or(0.0);
-
-    let gates_component = if gates_total > 0 {
-        gates_passed as f64 / gates_total as f64
-    } else {
-        0.0
+    let (judge_weight, efficiency_weight) = match weights {
+        Some(w) => (w.judge_weight, w.interaction_weight),
+        None => (0.55, 0.10),
     };
 
     let efficiency_component = efficiency.first_try_success_rate;
+    let components = if let Some(judge_component) = judge_score {
+        vec![
+            (judge_weight, judge_component),
+            (efficiency_weight, efficiency_component),
+        ]
+    } else {
+        vec![(efficiency_weight, efficiency_component)]
+    };
 
-    let composite = (judge_weight * judge_component)
-        + (gates_weight * gates_component)
-        + (efficiency_weight * efficiency_component);
+    let total_weight: f64 = components.iter().map(|(weight, _)| weight).sum();
+    if total_weight <= f64::EPSILON {
+        return None;
+    }
 
-    composite.clamp(0.0, 1.0)
+    let composite: f64 = components
+        .into_iter()
+        .map(|(weight, score)| (weight / total_weight) * score)
+        .sum();
+    Some(composite.clamp(0.0, 1.0))
 }

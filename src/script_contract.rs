@@ -6,6 +6,7 @@ use serde_json::Value;
 pub fn script_gate_runner_unavailable() -> GateResult {
     GateResult {
         gate_type: "Script".to_string(),
+        identifier: "script".to_string(),
         passed: false,
         message: "Script runner not available for script gate evaluation".to_string(),
     }
@@ -14,6 +15,7 @@ pub fn script_gate_runner_unavailable() -> GateResult {
 pub fn script_gate_execution_failed(command: &str, error: &anyhow::Error) -> GateResult {
     GateResult {
         gate_type: "Script".to_string(),
+        identifier: format!("script({command})"),
         passed: false,
         message: format!("Failed to execute script '{}': {}", command, error),
     }
@@ -23,6 +25,7 @@ pub fn interpret_script_gate_report(report: &ScriptRunReport, description: &str)
     if let ScriptRunStatus::TimedOut { timeout_secs } = report.status {
         return GateResult {
             gate_type: "Script".to_string(),
+            identifier: format!("script({})", report.command),
             passed: false,
             message: format!(
                 "Script '{}' timed out after {} seconds",
@@ -35,6 +38,7 @@ pub fn interpret_script_gate_report(report: &ScriptRunReport, description: &str)
     if let Ok(parsed) = serde_json::from_str::<ScriptGateOutput>(stdout) {
         return GateResult {
             gate_type: "Script".to_string(),
+            identifier: format!("script({})", report.command),
             passed: parsed.passed,
             message: parsed.message.unwrap_or_else(|| description.to_string()),
         };
@@ -43,6 +47,7 @@ pub fn interpret_script_gate_report(report: &ScriptRunReport, description: &str)
     let passed = report.succeeded();
     GateResult {
         gate_type: "Script".to_string(),
+        identifier: format!("script({})", report.command),
         passed,
         message: format!(
             "Script '{}' {} (exit code: {}, description: {})",

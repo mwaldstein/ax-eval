@@ -17,6 +17,7 @@ pub(super) fn eval_command_succeeds(
     if command.trim().is_empty() {
         return GateResult {
             gate_type: "CommandSucceeds".to_string(),
+            identifier: "command_succeeds(<empty>)".to_string(),
             passed: false,
             message: "Empty command".to_string(),
         };
@@ -29,12 +30,14 @@ pub(super) fn eval_command_succeeds(
             let succeeds = output.succeeded();
             GateResult {
                 gate_type: "CommandSucceeds".to_string(),
+                identifier: format!("command_succeeds({command})"),
                 passed: succeeds,
                 message: format!("Command '{}' succeeded: {}", command, succeeds),
             }
         }
         Err(e) => GateResult {
             gate_type: "CommandSucceeds".to_string(),
+            identifier: format!("command_succeeds({command})"),
             passed: false,
             message: format!("Failed to execute command '{}': {}", command, e),
         },
@@ -54,6 +57,7 @@ pub(super) fn eval_command_output_contains(
             let passed = output.succeeded() && output.stdout.contains(substring);
             GateResult {
                 gate_type: "CommandOutputContains".to_string(),
+                identifier: format!("command_output_contains({command})"),
                 passed,
                 message: format!(
                     "Command '{}' contains substring '{}': {}",
@@ -63,6 +67,7 @@ pub(super) fn eval_command_output_contains(
         }
         Err(e) => GateResult {
             gate_type: "CommandOutputContains".to_string(),
+            identifier: format!("command_output_contains({command})"),
             passed: false,
             message: format!("Failed to execute command '{}': {}", command, e),
         },
@@ -80,6 +85,7 @@ pub(super) fn eval_command_output_matches(
         Err(e) => {
             return GateResult {
                 gate_type: "CommandOutputMatches".to_string(),
+                identifier: format!("command_output_matches({command})"),
                 passed: false,
                 message: format!("Invalid regex pattern '{}': {}", pattern, e),
             }
@@ -93,6 +99,7 @@ pub(super) fn eval_command_output_matches(
             let passed = output.succeeded() && regex.is_match(&output.stdout);
             GateResult {
                 gate_type: "CommandOutputMatches".to_string(),
+                identifier: format!("command_output_matches({command})"),
                 passed,
                 message: format!(
                     "Command '{}' matches pattern '{}': {}",
@@ -102,6 +109,7 @@ pub(super) fn eval_command_output_matches(
         }
         Err(e) => GateResult {
             gate_type: "CommandOutputMatches".to_string(),
+            identifier: format!("command_output_matches({command})"),
             passed: false,
             message: format!("Failed to execute command '{}': {}", command, e),
         },
@@ -121,6 +129,7 @@ pub(super) fn eval_command_json_path(
                 let stderr = output.stderr.trim().to_string();
                 return GateResult {
                     gate_type: "CommandJsonPath".to_string(),
+                    identifier: format!("command_json_path({command})"),
                     passed: false,
                     message: format!(
                         "Command '{}' failed with exit code {}: {}",
@@ -134,6 +143,7 @@ pub(super) fn eval_command_json_path(
                 Err(e) => {
                     return GateResult {
                         gate_type: "CommandJsonPath".to_string(),
+                        identifier: format!("command_json_path({command})"),
                         passed: false,
                         message: format!("Command output is not valid JSON: {}", e),
                     };
@@ -145,6 +155,7 @@ pub(super) fn eval_command_json_path(
                 Err(JsonAssertionError::Path(e)) => {
                     return GateResult {
                         gate_type: "CommandJsonPath".to_string(),
+                        identifier: format!("command_json_path({command})"),
                         passed: false,
                         message: format!("Invalid JSON path '{}': {}", path, e),
                     };
@@ -152,6 +163,7 @@ pub(super) fn eval_command_json_path(
                 Err(JsonAssertionError::Assertion(e)) => {
                     return GateResult {
                         gate_type: "CommandJsonPath".to_string(),
+                        identifier: format!("command_json_path({command})"),
                         passed: false,
                         message: format!("Invalid assertion '{}': {}", assertion, e),
                     };
@@ -160,6 +172,7 @@ pub(super) fn eval_command_json_path(
 
             GateResult {
                 gate_type: "CommandJsonPath".to_string(),
+                identifier: format!("command_json_path({command})"),
                 passed: outcome.passed,
                 message: format!(
                     "Path '{}' with assertion '{}' => {} ({})",
@@ -169,6 +182,7 @@ pub(super) fn eval_command_json_path(
         }
         Err(e) => GateResult {
             gate_type: "CommandJsonPath".to_string(),
+            identifier: format!("command_json_path({command})"),
             passed: false,
             message: format!("Failed to execute command '{}': {}", command, e),
         },

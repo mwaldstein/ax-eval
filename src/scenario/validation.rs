@@ -26,6 +26,15 @@ pub fn validate_scenario_file(path: &Path) -> anyhow::Result<ValidationResult> {
         anyhow::anyhow!("{path}: {msg}", path = path.display())
     })?;
 
+    if let Some(ref composite) = scenario.evaluation.composite {
+        if composite.gate_weight.is_some() {
+            anyhow::bail!(
+                "{}: evaluation.composite.gate_weight is no longer supported. Gate statistics were removed; delete gate_weight and use only judge_weight and interaction_weight.",
+                path.display()
+            );
+        }
+    }
+
     let warnings = validate_scenario(&scenario);
 
     if let Some(ref judge) = scenario.evaluation.judge {
@@ -276,13 +285,13 @@ pub fn validate_scenario(scenario: &Scenario) -> Vec<ValidationWarning> {
     }
 
     if let Some(ref composite) = scenario.evaluation.composite {
-        let total = composite.judge_weight + composite.gate_weight + composite.interaction_weight;
+        let total = composite.judge_weight + composite.interaction_weight;
         if (total - 1.0).abs() > f64::EPSILON * 100.0 {
             warnings.push(ValidationWarning {
                 field: "evaluation.composite".to_string(),
                 message: format!(
-                    "composite weights sum to {total:.2}, expected 1.0 (judge={} gate={} interaction={})",
-                    composite.judge_weight, composite.gate_weight, composite.interaction_weight
+                    "composite weights sum to {total:.2}, expected 1.0 (judge={} interaction={})",
+                    composite.judge_weight, composite.interaction_weight
                 ),
             });
         }
@@ -501,7 +510,7 @@ evaluation:
     }
 
     #[test]
-    fn composite_weights_not_summing_to_one_warns() {
+    fn composite_active_weights_not_summing_to_one_warns() {
         let yaml = r#"
 name: test
 description: "Test"
@@ -516,7 +525,6 @@ evaluation:
       command: "true"
   composite:
     judge_weight: 0.5
-    gate_weight: 0.3
     interaction_weight: 0.1
 "#;
         let scenario: Scenario = yaml_serde::from_str(yaml).unwrap();
@@ -525,6 +533,38 @@ evaluation:
             warnings.iter().any(|w| w.field == "evaluation.composite"),
             "expected composite warning, got: {warnings:?}"
         );
+    }
+
+    #[test]
+    fn deprecated_gate_weight_gets_migration_error() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("scenario.yaml");
+        std::fs::write(
+            &path,
+            r#"
+name: test
+description: "Test"
+template_folder: qipu
+target:
+  binary: qipu
+task:
+  prompt: "Do something"
+evaluation:
+  gates: []
+  composite:
+    judge_weight: 0.6
+    gate_weight: 0.3
+    interaction_weight: 0.4
+"#,
+        )
+        .expect("write scenario");
+
+        let error = validate_scenario_file(&path).expect_err("gate_weight should fail");
+        let message = error.to_string();
+
+        assert!(message.contains("evaluation.composite.gate_weight"));
+        assert!(message.contains("Gate statistics were removed"));
+        assert!(message.contains("delete gate_weight"));
     }
 
     #[test]

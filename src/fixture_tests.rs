@@ -128,9 +128,11 @@ mod tests {
         .expect("evaluate");
 
         assert_eq!(
-            metrics.gates_passed, metrics.gates_total,
+            metrics.gate_status,
+            evaluation::GateStatus::Passed,
             "Expected all gates to pass for {}. Details: {:?}",
-            scenario.name, metrics.details
+            scenario.name,
+            metrics.details
         );
 
         metrics
@@ -185,7 +187,7 @@ mod tests {
             "ax-eval-fixtures/example_basic.yaml",
             &["./taskmgr create \"Implement scripts system\""],
         );
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
         assert!(
             !metrics.evaluator_results.is_empty(),
             "Should have evaluator results"
@@ -206,7 +208,7 @@ mod tests {
                 "./demo_tool status",
             ],
         );
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
     }
 
     // ------------------------------------------------------------------
@@ -218,7 +220,7 @@ mod tests {
             "ax-eval-fixtures/example_full_config.yaml",
             &["./config_tool write \"Hello from full config\""],
         );
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
     }
 
     // ------------------------------------------------------------------
@@ -230,7 +232,7 @@ mod tests {
             "ax-eval-fixtures/example_judge.yaml",
             &["./simple_tool create \"Hello World\""],
         );
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
     }
 
     // ------------------------------------------------------------------
@@ -239,7 +241,7 @@ mod tests {
     #[test]
     fn example_e2e_passes_all_gates() {
         let metrics = run_fixture("ax-eval-fixtures/example_e2e.yaml", &["./hello run"]);
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
     }
 
     // ------------------------------------------------------------------
@@ -261,7 +263,7 @@ mod tests {
         commands.push("./notes export --format json");
 
         let metrics = run_fixture("ax-eval-fixtures/example_guidance_minimal.yaml", &commands);
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
     }
 
     // ------------------------------------------------------------------
@@ -282,6 +284,6 @@ mod tests {
         commands.push("./notes export --format json");
 
         let metrics = run_fixture("ax-eval-fixtures/example_guidance_rich.yaml", &commands);
-        assert_eq!(metrics.gates_passed, metrics.gates_total);
+        assert_eq!(metrics.gate_status, evaluation::GateStatus::Passed);
     }
 }

@@ -1,5 +1,6 @@
-use super::super::types::{EfficiencyReport, EvaluationReport, RunReport};
+use super::super::types::{EfficiencyReport, EvaluationReport, GateDetail, RunReport};
 use super::super::writer::TranscriptWriter;
+use crate::evaluation::GateStatus;
 use std::fs;
 
 #[test]
@@ -15,8 +16,7 @@ fn test_write_report_basic() {
         duration_secs: 45.3,
         cost_usd: Some(0.0234),
         token_usage: None,
-        gates_passed: 3,
-        gates_total: 3,
+        gate_status: GateStatus::Passed,
         judge_score: Some(0.8),
         judge_passed: Some(true),
         judge_threshold: Some(0.7),
@@ -65,8 +65,13 @@ fn test_write_evaluation_basic() {
         judge_score: Some(0.8),
         judge_passed: Some(true),
         judge_threshold: Some(0.7),
-        gates_passed: 2,
-        gates_total: 3,
+        gate_status: GateStatus::Failed,
+        gate_details: vec![GateDetail {
+            gate_type: "FileExists".to_string(),
+            identifier: "file_exists(summary.md)".to_string(),
+            passed: false,
+            message: "missing".to_string(),
+        }],
         duration_secs: 30.0,
         cost_usd: Some(0.015),
         composite_score: Some(0.82),
@@ -101,7 +106,7 @@ fn test_write_evaluation_basic() {
     assert!(content.contains("opencode"));
     assert!(content.contains("gpt-4o"));
     assert!(content.contains("0.80 (0.70) +0.10"));
-    assert!(content.contains("2/3"));
+    assert!(content.contains("guardrail failed: file_exists(summary.md)"));
     assert!(content.contains("## Quality Signals"));
     assert!(content.contains("## Interaction Metrics"));
     assert!(content.contains("## Guardrails"));
@@ -136,8 +141,8 @@ fn test_write_evaluation_without_judge_score() {
         judge_score: None,
         judge_passed: None,
         judge_threshold: Some(0.7),
-        gates_passed: 1,
-        gates_total: 2,
+        gate_status: GateStatus::Passed,
+        gate_details: vec![],
         duration_secs: 20.0,
         cost_usd: Some(0.01),
         composite_score: Some(0.75),

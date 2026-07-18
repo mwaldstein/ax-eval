@@ -111,5 +111,4 @@ evaluation:
 
   composite:
     judge_weight: 0.0
-    gate_weight: 1.0
-    interaction_weight: 0.0
+    interaction_weight: 1.0

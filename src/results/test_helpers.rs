@@ -42,10 +42,9 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
         duration_secs: 45.5,
         cost_usd: Some(0.01),
         token_usage: None,
-        gates_passed: true,
+        gate_status: "passed".to_string(),
         metrics: EvaluationMetricsRecord {
-            gates_passed: 2,
-            gates_total: 2,
+            gate_status: "passed".to_string(),
             details: vec![],
             judge_passed: Some(true),
             judge_threshold: Some(0.8),
@@ -64,7 +63,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
             evaluator_results: vec![],
         },
         judge_score: Some(0.9),
-        outcome: "PASS".to_string(),
+        outcome: "completed".to_string(),
         transcript_path: "/path/to/transcript.txt".to_string(),
         cache_key: Some("cache-key-123".to_string()),
     }

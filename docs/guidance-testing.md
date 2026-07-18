@@ -39,7 +39,8 @@ Primary signals:
 - Fewer total commands.
 - Lower token usage and cost per task completion when adapters report those fields.
 
-Gate pass rate is a sanity check, not the main signal. The purpose of this
+Gate outcome is a guardrail, not the main signal. It should be identical across
+variants; if it differs, the task is miscalibrated. The purpose of this
 comparison is to measure interaction quality.
 
 ## Running All Examples With A Real LLM

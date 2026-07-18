@@ -6,7 +6,9 @@ mod profile;
 use self::evaluators::run_evaluators;
 use self::gates::{evaluate_gates, GateEvaluationContext};
 use self::judge::maybe_run_judge;
-pub use self::profile::{EvaluationMetrics, EvaluatorResult, GateResult, ScoreTier};
+pub use self::profile::{
+    failed_gate_identifiers, EvaluationMetrics, EvaluatorResult, GateResult, GateStatus, ScoreTier,
+};
 use crate::interaction_profile::{
     AdapterEvidenceCapability, InteractionProfile, InteractionProfileInput, TargetInteractionSpec,
 };
@@ -22,7 +24,7 @@ use tracing::debug;
 struct MetricsBuildInput<'a> {
     scenario: &'a Scenario,
     details: Vec<GateResult>,
-    gates_passed: usize,
+    gate_status: GateStatus,
     judge_score: Option<f64>,
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
@@ -36,19 +38,17 @@ fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
     let interaction_profile = input.interaction_profile;
     let evidence_source = interaction_profile.evidence_source;
     let efficiency = interaction_profile.metrics;
-    let composite_score = scenario.evaluation.composite.as_ref().map(|weights| {
+    let composite_score = scenario.evaluation.composite.as_ref().and_then(|weights| {
         crate::eval_helpers::compute_composite_score(
             judge_score,
-            input.gates_passed,
-            scenario.evaluation.gates.len(),
+            input.gate_status,
             &efficiency,
             Some(weights),
         )
     });
 
     EvaluationMetrics {
-        gates_passed: input.gates_passed,
-        gates_total: scenario.evaluation.gates.len(),
+        gate_status: input.gate_status,
         details: input.details,
         judge_score,
         judge_response: input.judge_response,
@@ -108,16 +108,14 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         interaction_profile: &interaction_profile,
     };
 
-    let (details, gates_passed) = evaluate_gates(&scenario.evaluation.gates, &ctx);
-    let gates_total = scenario.evaluation.gates.len();
-    debug!("gates: {}/{} passed", gates_passed, gates_total);
+    let (details, gate_status) = evaluate_gates(&scenario.evaluation.gates, &ctx);
+    debug!("gate status: {:?}", gate_status);
     let judge_result = maybe_run_judge(
         scenario,
         input.env_root,
         input.scenario_path,
         input.no_judge,
-        gates_passed,
-        gates_total,
+        gate_status,
         input.judge_model,
         input.judge_tool,
     )?;
@@ -127,7 +125,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
     let mut metrics = build_metrics(MetricsBuildInput {
         scenario,
         details,
-        gates_passed,
+        gate_status,
         judge_score: judge_result.score,
         judge_response: judge_result.response,
         judge_passed: judge_result.passed,
@@ -201,8 +199,7 @@ mod tests {
         })
         .expect("evaluate");
 
-        assert_eq!(metrics.gates_passed, 0);
-        assert_eq!(metrics.gates_total, 0);
+        assert_eq!(metrics.gate_status, GateStatus::NotConfigured);
         assert_eq!(metrics.efficiency.total_commands, 1);
         assert!(metrics.efficiency.completed);
     }
@@ -228,7 +225,7 @@ mod tests {
         let metrics = build_metrics(MetricsBuildInput {
             scenario: &scenario,
             details: vec![],
-            gates_passed: 0,
+            gate_status: GateStatus::NotConfigured,
             judge_score: None,
             judge_response: None,
             judge_passed: None,
@@ -236,8 +233,7 @@ mod tests {
             interaction_profile,
         });
 
-        assert_eq!(metrics.gates_passed, 0);
-        assert_eq!(metrics.gates_total, 0);
+        assert_eq!(metrics.gate_status, GateStatus::NotConfigured);
         assert_eq!(metrics.efficiency.total_commands, 1);
         assert_eq!(
             metrics.interaction_evidence_source,

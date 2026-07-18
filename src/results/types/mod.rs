@@ -38,13 +38,16 @@ pub struct ResultRecord {
     /// Token usage (input/output counts, if tool reports it)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_usage: Option<TokenUsageRecord>,
-    /// Whether all gates passed
-    pub gates_passed: bool,
+    /// Aggregate guardrail status. Old results.jsonl rows predate this field,
+    /// so deserialization defaults to "unknown" for backward compatibility.
+    #[serde(default = "default_unknown_gate_status")]
+    pub gate_status: String,
     /// Detailed evaluation metrics
     pub metrics: EvaluationMetricsRecord,
     /// Optional LLM-as-judge score (0.0-1.0)
     pub judge_score: Option<f64>,
-    /// Final outcome ("PASS", "FAIL", "ERROR")
+    /// Final outcome (e.g. "completed", "guardrail failed: <gates>",
+    /// "judge score X below threshold", "dry run; not executed")
     pub outcome: String,
     /// Path to the saved transcript file
     pub transcript_path: String,
@@ -59,10 +62,10 @@ pub struct ResultRecord {
 /// and a composite quality score.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvaluationMetricsRecord {
-    /// Number of gates that passed
-    pub gates_passed: usize,
-    /// Total number of gates evaluated
-    pub gates_total: usize,
+    /// Aggregate guardrail status. Old metrics records predate this field,
+    /// so deserialization defaults to "unknown" for backward compatibility.
+    #[serde(default = "default_unknown_gate_status")]
+    pub gate_status: String,
     /// Detailed results for each gate
     pub details: Vec<GateResultRecord>,
     /// Whether the judge threshold was met (None if judge was not run)
@@ -129,10 +132,17 @@ pub struct EfficiencyMetricsRecord {
 pub struct GateResultRecord {
     /// Type of gate evaluated
     pub gate_type: String,
+    /// Short stable identifier for display and query output
+    #[serde(default)]
+    pub identifier: String,
     /// Whether the gate passed
     pub passed: bool,
     /// Human-readable message about the result
     pub message: String,
+}
+
+fn default_unknown_gate_status() -> String {
+    "unknown".to_string()
 }
 
 /// Token usage record for a test run.
@@ -157,6 +167,7 @@ impl From<crate::evaluation::GateResult> for GateResultRecord {
     fn from(value: crate::evaluation::GateResult) -> Self {
         Self {
             gate_type: value.gate_type,
+            identifier: value.identifier,
             passed: value.passed,
             message: value.message,
         }
@@ -193,8 +204,7 @@ impl From<crate::evaluation::EvaluatorResult> for EvaluatorResultRecord {
 impl From<crate::evaluation::EvaluationMetrics> for EvaluationMetricsRecord {
     fn from(value: crate::evaluation::EvaluationMetrics) -> Self {
         Self {
-            gates_passed: value.gates_passed,
-            gates_total: value.gates_total,
+            gate_status: value.gate_status.as_str().to_string(),
             details: value.details.into_iter().map(Into::into).collect(),
             judge_passed: value.judge_passed,
             judge_threshold: value.judge_threshold,
