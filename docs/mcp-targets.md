@@ -52,8 +52,10 @@ which explicitly defers MCP config provisioning as a non-goal.
   describes the transport; the host discovers tool metadata via `tools/list`.
 - A first-class `mcp_ping` health/gate in v1. Shell `health_check` only; the
   ping client is deferred.
-- Auto-generating scenarios from a server's `tools/list`. That is a future
-  `discover` integration, out of scope here.
+- Auto-generating scenarios from a raw `tools/list` inventory. Discovery for
+  MCP *is* in scope (see Discovery for MCP below), but it is agent-mediated;
+  the harness-side protocol client, and the declared-vs-understood delta
+  report it enables, are follow-ups.
 
 ---
 
@@ -115,7 +117,9 @@ target:
   name: search
   transport:
     type: http
-    url: "https://mcp.example.com/sse"
+    url: "https://mcp.example.com/mcp"
+    headers:
+      X-API-Key: "${SEARCH_API_KEY}"
   tools: [query, index]
 ```
 
@@ -147,8 +151,18 @@ target:
 | Variant | Fields | Notes |
 |---|---|---|
 | `stdio` | `command`, `args` | Local process over stdin/stdout. `command` and `args` support the run-directory placeholders. |
-| `http` | `url` | Streamable HTTP transport. |
-| `sse` | `url` | Server-Sent Events transport. |
+| `http` | `url`, `headers` (optional) | Streamable HTTP transport. `headers` is a static string map rendered into each host's header mechanism. |
+
+There is deliberately **no `sse` variant**. The MCP specification deprecated
+the standalone HTTP+SSE transport in protocol revision 2025-03-26 in favor of
+Streamable HTTP (SSE survives only as an optional response mode *inside*
+Streamable HTTP, which is transparent to config). Host support confirms the
+call: codex supports streamable HTTP remotes only, opencode has a single
+`remote` type with no SSE concept, and claude-code marks its `sse` type
+deprecated. A transport that one of the three harnesses cannot run would break
+the cross-harness comparison this tool exists to provide. If a legacy
+SSE-only server ever matters, add the variant then, with an explicit
+harness-support matrix and a `validate` error on unsupported hosts.
 
 `tools` is required for MCP targets. Unlike a CLI binary, an MCP server's
 surface is not obvious from its name; declaring it lets the harness validate
@@ -189,9 +203,26 @@ with its CLI.
 placeholders reuse the existing expander in `src/target_env.rs`; no new
 substitution mechanism.
 
-Remote (`http`/`sse`) rendering varies by host and is evolving; implementations
-must verify the remote form against current harness docs before shipping. The
-stdio forms above are the stable v1 contract.
+Remote (`http`) rendering, verified against current harness documentation
+2026-07-18:
+
+| Harness | Rendering for `http` |
+|---|---|
+| `opencode` | `{ "mcp": { "<name>": { "type": "remote", "url": "<url>", "headers": {...}, "enabled": true } } }` |
+| `claude-code` | `{ "mcpServers": { "<name>": { "type": "http", "url": "<url>", "headers": {...} } } }` — claude-code also accepts `"streamable-http"` as an alias for `"http"`; render `"http"`. An entry with a `url` and no `type` is read as stdio and rejected, so `type` is always written. |
+| `codex` | `[mcp_servers.<name>]` with `url = "<url>"` and `http_headers = { ... }` |
+
+Host-specific auth conveniences (codex's `bearer_token_env_var`/`auth`,
+claude-code's `headersHelper`) are intentionally not modeled — the scenario's
+generic `headers` map covers the evaluation use case, and anything richer is
+host-local config the scenario should not depend on.
+
+One asymmetry to preserve in the implementation: opencode and claude-code
+configs are workspace-local, but codex reads `~/.codex/config.toml` — global
+state. The codex adapter must write the `[mcp_servers.<name>]` entry before
+the run and remove it after (restore-on-exit), and this touch-the-user's-config
+behavior belongs in `docs/tradeoffs.md` alongside the existing
+fixture-isolation entry.
 
 ### Trait hook
 
@@ -332,6 +363,93 @@ use to inspect server state.
 
 ---
 
+## Discovery for MCP
+
+### Intent, not mechanism
+
+`discover` is not a scenario generator that happens to need a target; it is
+the framework's answer to a specific question — **how self-describing is this
+artifact to an agent that has never seen it?** — plus a mirror
+(`understanding.md` shows the author what their tool communicates unaided)
+and a bootstrap (five goal-oriented, ungated, judge-primary scenarios). The
+CLI inspect prompt's defining constraint ("work only from the executable
+command surface") is what turns the agent's learning process into a
+controlled measurement.
+
+That intent transfers to MCP directly — and lands on a sharper target. A
+CLI's self-description is emergent (help text, error messages, conventions).
+An MCP server's self-description is **protocol-mandated and author-written**:
+tool names, descriptions, input schemas, annotations, and the server's
+`instructions` — injected into the agent's context by the host automatically.
+Those descriptions are the server author's AGENTS.md-equivalent, the primary
+authored artifact that determines agent success. So MCP discovery measures
+**description sufficiency**: are the declared name/description/schema enough
+for correct, efficient first use — and what did the agent have to learn by
+trial that the declarations should have said?
+
+### Why this does not need a harness-side MCP client
+
+Discovery was never a protocol operation; it is an agent operation. The
+inspect stage provisions the server into a scratch workspace via the same
+`provision_target` hook (Stage 2) and lets the inspecting agent enumerate and
+exercise tools through its host — exactly as CLI discovery probes `--help`.
+This measures the *experienced* self-description surface (what the metadata
+communicates through a real harness), which is truer to the framework's
+philosophy than a raw `tools/list` dump would be — consistent with the
+adapter principle that the harness never invokes the target; the agent does.
+
+### The port, stage by stage
+
+The five-stage flow (inspect → repair → author → run → summarize) is
+unchanged; each stage's prompt and contract adapts:
+
+- **Invocation.** `discover <binary>` keeps its shape for CLI. MCP discovery
+  takes a target description instead of a positional binary (e.g.
+  `discover --target mcp-target.yaml`, the file holding an `McpTarget`
+  block) — the transport must be operator-supplied to launch the server at
+  all, which has a useful corollary: generated scenarios don't ask the agent
+  to guess the target block. The harness stamps the known `target` into each
+  authored scenario, the same way discovery already rewrites
+  `template_folder` to absolute paths.
+- **Inspect.** The evidence constraint translates: *work only from what the
+  server exposes — tool names, descriptions, schemas, instructions, and the
+  observed behavior of calls you make; do not read the server's source code
+  or external documentation.* (The CLI prompt has the same latent rule;
+  for MCP it must be explicit because the server binary often sits in the
+  fixture.) `understanding.md` keeps its headings and gains one:
+  **Declared vs. Learned** — what the tool metadata stated versus what had
+  to be discovered by calling: sequencing requirements, error semantics,
+  implicit conventions, argument formats the schema permits but the server
+  rejects. That gap *is* the description-improvement backlog, the direct
+  analogue of help-text recommendations for CLI authors.
+- **Author.** The discovery contract ports verbatim: `gates: []`, judge
+  primary, goal-oriented prompts. The authoring agent writes the `tools`
+  allow-list from what it observed in session; `validate` checks it as
+  usual.
+- **Run and summarize.** Unchanged machinery. The summary prompt's failure
+  attribution gains one category: alongside fixture-authoring, agent-usage,
+  and harness problems, **description/schema problems** — the category the
+  server author can actually act on.
+
+### What the protocol client adds later (and only this)
+
+A harness-side MCP client is an *instrumentation* enhancement on top of
+agent-mediated discovery, enabling:
+
+- the **declared-vs-understood delta report**: diff the authoritative
+  `tools/list` against the understanding document and the run evidence —
+  "12 tools declared; the understanding covers 7 correctly; 3 were never
+  exercised; `search`'s `date` parameter was misused in every scenario";
+- automatic validation of the scenario `tools` allow-list against the live
+  server;
+- the `mcp_ping` health gate.
+
+Sequencing: agent-mediated MCP discovery requires only Stages 1–2 (schema +
+provisioning) plus prompt and stamping work, and slots in as a stage after
+the core six. The client-gated delta report remains deferred.
+
+---
+
 ## Pipeline Integration
 
 ```text
@@ -350,20 +468,42 @@ changing the scenario schema.
 
 ---
 
-## Open Questions
+## Resolved Questions
 
-- **Remote transport rendering.** The `http`/`sse` config shapes for opencode,
-  codex, and (to a lesser degree) claude-code are still settling. v1 ships
-  `stdio` as the stable contract; remote forms confirmed per harness before
-  release.
-- **`discover` for MCP.** `src/discover/prompts.rs` assumes a `binary`. A
-  future `discover` mode could inspect a server's `tools/list` to author
-  scenarios. Out of scope here.
-- **Mixed CLI+MCP targets.** Singular target for v1; revisit if concrete
-  scenarios need both in one evaluation.
-- **Tool-name namespacing.** If two MCP servers in scope ever expose the same
-  tool name, evidence matching should key on `(server, tool)`. Singular target
-  makes this moot for v1 but the projection should not preclude it.
+Resolved 2026-07-18; research notes in the Transport Provisioning section.
+
+- **Remote transport rendering — resolved.** All three hosts have stable,
+  documented remote config shapes (see the verified rendering table above).
+  The `sse` transport variant is dropped from the schema: the MCP spec
+  deprecated standalone HTTP+SSE in revision 2025-03-26, and codex never
+  supported it, so it cannot participate in cross-harness comparison. v1
+  ships `stdio` and `http`, both as stable contracts.
+- **Tool-name namespacing — resolved.** Evidence identity for MCP actions is
+  `(server, tool)` from day one: `McpToolCallEvent` already carries `server`,
+  matching filters on `event.server == target.name`, and the `TargetAction`
+  projection must treat the server name as part of action identity rather
+  than discarding it after matching. With a singular target this changes no
+  observable behavior, and it removes the ambiguity pre-emptively — any
+  future multi-server extension inherits correct keying instead of a
+  migration.
+
+## Deferred
+
+Not independently answerable today; each has an explicit revisit trigger.
+
+- **The discovery delta report and `mcp_ping`.** Agent-mediated `discover`
+  for MCP is designed and in scope (see Discovery for MCP) — it needs no
+  protocol client. What stays deferred is the harness-side MCP client and
+  the instrumentation it enables: the declared-vs-understood delta report,
+  live validation of the `tools` allow-list, and the `mcp_ping` health gate.
+  Revisit: after MCP discovery ships and real runs show what the delta
+  report should contain.
+- **Mixed CLI+MCP targets.** Singular target per scenario stands (ADR-0005
+  chose it deliberately — it keeps the profile's comparison axis stable).
+  Revisit trigger: a concrete scenario that cannot be expressed as two
+  separate runs of the same fixture, one per target kind. Note the
+  `(server, tool)` keying above means evidence identity will not need rework
+  if this lands.
 
 ---
 
@@ -382,8 +522,10 @@ this feature touches the scenario schema, so update these surfaces in lockstep:
   a commented example in the printable scenario template.
 - **`docs/user-guide.md`**: add an MCP workflow section (declaring a transport,
   the probe-script convention, judge evidence shape).
-- **`docs/mcp-targets.md`**: flip **Status** from Draft to Stable as open
-  questions resolve.
+- **`docs/mcp-targets.md`**: flip **Status** from Draft to Stable when Stage 6
+  lands. (The design's open questions were resolved or explicitly deferred
+  2026-07-18 — see Resolved Questions / Deferred — so Stable now gates only on
+  implementation.)
 - **`CHANGELOG.md`**: `Added` entries under the target release for the MCP
   target kind, transport rendering, and `StructuredMcpToolCalls` evidence.
 - **`ax-eval-fixtures/`**: add an example MCP scenario (stdio server fixture +
@@ -408,9 +550,10 @@ flat-form coercion), and run `cargo test` before release.
 ## References
 
 - [Model Context Protocol introduction](https://modelcontextprotocol.io/docs/getting-started/intro)
-- [opencode MCP config](https://opencode.ai/docs/mcp-server/)
-- [Claude Code MCP servers](https://docs.claude.com/en/docs/claude-code/mcp)
-- [Codex MCP configuration](https://developers.openai.com/codex/mcp/)
+- [MCP transports specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports) — stdio + Streamable HTTP; HTTP+SSE deprecated since revision 2025-03-26
+- [opencode MCP config](https://opencode.ai/docs/mcp-servers/)
+- [Claude Code MCP servers](https://code.claude.com/docs/en/mcp)
+- [Codex MCP configuration](https://developers.openai.com/codex/mcp/) (redirects to learn.chatgpt.com)
 - [ADR-0001: Keep adapter normalization with adapters](adr/0001-keep-adapter-normalization-with-adapters.md)
 - [ADR-0002: Prefer structured interaction evidence](adr/0002-prefer-structured-interaction-evidence.md)
 - [ADR-0005: Generalize target identity to CLI and MCP](adr/0005-generalize-target-identity-to-cli-and-mcp.md)

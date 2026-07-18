@@ -10,7 +10,9 @@ the host agent's own MCP config, with no shell string and no exit code.
 We model the target as a discriminated union
 (`TargetConfig::Cli | TargetConfig::Mcp`) so illegal states — an MCP server with
 a `command_pattern`, a CLI binary with a transport — are unrepresentable. The
-scenario carries an agent-agnostic transport (stdio/http/sse); each adapter
+scenario carries an agent-agnostic transport (stdio/http; an sse variant was
+considered and dropped 2026-07 — the MCP spec deprecated standalone HTTP+SSE
+and codex does not support it, see `docs/mcp-targets.md`); each adapter
 renders it into its host's native MCP config (opencode.json `mcp`,
 claude-code `.mcp.json`, codex `mcp_servers`) through a new
 `ToolAdapter::provision_target` hook. Provisioning belongs on the adapter for

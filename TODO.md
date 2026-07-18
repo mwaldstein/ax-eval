@@ -11,6 +11,7 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
 - [ ] Stage 4 — capture MCP tool events in `src/adapter/{opencode,codex,claude_code}/normalize.rs`
 - [ ] Stage 5 — parameterise judge prompt by target kind (`JudgeTargetView`); include structured args for MCP
 - [ ] Stage 6 — update `docs/scenarios.md`, `docs/evaluation.md`, `src/adapter/README.md`, `CONTEXT.md`, `SCENARIO_TEMPLATE`; add example MCP fixture; flip spec to Stable
+- [ ] Stage 7 — `discover` for MCP targets: `--target` invocation, MCP inspect prompt (declared-vs-learned framing), target-block stamping into authored scenarios, summary attribution for description/schema problems. Agent-mediated; needs only Stages 1–2. Design: `docs/mcp-targets.md` (Discovery for MCP). Harness-side MCP client + declared-vs-understood delta report stay deferred.
 
 ## Medium-impact
 
