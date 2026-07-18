@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - 2026-07-18
+
 ### Added
 
 - MCP server targets end to end. Scenarios can declare `target.kind: mcp` with a server `name`, an agent-agnostic `stdio` or Streamable HTTP transport, and a required `tools` list; adapters provision MCP config for opencode, claude-code, and codex; structured MCP evidence feeds the same interaction metrics as CLI evidence through a shared action/outcome projection; and judge prompts are target-aware with bounded structured MCP call excerpts. Existing flat CLI `target: { binary: ... }` scenarios parse unchanged. Codex MCP provisioning writes `~/.codex/config.toml` before the run and restores the prior content after cleanup. Validated live against the read-only MCP Everything reference server via codex (scenario `test_mcp_everything`, tagged `mcp-validation`; requires npx and network); the run's real captured transcript is checked in as a normalizer regression fixture.
@@ -170,7 +172,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_prime_output` from fixture utilities
 - `SPLIT_PLAN.md` (superseded by completed implementation)
 
-[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.4...HEAD
+[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.1...HEAD
+[0.4.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.4...v0.4.0-beta.1
 [0.3.0-beta.4]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.3...v0.3.0-beta.4
 [0.3.0-beta.3]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.2...v0.3.0-beta.3
 [0.3.0-beta.2]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.1...v0.3.0-beta.2
