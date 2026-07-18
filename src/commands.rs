@@ -375,6 +375,14 @@ target:
 #     type: http
 #     url: "https://mcp.example.com/mcp"
 #   tools: [query, index]
+#
+# MCP authoring tips (see docs/scenarios.md, "Authoring MCP scenarios"):
+#   - AGENTS.md describes when/why to use each tool, not call syntax — the
+#     agent gets tool descriptions from the server itself.
+#   - Declare only the tools the task needs; the list bounds what is measured.
+#   - Prefer read-only or fixture-backed servers; ax-eval cannot undo writes a
+#     remote server makes outside the fixture.
+#   - Verify outcomes with a script gate + probe (server state is not files).
 
 interaction:
   target_commands: required

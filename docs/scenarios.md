@@ -428,6 +428,48 @@ files. The probe can inspect a backing store, call a server-specific admin
 surface, or validate exported state. ax-eval does not include a first-class MCP
 ping or MCP gate in v1.
 
+### Authoring MCP scenarios — what's different
+
+MCP targets change several authoring instincts that carry over wrongly from CLI
+scenarios. The differences all stem from one fact: a CLI tool's usage surface is
+its help text and error messages, whereas an MCP server's usage surface is the
+tool **names, descriptions, and input schemas the server itself advertises**,
+which the agent's host injects into context automatically. That authored
+metadata is the thing under evaluation.
+
+- **Guidance describes *when and why*, not syntax.** For a CLI, the fixture's
+  `AGENTS.md` documents commands and flags. For MCP, the agent already receives
+  each tool's name, description, and schema from the server via `tools/list`, so
+  documenting call syntax is redundant and hides whether the server's own
+  descriptions are good enough. Point `AGENTS.md` at *workflow* instead: which
+  tool to reach for, sequencing and preconditions, error-recovery, and
+  conventions. If an agent needs `AGENTS.md` to know a tool exists, that is a
+  finding about the server's descriptions.
+- **Prefer read-only or fixture-backed servers; be careful with mutating remote
+  targets.** Each run gets a fresh fixture directory, but ax-eval cannot roll
+  back side effects an MCP tool causes *outside* that directory. A stdio server
+  backed by a fixture file (reset per run) is safe; a remote server that mutates
+  real state — filing a real ticket, sending a real message — will accumulate
+  side effects across runs and is not reproducible. Target read-only surfaces,
+  or servers whose writes land in fixture-scoped state you control.
+- **Declare only the tools the task needs.** The `tools` list is an evaluation
+  instrument, not just configuration: it bounds what counts as target usage and
+  drives undeclared-tool warnings. Over-declaring hides discovery friction (the
+  agent "should" have found a tool you pre-listed); under-declaring floods the
+  profile with warnings. List the tools a correct solution legitimately uses.
+- **Goal-based prompts matter even more here.** The general rule in "Writing
+  Task Prompts" above is load-bearing for MCP: a prompt that names tools and
+  call order ("call `add_note`, then `list_notes`") bypasses the very thing MCP
+  evaluation measures — whether the server's descriptions lead the agent to the
+  right tool unaided. State the outcome; let the descriptions do their job.
+- **Enforce target use with `interaction.target_commands: required`,** not with
+  the prompt. This fails the run if the agent never called the server (e.g.
+  answered from its own knowledge), keeping the prompt a realistic goal while
+  still guaranteeing the target was exercised.
+- **Gates inspect state through a probe, not the filesystem** (as above): server
+  state is usually not workspace files, so verify outcomes with a `script` gate
+  that queries the backing store or the server's own read tools.
+
 ---
 
 ## Fixture Structure
