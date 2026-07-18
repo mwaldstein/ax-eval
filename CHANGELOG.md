@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
 
+- MCP server targets (in progress; design: `docs/mcp-targets.md`). Scenarios can declare `target.kind: mcp` with a server `name`, an agent-agnostic `transport` (`stdio` or `http`), and a required `tools` list. Existing flat CLI `target: { binary: ... }` scenarios parse unchanged. Currently schema + validation only; MCP scenarios are not yet runnable.
+
+### Changed
 - Result caching is now opt-in (`--cache`) rather than default. Runs are always fresh by default because ax-eval evaluates a non-deterministic system — caching a single past run and replaying it misrepresents current agent capability. The results database (`results.jsonl`) remains the source of truth for run history. See ADR-0004 for rationale.
 - `run --help` now notes that the harness does not execute the target binary — the LLM agent does — and that it should be on PATH or in the fixture workspace.
 - Guardrail metrics now report a three-valued `gate_status` plus named failures instead of gate counts. This is a breaking `metrics.json` and `results.jsonl` schema change.

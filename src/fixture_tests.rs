@@ -39,11 +39,8 @@ mod tests {
             .expect("setup scenario env");
         let env = workspace.env;
 
-        let target_env = TargetEnvironment::expanded_from_config(
-            scenario.target.env.as_ref(),
-            &env.root,
-            &results_dir,
-        );
+        let target_env =
+            TargetEnvironment::expanded_from_config(scenario.target.env(), &env.root, &results_dir);
 
         // Run setup commands
         if let Some(setup) = &scenario.setup {
@@ -70,7 +67,7 @@ mod tests {
         }
 
         // Synthesise transcript so transcript-based gates pass
-        write_transcript(&env.root, &scenario.target.binary, agent_commands);
+        write_transcript(&env.root, scenario.target.display_name(), agent_commands);
 
         // Run post scripts
         if let Some(scripts) = &scenario.scripts {

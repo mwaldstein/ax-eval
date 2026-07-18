@@ -343,6 +343,7 @@ target:
   # If mytool is built outside the fixture, make it discoverable before running:
   # PATH="$PWD/target/debug:$PATH" AX_EVAL_ENABLED=1 ax-eval run --scenario ...
   # Or set a complete PATH in target.env for scenario-specific lookup.
+  kind: cli
   binary: mytool
   command_pattern: "mytool\\s+(\\S+)"
   health_check: "mytool --version"
@@ -350,6 +351,17 @@ target:
     MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
 
     MYTOOL_EXPORT: "${AX_EVAL_RESULTS_DIR}/mytool-export.json"
+
+# Alternative MCP target block. MCP targets parse and validate in Stage 1,
+# but are not runnable until Stage 2+.
+# target:
+#   kind: mcp
+#   name: todo
+#   transport:
+#     type: stdio
+#     command: "${AX_EVAL_FIXTURE_DIR}/todo-mcp-server"
+#     args: ["--root", "${AX_EVAL_FIXTURE_DIR}"]
+#   tools: [add, list, complete, search]
 interaction:
   target_commands: required
 

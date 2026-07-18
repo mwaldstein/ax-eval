@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::{Gate, Scenario};
+use super::{Gate, McpTransport, Scenario};
 use crate::judge::load_rubric;
 use crate::utils::resolve_fixtures_path;
 
@@ -34,6 +34,8 @@ pub fn validate_scenario_file(path: &Path) -> anyhow::Result<ValidationResult> {
             );
         }
     }
+
+    validate_scenario_hard_errors(&scenario, path)?;
 
     let warnings = validate_scenario(&scenario);
 
@@ -76,6 +78,18 @@ fn resolve_rubric_path_for_validation(rubric: &str, scenario_path: &Path) -> std
 
 fn format_yaml_error(content: &str, raw_error: &str) -> String {
     let error = raw_error.to_lowercase();
+
+    if error.contains("unknown target kind") {
+        return raw_error.to_string();
+    }
+
+    if error.contains("missing field") && error.contains("transport") {
+        return "target.transport is required for MCP targets".to_string();
+    }
+
+    if error.contains("missing field") && error.contains("tools") {
+        return "target.tools is required for MCP targets".to_string();
+    }
 
     if let Some(pos) = error.find("missing field") {
         let field_name = extract_quoted_after(&error[pos..], "`")
@@ -275,7 +289,7 @@ pub fn validate_scenario(scenario: &Scenario) -> Vec<ValidationWarning> {
         }
     }
 
-    if let Some(ref target_pattern) = scenario.target.command_pattern {
+    if let Some(target_pattern) = scenario.target.command_pattern() {
         if let Err(e) = regex::Regex::new(target_pattern) {
             warnings.push(ValidationWarning {
                 field: "target.command_pattern".to_string(),
@@ -310,6 +324,41 @@ pub fn validate_scenario(scenario: &Scenario) -> Vec<ValidationWarning> {
     }
 
     warnings
+}
+
+fn validate_scenario_hard_errors(scenario: &Scenario, path: &Path) -> anyhow::Result<()> {
+    if let Some(mcp) = scenario.target.mcp() {
+        if mcp.tools.is_empty() {
+            anyhow::bail!(
+                "{}: target.tools must contain at least one MCP tool",
+                path.display()
+            );
+        }
+
+        match &mcp.transport {
+            McpTransport::Stdio { command, .. } if command.trim().is_empty() => {
+                anyhow::bail!(
+                    "{}: target.transport.command cannot be empty for stdio MCP targets",
+                    path.display()
+                );
+            }
+            McpTransport::Http { url, .. } if !is_valid_http_url(url) => {
+                anyhow::bail!(
+                    "{}: target.transport.url must be a non-empty http:// or https:// URL",
+                    path.display()
+                );
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn is_valid_http_url(url: &str) -> bool {
+    let trimmed = url.trim();
+    (trimmed.starts_with("http://") || trimmed.starts_with("https://"))
+        && trimmed.len() > "http://".len()
 }
 
 #[cfg(test)]

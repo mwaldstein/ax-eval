@@ -37,7 +37,7 @@ impl PreparedRunContext {
     ) -> anyhow::Result<Self> {
         let workspace = setup_scenario_env(scenario, scenario_path, results_dir)?;
         let target_env = TargetEnvironment::expanded_from_config(
-            scenario.target.env.as_ref(),
+            scenario.target.env(),
             &workspace.env.root,
             results_dir,
         );
@@ -203,7 +203,7 @@ pub fn prepare_writer_and_setup(
         (true, vec![])
     };
 
-    if let Some(health_check) = &s.target.health_check {
+    if let Some(health_check) = s.target.health_check() {
         execute_health_check(
             health_check,
             &context.workspace.env,

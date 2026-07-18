@@ -120,7 +120,7 @@ fn run_judge_evaluation(
     let rubric = resolve_judge_rubric(judge_config, env_root, scenario_path)?;
     let transcript_path = env_root.join("transcript.raw.txt");
     let prompt = crate::judge::build_judge_prompt(
-        &scenario.target.binary,
+        scenario.target.display_name(),
         &scenario.task.prompt,
         &transcript_path.display().to_string(),
         &rubric,
@@ -175,12 +175,7 @@ fn judge_scenario(source: &Scenario, prompt: String) -> Scenario {
         name: format!("{}_judge", source.name),
         description: format!("Judge evaluation for {}", source.name),
         template_folder: ".".to_string(),
-        target: TargetConfig {
-            binary: source.target.binary.clone(),
-            command_pattern: None,
-            health_check: None,
-            env: None,
-        },
+        target: TargetConfig::cli_target(source.target.display_name()),
         task: Task { prompt },
         evaluation: Evaluation {
             gates: vec![],
@@ -382,12 +377,7 @@ mod tests {
             name: "judge-source".to_string(),
             description: "Scenario judged by adapter".to_string(),
             template_folder: "fixture".to_string(),
-            target: TargetConfig {
-                binary: "notes".to_string(),
-                command_pattern: None,
-                health_check: None,
-                env: None,
-            },
+            target: TargetConfig::cli_target("notes"),
             task: Task {
                 prompt: "Create a useful note".to_string(),
             },
@@ -704,7 +694,7 @@ This is not JSON.
         let scenario = judge_scenario(&source, "judge prompt".to_string());
 
         assert_eq!(scenario.name, "judge-source_judge");
-        assert_eq!(scenario.target.binary, "notes");
+        assert_eq!(scenario.target.binary(), Some("notes"));
         assert_eq!(scenario.task.prompt, "judge prompt");
         assert_eq!(scenario.evaluation.gates.len(), 0);
         assert!(scenario.evaluation.judge.is_none());

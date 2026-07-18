@@ -3,7 +3,7 @@
 //! This module defines all the data structures used to represent test scenarios,
 //! including task definitions, evaluation gates, and tool configurations.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 
 use crate::judge::Criterion;
@@ -52,19 +52,156 @@ pub struct Scenario {
 }
 
 /// Target tool configuration for a scenario.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TargetConfig {
+    /// CLI binary target.
+    Cli(CliTarget),
+    /// MCP server target.
+    Mcp(McpTarget),
+}
+
+/// CLI target configuration for a scenario.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TargetConfig {
-    /// Binary name for the tool under test
+pub struct CliTarget {
+    /// Binary name for the tool under test.
     pub binary: String,
-    /// Optional regex pattern for matching commands in transcripts
+    /// Optional regex pattern for matching commands in transcripts.
     #[serde(default)]
     pub command_pattern: Option<String>,
-    /// Optional command used to check tool health/availability
+    /// Optional command used to check tool health/availability.
     #[serde(default)]
     pub health_check: Option<String>,
-    /// Optional environment variables to set when running the target
+    /// Optional environment variables to set when running the target.
     #[serde(default)]
     pub env: Option<HashMap<String, String>>,
+}
+
+/// MCP server target configuration for a scenario.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpTarget {
+    /// Server identity for evidence matching and judge prompts.
+    pub name: String,
+    /// Agent-agnostic connection description.
+    pub transport: McpTransport,
+    /// Declared tool surface for this server.
+    pub tools: Vec<String>,
+    /// Optional environment variables for the server process.
+    #[serde(default)]
+    pub env: Option<HashMap<String, String>>,
+    /// Optional shell command used to check server health/availability.
+    #[serde(default)]
+    pub health_check: Option<String>,
+}
+
+/// MCP transport configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum McpTransport {
+    /// Local MCP server over stdin/stdout.
+    Stdio {
+        command: String,
+        #[serde(default)]
+        args: Vec<String>,
+    },
+    /// Streamable HTTP MCP server.
+    Http {
+        url: String,
+        #[serde(default)]
+        headers: Option<HashMap<String, String>>,
+    },
+}
+
+impl TargetConfig {
+    pub fn cli_target(binary: impl Into<String>) -> Self {
+        Self::Cli(CliTarget {
+            binary: binary.into(),
+            command_pattern: None,
+            health_check: None,
+            env: None,
+        })
+    }
+
+    pub fn cli(&self) -> Option<&CliTarget> {
+        match self {
+            Self::Cli(cli) => Some(cli),
+            Self::Mcp(_) => None,
+        }
+    }
+
+    pub fn mcp(&self) -> Option<&McpTarget> {
+        match self {
+            Self::Cli(_) => None,
+            Self::Mcp(mcp) => Some(mcp),
+        }
+    }
+
+    pub fn binary(&self) -> Option<&str> {
+        self.cli().map(|target| target.binary.as_str())
+    }
+
+    pub fn command_pattern(&self) -> Option<&str> {
+        self.cli()
+            .and_then(|target| target.command_pattern.as_deref())
+    }
+
+    pub fn health_check(&self) -> Option<&str> {
+        match self {
+            Self::Cli(target) => target.health_check.as_deref(),
+            Self::Mcp(target) => target.health_check.as_deref(),
+        }
+    }
+
+    pub fn env(&self) -> Option<&HashMap<String, String>> {
+        match self {
+            Self::Cli(target) => target.env.as_ref(),
+            Self::Mcp(target) => target.env.as_ref(),
+        }
+    }
+
+    pub fn display_name(&self) -> &str {
+        match self {
+            Self::Cli(target) => &target.binary,
+            Self::Mcp(target) => &target.name,
+        }
+    }
+
+    pub fn is_mcp(&self) -> bool {
+        matches!(self, Self::Mcp(_))
+    }
+}
+
+impl<'de> Deserialize<'de> for TargetConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| serde::de::Error::custom("target must be a map"))?;
+
+        match object.get("kind").and_then(serde_json::Value::as_str) {
+            Some("cli") => serde_json::from_value::<CliTarget>(value)
+                .map(Self::Cli)
+                .map_err(serde::de::Error::custom),
+            Some("mcp") => serde_json::from_value::<McpTarget>(value)
+                .map(Self::Mcp)
+                .map_err(serde::de::Error::custom),
+            Some(kind) => Err(serde::de::Error::custom(unknown_target_kind_message(kind))),
+            None => serde_json::from_value::<CliTarget>(value)
+                .map(Self::Cli)
+                .map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+fn unknown_target_kind_message(kind: &str) -> String {
+    match kind {
+        "cl" | "clii" => format!("unknown target kind: {kind}, did you mean cli?"),
+        "mp" | "mpc" => format!("unknown target kind: {kind}, did you mean mcp?"),
+        _ => format!("unknown target kind: {kind}. Valid kinds: cli, mcp"),
+    }
 }
 
 /// Runtime configuration for scenario execution.

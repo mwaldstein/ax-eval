@@ -165,12 +165,7 @@ mod tests {
             name: "test".to_string(),
             description: "Test scenario".to_string(),
             template_folder: "test_fixture".to_string(),
-            target: TargetConfig {
-                binary: "test".to_string(),
-                command_pattern: None,
-                health_check: None,
-                env: None,
-            },
+            target: TargetConfig::cli_target("test"),
             task: Task {
                 prompt: "Test prompt".to_string(),
             },

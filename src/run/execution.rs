@@ -198,12 +198,7 @@ mod tests {
             name: "execution-test".to_string(),
             description: "Test execution behavior".to_string(),
             template_folder: "fixture".to_string(),
-            target: TargetConfig {
-                binary: "target".to_string(),
-                command_pattern: None,
-                health_check: None,
-                env: None,
-            },
+            target: TargetConfig::cli_target("target"),
             task: Task {
                 prompt: "Do the task".to_string(),
             },

@@ -63,12 +63,7 @@ mod tests {
             name: "generated_goal".to_string(),
             description: "Generated discovery scenario".to_string(),
             template_folder: "templates/generated_goal".to_string(),
-            target: TargetConfig {
-                binary: "qipu".to_string(),
-                command_pattern: None,
-                health_check: None,
-                env: None,
-            },
+            target: TargetConfig::cli_target("qipu"),
             task: Task {
                 prompt: "Use qipu well".to_string(),
             },

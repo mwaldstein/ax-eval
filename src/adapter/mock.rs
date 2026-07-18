@@ -9,7 +9,7 @@ pub struct MockAdapter;
 impl MockAdapter {
     pub fn generate_command_events(&self, scenario: &Scenario) -> Vec<CommandEvent> {
         vec![CommandEvent {
-            command: format!("{} mock", scenario.target.binary),
+            command: format!("{} mock", scenario.target.display_name()),
             exit_code: Some(0),
         }]
     }

@@ -136,12 +136,7 @@ mod tests {
             name: "record-input-test".to_string(),
             description: "Test scenario".to_string(),
             template_folder: "fixture".to_string(),
-            target: TargetConfig {
-                binary: "tool".to_string(),
-                command_pattern: None,
-                health_check: None,
-                env: None,
-            },
+            target: TargetConfig::cli_target("tool"),
             task: Task {
                 prompt: "Test prompt".to_string(),
             },

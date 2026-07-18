@@ -81,8 +81,12 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
     debug!("evaluating scenario: {}", scenario.name);
 
     let target = TargetInteractionSpec::new(
-        scenario.target.binary.clone(),
-        scenario.target.command_pattern.clone(),
+        scenario
+            .target
+            .binary()
+            .expect("CLI target required by run validation")
+            .to_string(),
+        scenario.target.command_pattern().map(str::to_string),
     );
     let interaction_profile =
         crate::interaction_profile::build_interaction_profile(InteractionProfileInput {
@@ -150,12 +154,7 @@ mod tests {
             name: "evaluation-input-test".to_string(),
             description: "Test evaluation input".to_string(),
             template_folder: "fixture".to_string(),
-            target: TargetConfig {
-                binary: "target".to_string(),
-                command_pattern: None,
-                health_check: None,
-                env: None,
-            },
+            target: TargetConfig::cli_target("target"),
             task: Task {
                 prompt: "Do the task".to_string(),
             },

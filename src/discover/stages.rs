@@ -160,12 +160,7 @@ fn discovery_stage_scenario(target: &str, stage: &str, prompt: &str) -> Scenario
         name: format!("discovery_{stage}_stage"),
         description: format!("Discovery workflow {stage} stage"),
         template_folder: ".".to_string(),
-        target: TargetConfig {
-            binary: target.to_string(),
-            command_pattern: None,
-            health_check: None,
-            env: None,
-        },
+        target: TargetConfig::cli_target(target),
         task: Task {
             prompt: prompt.to_string(),
         },
