@@ -25,12 +25,11 @@ interaction:
 
 task:
   prompt: |
-    An MCP server named "everything" is available to you.
-
-    1. Use its get-sum tool to add 17 and 25.
-    2. Use its echo tool to echo the message "mcp validation".
-    3. Write a file named results.md in the working directory containing
-       the sum on the first line and the echoed message on the second line.
+    This workspace's calculation and echo services are provided by the
+    "everything" server (see AGENTS.md). Produce a service report named
+    results.md recording what the service returns for the sum of 17 and 25,
+    and for an echo of the message "mcp validation". The report must
+    reflect the service's actual responses, not your own computation.
 
 evaluation:
   gates:

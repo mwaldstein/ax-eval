@@ -28,11 +28,12 @@ interaction:
 
 task:
   prompt: |
-    Use the notes MCP server to add these two notes:
+    Two notes need to be captured in this workspace's note store:
     - Launch checklist
     - Retrospective notes
 
-    Then call the MCP server's list_notes tool to verify both notes were saved.
+    Capture both, and confirm the store actually holds them before you
+    finish.
 
 setup:
   commands:

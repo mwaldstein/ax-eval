@@ -1,5 +1,5 @@
-# Task Environment
+# Workspace Conventions
 
-An MCP server named `everything` is configured for this workspace. Use its
-`get-sum` tool for arithmetic and its `echo` tool to echo messages. Do the
-math and echo via the MCP tools, not mentally or via shell.
+Calculation and echo in this workspace are services of record provided by
+the `everything` MCP server. Reports that cite a sum or an echoed message
+must reflect the service's actual responses.

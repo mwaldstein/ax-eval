@@ -262,6 +262,23 @@ tier: int                        # Priority tier, 0 = highest (default: 0)
 
 This scenario tests a hypothetical task manager CLI (`taskmgr`) to verify an LLM can create tasks, set priorities, and query by status.
 
+### Writing Task Prompts
+
+Prefer goal-based prompts over command-prescriptive ones: state the outcome
+the user wants, not the tool calls that produce it. A prompt that enumerates
+"call tool X, then tool Y" measures instruction-following, not whether your
+tool's surface and guidance lead an agent to the right usage — which is the
+thing ax-eval exists to measure. Numbered lists are fine when the items are
+*outcomes* ("create a task for each deliverable"), not command names.
+
+Put workflow and convention detail in the fixture's guidance file
+(AGENTS.md), where documenting the intended usage is the point — comparing
+guidance variants is a core workflow. If a run is only valid when the agent
+actually exercises the target, enforce that with
+`interaction.target_commands: required` rather than with prompt
+instructions: the harness then fails evaluation when the target was never
+used, and the prompt stays a realistic user goal.
+
 ```yaml
 name: task_manager_organize
 description: >
@@ -370,11 +387,12 @@ template_folder: ax-eval-fixtures/templates/notes_mcp_capture
 
 task:
   prompt: |
-    Use the notes MCP server to add two notes:
+    Two notes need to be captured in this workspace's note store:
     - Launch checklist
     - Retrospective notes
 
-    Then list the notes to verify both were saved.
+    Capture both, and confirm the store actually holds them before you
+    finish.
 
 setup:
   commands:
