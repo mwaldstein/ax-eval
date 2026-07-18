@@ -1,0 +1,44 @@
+# Live-validation scenario for MCP support (not a shipped example: requires
+# npx + network to fetch @modelcontextprotocol/server-everything).
+# Read-only server: echo and get-sum have no side effects.
+
+name: test_mcp_everything
+description: Validate MCP support against the read-only Everything reference server
+
+tier: 0
+tags:
+  - mcp-validation
+
+template_folder: test_mcp_everything
+
+target:
+  kind: mcp
+  name: everything
+  transport:
+    type: stdio
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+  tools: [echo, get-sum]
+
+interaction:
+  target_commands: required
+
+task:
+  prompt: |
+    An MCP server named "everything" is available to you.
+
+    1. Use its get-sum tool to add 17 and 25.
+    2. Use its echo tool to echo the message "mcp validation".
+    3. Write a file named results.md in the working directory containing
+       the sum on the first line and the echoed message on the second line.
+
+evaluation:
+  gates:
+    - type: file_exists
+      path: results.md
+    - type: file_contains
+      path: results.md
+      substring: "42"
+
+run:
+  timeout_secs: 300

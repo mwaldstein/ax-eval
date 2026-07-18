@@ -117,7 +117,7 @@ fn mcp_item_is_error(item: &Value) -> bool {
             .and_then(Value::as_str)
             .unwrap_or("completed"),
         "failed" | "error"
-    ) || item.get("error").is_some()
+    ) || item.get("error").is_some_and(|error| !error.is_null())
 }
 
 fn mcp_event_from_item(item: &Value) -> Option<McpToolCallEvent> {
@@ -446,5 +446,23 @@ mod tests {
 
         assert!(output.command_events().unwrap().is_empty());
         assert!(output.mcp_tool_call_events().unwrap().is_empty());
+    }
+
+    #[test]
+    fn real_codex_completed_mcp_item_with_null_error_is_success() {
+        // Real captured event from codex-cli 0.144.6 running the Everything
+        // reference server (2026-07-18): successful calls carry
+        // "error": null and "status": "completed". A JSON null error must
+        // not be read as failure.
+        let output = r#"{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"everything","tool":"get-sum","arguments":{"a":17,"b":25},"result":{"content":[{"type":"text","text":"The sum of 17 and 25 is 42."}],"structured_content":null},"error":null,"status":"completed"}}"#;
+
+        let events = extract_mcp_events(output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].server, "everything");
+        assert_eq!(events[0].tool, "get-sum");
+        assert!(
+            !events[0].is_error,
+            "completed item with null error must be a success"
+        );
     }
 }
