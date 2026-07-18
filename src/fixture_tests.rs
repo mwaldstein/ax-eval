@@ -40,7 +40,8 @@ mod tests {
         let env = workspace.env;
 
         let target_env =
-            TargetEnvironment::expanded_from_config(scenario.target.env(), &env.root, &results_dir);
+            TargetEnvironment::expanded_from_config(scenario.target.env(), &env.root, &results_dir)
+                .expect("target env");
 
         // Run setup commands
         if let Some(setup) = &scenario.setup {

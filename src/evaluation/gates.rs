@@ -304,7 +304,8 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
         let target_env =
-            TargetEnvironment::expanded_from_config(Some(&vars), env.path(), env.path());
+            TargetEnvironment::expanded_from_config(Some(&vars), env.path(), env.path())
+                .expect("target env");
 
         let result = command::eval_command_succeeds(
             "test \"$TARGET_ENV_TEST\" = \"works\"",

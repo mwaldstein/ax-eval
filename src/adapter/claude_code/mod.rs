@@ -91,14 +91,14 @@ fn expanded_map(
     values: &std::collections::HashMap<String, String>,
     fixture_dir: &Path,
     results_dir: &Path,
-) -> Map<String, Value> {
+) -> anyhow::Result<Map<String, Value>> {
     values
         .iter()
         .map(|(key, value)| {
-            (
+            Ok((
                 key.clone(),
-                Value::String(expand_target_env_value(value, fixture_dir, results_dir)),
-            )
+                Value::String(expand_target_env_value(value, fixture_dir, results_dir)?),
+            ))
         })
         .collect()
 }
@@ -108,7 +108,7 @@ fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<
     let mut mcp_servers = Map::new();
     mcp_servers.insert(
         target.name.clone(),
-        render_mcp_target(target, workspace, results_dir_for_workspace(workspace)),
+        render_mcp_target(target, workspace, results_dir_for_workspace(workspace))?,
     );
 
     let mut root = Map::new();
@@ -120,47 +120,55 @@ fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<
     Ok(())
 }
 
-fn render_mcp_target(target: &McpTarget, fixture_dir: &Path, results_dir: &Path) -> Value {
+fn render_mcp_target(
+    target: &McpTarget,
+    fixture_dir: &Path,
+    results_dir: &Path,
+) -> anyhow::Result<Value> {
     match &target.transport {
         McpTransport::Stdio { command, args } => {
             let mut entry = Map::new();
             entry.insert("type".to_string(), Value::String("stdio".to_string()));
             entry.insert(
                 "command".to_string(),
-                Value::String(expand_target_env_value(command, fixture_dir, results_dir)),
+                Value::String(expand_target_env_value(command, fixture_dir, results_dir)?),
             );
             entry.insert(
                 "args".to_string(),
                 Value::Array(
                     args.iter()
                         .map(|arg| {
-                            Value::String(expand_target_env_value(arg, fixture_dir, results_dir))
+                            Ok(Value::String(expand_target_env_value(
+                                arg,
+                                fixture_dir,
+                                results_dir,
+                            )?))
                         })
-                        .collect(),
+                        .collect::<anyhow::Result<Vec<_>>>()?,
                 ),
             );
             if let Some(env) = &target.env {
                 entry.insert(
                     "env".to_string(),
-                    Value::Object(expanded_map(env, fixture_dir, results_dir)),
+                    Value::Object(expanded_map(env, fixture_dir, results_dir)?),
                 );
             }
-            Value::Object(entry)
+            Ok(Value::Object(entry))
         }
         McpTransport::Http { url, headers } => {
             let mut entry = Map::new();
             entry.insert("type".to_string(), Value::String("http".to_string()));
             entry.insert(
                 "url".to_string(),
-                Value::String(expand_target_env_value(url, fixture_dir, results_dir)),
+                Value::String(expand_target_env_value(url, fixture_dir, results_dir)?),
             );
             if let Some(headers) = headers {
                 entry.insert(
                     "headers".to_string(),
-                    Value::Object(expanded_map(headers, fixture_dir, results_dir)),
+                    Value::Object(expanded_map(headers, fixture_dir, results_dir)?),
                 );
             }
-            Value::Object(entry)
+            Ok(Value::Object(entry))
         }
     }
 }

@@ -40,7 +40,7 @@ impl PreparedRunContext {
             scenario.target.env(),
             &workspace.env.root,
             results_dir,
-        );
+        )?;
         let artifacts = RunArtifacts::new(results_dir, &workspace.env);
 
         Ok(Self {
@@ -247,7 +247,8 @@ mod tests {
         target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
 
         let target_env =
-            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir);
+            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir)
+                .expect("target env");
 
         let (setup_success, commands) =
             execute_setup_commands(&setup, &env, &writer, 10, &target_env)
@@ -277,7 +278,8 @@ mod tests {
         );
 
         let expanded =
-            TargetEnvironment::expanded_from_config(Some(&target_env), &fixture_dir, &results_dir);
+            TargetEnvironment::expanded_from_config(Some(&target_env), &fixture_dir, &results_dir)
+                .expect("target env");
 
         assert_eq!(
             expanded.as_map().get("MYTOOL_ROOT_DIR"),
@@ -309,7 +311,8 @@ mod tests {
             "${AX_EVAL_FIXTURE_DIR}".to_string(),
         );
         let expanded =
-            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir);
+            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir)
+                .expect("target env");
 
         let (success, reports) = execute_setup_commands(&setup, &env, &writer, 10, &expanded)
             .expect("run setup commands");
@@ -520,12 +523,16 @@ evaluation:
         let mut target_env = HashMap::new();
         target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
 
+        let target_env =
+            TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir)
+                .expect("target env");
+
         execute_health_check(
             "test \"$TARGET_ENV_TEST\" = \"works\"",
             &env,
             &writer,
             10,
-            &TargetEnvironment::expanded_from_config(Some(&target_env), &env.root, &results_dir),
+            &target_env,
         )
         .expect("run health check");
     }

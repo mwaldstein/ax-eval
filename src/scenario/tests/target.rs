@@ -102,7 +102,7 @@ fn http_mcp_target_with_headers_parses() {
     type: http
     url: "https://mcp.example.com/mcp"
     headers:
-      X-API-Key: "${SEARCH_API_KEY}"
+      X-API-Key: "${env:SEARCH_API_KEY}"
   tools: [query, index]
 "#,
     ))
@@ -116,7 +116,7 @@ fn http_mcp_target_with_headers_parses() {
                 && headers
                     .as_ref()
                     .and_then(|headers| headers.get("X-API-Key"))
-                    == Some(&"${SEARCH_API_KEY}".to_string())
+                    == Some(&"${env:SEARCH_API_KEY}".to_string())
     ));
 }
 

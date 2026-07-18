@@ -103,14 +103,14 @@ fn expanded_map(
     values: &std::collections::HashMap<String, String>,
     fixture_dir: &Path,
     results_dir: &Path,
-) -> Map<String, Value> {
+) -> anyhow::Result<Map<String, Value>> {
     values
         .iter()
         .map(|(key, value)| {
-            (
+            Ok((
                 key.clone(),
-                Value::String(expand_target_env_value(value, fixture_dir, results_dir)),
-            )
+                Value::String(expand_target_env_value(value, fixture_dir, results_dir)?),
+            ))
         })
         .collect()
 }
@@ -140,21 +140,30 @@ fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<
 
     mcp.insert(
         target.name.clone(),
-        render_mcp_target(target, workspace, results_dir_for_workspace(workspace)),
+        render_mcp_target(target, workspace, results_dir_for_workspace(workspace))?,
     );
 
     std::fs::write(config_path, serde_json::to_string_pretty(&config)? + "\n")?;
     Ok(())
 }
 
-fn render_mcp_target(target: &McpTarget, fixture_dir: &Path, results_dir: &Path) -> Value {
+fn render_mcp_target(
+    target: &McpTarget,
+    fixture_dir: &Path,
+    results_dir: &Path,
+) -> anyhow::Result<Value> {
     match &target.transport {
         McpTransport::Stdio { command, args } => {
             let command = std::iter::once(command)
                 .chain(args.iter())
-                .map(|value| expand_target_env_value(value, fixture_dir, results_dir))
-                .map(Value::String)
-                .collect();
+                .map(|value| {
+                    Ok(Value::String(expand_target_env_value(
+                        value,
+                        fixture_dir,
+                        results_dir,
+                    )?))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()?;
             let mut entry = Map::new();
             entry.insert("type".to_string(), Value::String("local".to_string()));
             entry.insert("command".to_string(), Value::Array(command));
@@ -162,26 +171,26 @@ fn render_mcp_target(target: &McpTarget, fixture_dir: &Path, results_dir: &Path)
             if let Some(env) = &target.env {
                 entry.insert(
                     "environment".to_string(),
-                    Value::Object(expanded_map(env, fixture_dir, results_dir)),
+                    Value::Object(expanded_map(env, fixture_dir, results_dir)?),
                 );
             }
-            Value::Object(entry)
+            Ok(Value::Object(entry))
         }
         McpTransport::Http { url, headers } => {
             let mut entry = Map::new();
             entry.insert("type".to_string(), Value::String("remote".to_string()));
             entry.insert(
                 "url".to_string(),
-                Value::String(expand_target_env_value(url, fixture_dir, results_dir)),
+                Value::String(expand_target_env_value(url, fixture_dir, results_dir)?),
             );
             if let Some(headers) = headers {
                 entry.insert(
                     "headers".to_string(),
-                    Value::Object(expanded_map(headers, fixture_dir, results_dir)),
+                    Value::Object(expanded_map(headers, fixture_dir, results_dir)?),
                 );
             }
             entry.insert("enabled".to_string(), Value::Bool(true));
-            Value::Object(entry)
+            Ok(Value::Object(entry))
         }
     }
 }

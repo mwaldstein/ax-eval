@@ -118,7 +118,7 @@ fn provision_mcp_target(
         std::fs::create_dir_all(parent)?;
     }
 
-    let rendered = render_mcp_target(target, workspace, results_dir_for_workspace(workspace));
+    let rendered = render_mcp_target(target, workspace, results_dir_for_workspace(workspace))?;
     let next = append_codex_mcp_entry(
         previous.as_deref().map(std::str::from_utf8).transpose()?,
         &target.name,
@@ -155,39 +155,46 @@ fn render_mcp_target(
     target: &McpTarget,
     fixture_dir: &Path,
     results_dir: &Path,
-) -> RenderedCodexMcpTarget {
+) -> anyhow::Result<RenderedCodexMcpTarget> {
     match &target.transport {
-        McpTransport::Stdio { command, args } => RenderedCodexMcpTarget::Stdio {
-            command: expand_target_env_value(command, fixture_dir, results_dir),
+        McpTransport::Stdio { command, args } => Ok(RenderedCodexMcpTarget::Stdio {
+            command: expand_target_env_value(command, fixture_dir, results_dir)?,
             args: args
                 .iter()
                 .map(|arg| expand_target_env_value(arg, fixture_dir, results_dir))
-                .collect(),
-            env: target.env.as_ref().map(|env| {
-                env.iter()
-                    .map(|(key, value)| {
-                        (
-                            key.clone(),
-                            expand_target_env_value(value, fixture_dir, results_dir),
-                        )
-                    })
-                    .collect()
-            }),
-        },
-        McpTransport::Http { url, headers } => RenderedCodexMcpTarget::Http {
-            url: expand_target_env_value(url, fixture_dir, results_dir),
-            http_headers: headers.as_ref().map(|headers| {
-                headers
-                    .iter()
-                    .map(|(key, value)| {
-                        (
-                            key.clone(),
-                            expand_target_env_value(value, fixture_dir, results_dir),
-                        )
-                    })
-                    .collect()
-            }),
-        },
+                .collect::<anyhow::Result<Vec<_>>>()?,
+            env: target
+                .env
+                .as_ref()
+                .map(|env| {
+                    env.iter()
+                        .map(|(key, value)| {
+                            Ok((
+                                key.clone(),
+                                expand_target_env_value(value, fixture_dir, results_dir)?,
+                            ))
+                        })
+                        .collect::<anyhow::Result<BTreeMap<_, _>>>()
+                })
+                .transpose()?,
+        }),
+        McpTransport::Http { url, headers } => Ok(RenderedCodexMcpTarget::Http {
+            url: expand_target_env_value(url, fixture_dir, results_dir)?,
+            http_headers: headers
+                .as_ref()
+                .map(|headers| {
+                    headers
+                        .iter()
+                        .map(|(key, value)| {
+                            Ok((
+                                key.clone(),
+                                expand_target_env_value(value, fixture_dir, results_dir)?,
+                            ))
+                        })
+                        .collect::<anyhow::Result<BTreeMap<_, _>>>()
+                })
+                .transpose()?,
+        }),
     }
 }
 

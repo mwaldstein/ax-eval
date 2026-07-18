@@ -11,21 +11,22 @@ impl TargetEnvironment {
         target_env: Option<&HashMap<String, String>>,
         fixture_dir: &Path,
         results_dir: &Path,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let vars = target_env
             .map(|vars| {
                 vars.iter()
                     .map(|(key, value)| {
-                        (
+                        Ok((
                             key.clone(),
-                            expand_target_env_value(value, fixture_dir, results_dir),
-                        )
+                            expand_target_env_value(value, fixture_dir, results_dir)?,
+                        ))
                     })
-                    .collect()
+                    .collect::<anyhow::Result<HashMap<_, _>>>()
             })
+            .transpose()?
             .unwrap_or_default();
 
-        Self { vars }
+        Ok(Self { vars })
     }
 
     pub fn as_map(&self) -> &HashMap<String, String> {
@@ -48,13 +49,60 @@ pub(crate) fn expand_target_env_value(
     value: &str,
     fixture_dir: &Path,
     results_dir: &Path,
-) -> String {
+) -> anyhow::Result<String> {
     let fixture_dir = absolute_path(fixture_dir);
     let results_dir = absolute_path(results_dir);
+    let fixture_dir = fixture_dir.to_string_lossy();
+    let results_dir = results_dir.to_string_lossy();
 
-    value
-        .replace("${AX_EVAL_FIXTURE_DIR}", &fixture_dir.to_string_lossy())
-        .replace("${AX_EVAL_RESULTS_DIR}", &results_dir.to_string_lossy())
+    let mut expanded = String::with_capacity(value.len());
+    let mut rest = value;
+
+    while let Some(start) = rest.find("${") {
+        expanded.push_str(&rest[..start]);
+        rest = &rest[start..];
+
+        if let Some(after) = rest.strip_prefix("${AX_EVAL_FIXTURE_DIR}") {
+            expanded.push_str(&fixture_dir);
+            rest = after;
+            continue;
+        }
+
+        if let Some(after) = rest.strip_prefix("${AX_EVAL_RESULTS_DIR}") {
+            expanded.push_str(&results_dir);
+            rest = after;
+            continue;
+        }
+
+        if let Some(after_prefix) = rest.strip_prefix("${env:") {
+            if let Some(end) = after_prefix.find('}') {
+                let name = &after_prefix[..end];
+                if is_env_var_name(name) {
+                    let value = std::env::var(name).map_err(|_| {
+                        anyhow::anyhow!("environment variable ${{env:{name}}} is not set")
+                    })?;
+                    expanded.push_str(&value);
+                    rest = &after_prefix[end + 1..];
+                    continue;
+                }
+            }
+        }
+
+        expanded.push_str("${");
+        rest = &rest[2..];
+    }
+
+    expanded.push_str(rest);
+    Ok(expanded)
+}
+
+fn is_env_var_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
 fn absolute_path(path: &Path) -> PathBuf {
@@ -88,7 +136,8 @@ mod tests {
         );
 
         let expanded =
-            TargetEnvironment::expanded_from_config(Some(&target_env), &fixture_dir, &results_dir);
+            TargetEnvironment::expanded_from_config(Some(&target_env), &fixture_dir, &results_dir)
+                .expect("target env");
 
         assert_eq!(
             expanded.as_map().get("MYTOOL_ROOT_DIR"),
@@ -124,7 +173,8 @@ mod tests {
         );
 
         let expanded =
-            TargetEnvironment::expanded_from_config(Some(&target_env), &fixture_dir, &results_dir);
+            TargetEnvironment::expanded_from_config(Some(&target_env), &fixture_dir, &results_dir)
+                .expect("target env");
 
         let expected_fixture = std::env::current_dir()
             .expect("current dir")
@@ -157,9 +207,77 @@ mod tests {
             Path::new(""),
             Path::new(""),
         )
+        .expect("target env")
         .to_session_env();
 
         assert!(session_env.contains(&("TARGET_ENV_TEST".to_string(), "works".to_string())));
         assert!(session_env.contains(&("ANOTHER_VAR".to_string(), "also works".to_string())));
+    }
+
+    #[test]
+    fn expands_namespaced_env_var() {
+        let name = "AX_EVAL_TARGET_ENV_TEST_SET_UNIQUE";
+        std::env::set_var(name, "secret-value");
+
+        let expanded = expand_target_env_value(
+            "token-${env:AX_EVAL_TARGET_ENV_TEST_SET_UNIQUE}",
+            Path::new("fixture"),
+            Path::new("results"),
+        )
+        .expect("expand env");
+
+        assert_eq!(expanded, "token-secret-value");
+    }
+
+    #[test]
+    fn unset_namespaced_env_var_returns_error_naming_variable() {
+        let name = "AX_EVAL_TARGET_ENV_TEST_UNSET_UNIQUE";
+        std::env::remove_var(name);
+
+        let error = expand_target_env_value(
+            "token-${env:AX_EVAL_TARGET_ENV_TEST_UNSET_UNIQUE}",
+            Path::new("fixture"),
+            Path::new("results"),
+        )
+        .expect_err("missing env should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "environment variable ${env:AX_EVAL_TARGET_ENV_TEST_UNSET_UNIQUE} is not set"
+        );
+    }
+
+    #[test]
+    fn bare_env_like_placeholder_is_left_literal() {
+        let expanded = expand_target_env_value(
+            "token-${AX_EVAL_TARGET_ENV_TEST_BARE}",
+            Path::new("fixture"),
+            Path::new("results"),
+        )
+        .expect("expand env");
+
+        assert_eq!(expanded, "token-${AX_EVAL_TARGET_ENV_TEST_BARE}");
+    }
+
+    #[test]
+    fn expands_mixed_run_dir_and_namespaced_env_values() {
+        let name = "AX_EVAL_TARGET_ENV_TEST_MIXED_UNIQUE";
+        std::env::set_var(name, "artifact.json");
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fixture_dir = dir.path().join("results").join("fixture");
+        let results_dir = dir.path().join("results");
+
+        let expanded = expand_target_env_value(
+            "${AX_EVAL_RESULTS_DIR}/${env:AX_EVAL_TARGET_ENV_TEST_MIXED_UNIQUE}",
+            &fixture_dir,
+            &results_dir,
+        )
+        .expect("expand mixed");
+
+        assert_eq!(
+            expanded,
+            format!("{}/artifact.json", results_dir.to_string_lossy())
+        );
     }
 }

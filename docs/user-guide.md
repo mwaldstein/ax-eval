@@ -200,7 +200,7 @@ transport:
   type: http
   url: "https://mcp.example.com/mcp"
   headers:
-    X-API-Key: "${SEARCH_API_KEY}"
+    X-API-Key: "${env:SEARCH_API_KEY}"
 ```
 
 Before the agent starts, the selected adapter renders this target into the
