@@ -28,6 +28,9 @@ single file because it does not wrap a real LLM CLI or parse real tool events.
 Each runtime adapter owns:
 
 - Availability and authentication checks for its CLI.
+- Target provisioning before launch. CLI targets usually need no provisioning;
+  MCP targets must be rendered into the host's native MCP config format for the
+  selected workspace.
 - Process invocation, arguments, model selection, timeout, and environment.
 - Raw output capture.
 - Tool event normalization from raw output into `ToolRunOutput`.
@@ -55,6 +58,22 @@ usable target-tool events.
 When a host transcript contains both shell commands and MCP calls, the adapter
 must preserve both event streams in the canonical interaction input. The
 interaction profile consumes the stream matching the scenario target kind.
+
+## MCP Provisioning
+
+Implement `ToolAdapter::provision_target` when a host needs configuration before
+it can discover an MCP target. The hook runs after fixture materialization and
+before `run()`, with the isolated workspace root and parsed `TargetConfig`.
+
+- CLI targets should return `Ok(())`.
+- stdio MCP targets must expand `${AX_EVAL_FIXTURE_DIR}` and
+  `${AX_EVAL_RESULTS_DIR}` in command, args, and env values before writing host
+  config.
+- HTTP MCP targets must render the Streamable HTTP URL and static headers into
+  the host's supported config shape.
+- If provisioning touches global state, the adapter must restore the previous
+  state during cleanup. Codex is the current example because it reads
+  `~/.codex/config.toml`.
 
 ## MCP Normalization Shapes
 

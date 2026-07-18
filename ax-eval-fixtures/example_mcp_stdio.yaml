@@ -1,0 +1,48 @@
+# Example MCP stdio Scenario
+# Demonstrates a local, dependency-free MCP server target.
+
+name: example_mcp_stdio
+description: Demonstrates evaluating a tiny stdio MCP notes server
+
+tier: 0
+tags:
+  - examples
+  - mcp
+
+template_folder: example_mcp_stdio
+
+target:
+  kind: mcp
+  name: notes
+  transport:
+    type: stdio
+    command: "python3"
+    args: ["${AX_EVAL_FIXTURE_DIR}/notes_mcp_server.py"]
+  tools: [add_note, list_notes]
+  env:
+    NOTE_STORE: "${AX_EVAL_FIXTURE_DIR}/notes.json"
+  health_check: "python3 ./scripts/probe_notes.py --health"
+
+interaction:
+  target_commands: required
+
+task:
+  prompt: |
+    Use the notes MCP server to add these two notes:
+    - Launch checklist
+    - Retrospective notes
+
+    Then call the MCP server's list_notes tool to verify both notes were saved.
+
+setup:
+  commands:
+    - "chmod +x notes_mcp_server.py scripts/probe_notes.py"
+
+evaluation:
+  gates:
+    - type: script
+      command: "python3 ./scripts/probe_notes.py --require-note 'Launch checklist' --require-note 'Retrospective notes'"
+      description: Both requested notes were persisted by the MCP server
+
+run:
+  timeout_secs: 120

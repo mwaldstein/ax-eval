@@ -55,11 +55,12 @@ These metrics are derived from interaction evidence and are always available, re
 ### Interaction Evidence
 
 Structured tool calls are the canonical evidence source for interaction
-profiles. If an adapter supports structured tool calls, it must return
-structured command events for normal completed runs. Returning transcript regex
-evidence is an evaluation failure. Returning no usable target-tool events is an
-evaluation failure unless the scenario declares `interaction.target_commands:
-optional`.
+profiles. For CLI targets, adapters return structured command events. For MCP
+targets, adapters return structured MCP tool-call events with server, tool,
+arguments, and error status. Returning transcript regex evidence from a
+structured-capable adapter is an evaluation failure. Returning no usable
+target-tool events is an evaluation failure unless the scenario declares
+`interaction.target_commands: optional`.
 
 Scenarios can set `interaction.target_commands` to:
 
@@ -69,15 +70,21 @@ Scenarios can set `interaction.target_commands` to:
 - `forbidden`: completed runs fail interaction profiling if target-tool events
   are present.
 
+This policy applies to both CLI command events and MCP tool-call events.
+
 Transcript regex analysis is fallback evidence only for adapters that cannot
 provide structured tool calls. See ADR-0002.
 
 ### Command Identification
 
-The interaction profile must know which commands belong to the target tool.
-For structured evidence, target commands are identified from adapter-provided
-command events using `target.binary`. For regex fallback evidence, this requires
-a configurable command pattern, specified per scenario or globally:
+The interaction profile must know which actions belong to the target. For
+structured CLI evidence, target commands are identified from adapter-provided
+command events using `target.binary`. For structured MCP evidence, target calls
+are identified by `event.server == target.name` and filtered to declared
+`target.tools`; action identity is keyed by `(server, tool)`.
+
+For regex fallback evidence, CLI identification requires a configurable command
+pattern, specified per scenario or globally:
 
 ```yaml
 # In scenario YAML
@@ -110,11 +117,21 @@ Interaction profiles record their evidence source in `metrics.json` as
 `interaction_evidence_source`.
 
 - `structured_tool_calls`: metrics came from adapter-provided command events.
+- `structured_mcp_tool_calls`: metrics came from adapter-provided MCP tool-call
+  events.
 - `transcript_regex_fallback`: metrics came from `artifacts/transcript.raw.txt` using
   `target.command_pattern`.
 
 Exit code detection for regex fallback is only as reliable as the transcript
 content. Structured-capable adapters must not use this fallback.
+
+Both structured evidence kinds feed the same metric engine through an
+`(action, outcome)` projection:
+
+| Target kind | Action | Outcome |
+|-------------|--------|---------|
+| CLI | Subcommand after the matched `target.binary` token | Success when `exit_code == 0`; failure when non-zero; unknown when no exit code is available. |
+| MCP | `(server, tool)`, displayed by tool name for a singular scenario target | Success when `is_error == false`; failure when `is_error == true`. |
 
 ### Completion
 

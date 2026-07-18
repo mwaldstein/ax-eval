@@ -1,6 +1,6 @@
 # MCP Targets
 
-**Status: Draft**
+**Status: Stable**
 
 ## Purpose
 
@@ -8,12 +8,10 @@ Define how ax-eval evaluates an agent's use of an MCP server, extending the
 existing CLI target model without forking the evaluation philosophy or the
 three-layer profile.
 
-Today a scenario target is always a CLI binary. The agent shells out to
-`target.binary`; the harness identifies target commands by finding that binary
-token in bash command strings and derives outcome from exit codes
-(`src/interaction_profile/target.rs`). MCP servers are a different surface: the
-agent calls server tools (`tools/call`) over a transport, discovered through the
-host agent's own MCP config. There is no shell string and no exit code.
+Originally a scenario target was always a CLI binary. The implemented schema now
+supports both CLI and MCP targets: CLI targets are matched from shell command
+events, while MCP targets are matched from structured `tools/call` events
+discovered through the host agent's MCP config.
 
 What changes and what does not:
 
@@ -521,13 +519,11 @@ this feature touches the scenario schema, so update these surfaces in lockstep:
 - **`docs/evaluation.md`**: note the new `structured_mcp_tool_calls` evidence
   source and the `(action, outcome)` metric projection.
 - **`src/commands.rs` (`SCENARIO_TEMPLATE`)**: surface an MCP `target` block as
-  a commented example in the printable scenario template.
+  a commented example in the printable scenario template. **Done.**
 - **`docs/user-guide.md`**: add an MCP workflow section (declaring a transport,
   the probe-script convention, judge evidence shape).
-- **`docs/mcp-targets.md`**: flip **Status** from Draft to Stable when Stage 6
-  lands. (The design's open questions were resolved or explicitly deferred
-  2026-07-18 — see Resolved Questions / Deferred — so Stable now gates only on
-  implementation.)
+- **`docs/mcp-targets.md`**: mark this document Stable when Stage 6 lands.
+  **Done.**
 - **`CHANGELOG.md`**: `Added` entries under the target release for the MCP
   target kind, transport rendering, and `StructuredMcpToolCalls` evidence.
 - **`ax-eval-fixtures/`**: add an example MCP scenario (stdio server fixture +

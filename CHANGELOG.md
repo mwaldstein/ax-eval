@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- MCP server targets (in progress; design: `docs/mcp-targets.md`). Scenarios can declare `target.kind: mcp` with a server `name`, an agent-agnostic `transport` (`stdio` or `http`), and a required `tools` list. Existing flat CLI `target: { binary: ... }` scenarios parse unchanged. Stage 2 adds adapter-owned target provisioning for opencode, claude-code, and codex, adapters now capture MCP tool-call evidence from their structured output streams, and the judge prompt is target-kind aware with bounded structured MCP call excerpts.
-- MCP interaction evidence now supports structured tool-call events, persists MCP events with run artifacts, and feeds the same interaction metrics as CLI evidence through a shared action/outcome projection.
+- MCP server targets end to end. Scenarios can declare `target.kind: mcp` with a server `name`, an agent-agnostic `stdio` or Streamable HTTP transport, and a required `tools` list; adapters provision MCP config for opencode, claude-code, and codex; structured MCP evidence feeds the same interaction metrics as CLI evidence through a shared action/outcome projection; and judge prompts are target-aware with bounded structured MCP call excerpts. Existing flat CLI `target: { binary: ... }` scenarios parse unchanged. Codex MCP provisioning writes `~/.codex/config.toml` before the run and restores the prior content after cleanup.
 
 ### Changed
 - Result caching is now opt-in (`--cache`) rather than default. Runs are always fresh by default because ax-eval evaluates a non-deterministic system — caching a single past run and replaying it misrepresents current agent capability. The results database (`results.jsonl`) remains the source of truth for run history. See ADR-0004 for rationale.

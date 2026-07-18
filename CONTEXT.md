@@ -2,7 +2,9 @@
 
 ## Glossary
 
-**Adapter** — A module that launches an LLM coding-agent CLI (opencode, claude-code, codex) in an isolated workspace, captures its interaction, and normalizes the output into canonical run artifacts. Adapters do not invoke the target CLI directly; the agent does.
+**Adapter** — A module that launches an LLM coding-agent CLI (opencode, claude-code, codex) in an isolated workspace, provisions any target-specific host config such as MCP server entries, captures the agent interaction, and normalizes the output into canonical run artifacts. Adapters do not invoke the target directly; the agent does.
+
+**Target** — The evaluated surface in a scenario. A CLI target is identified by a binary name and produces shell command evidence. An MCP target is identified by a server name plus declared tools and produces MCP tool-call evidence.
 
 **Scenario** — A YAML file defining a task for an LLM agent to attempt using a specific CLI tool, the fixture environment it runs in, and the evaluation criteria applied after the agent exits. The unit of evaluation.
 
@@ -15,6 +17,8 @@
 **Interaction Metrics** — Quantitative measures derived from interaction evidence: command count, error rate, retry rate, help invocations, first-try success rate, iteration ratio, and completion status.
 
 **Interaction Evidence** — The input used to build interaction metrics. Structured tool-call events from the adapter are the canonical source. Transcript regex analysis is fallback evidence only for adapters that cannot expose structured tool calls.
+
+**Tool Call Event** — A canonical record of one agent action against a target-capable surface. `CommandEvent` represents a bash command with an optional exit code for CLI targets. `McpToolCallEvent` represents an MCP `tools/call` with server, tool, structured arguments, and `is_error` for MCP targets.
 
 **Judge** — An optional LLM-as-judge evaluation that scores the quality of an agent's tool usage against a rubric. Produces a weighted score, rationale, confidence, issues, and highlights. Encodes the tool author's intent about how the tool should be used.
 

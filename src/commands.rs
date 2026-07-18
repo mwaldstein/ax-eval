@@ -352,8 +352,7 @@ target:
 
     MYTOOL_EXPORT: "${AX_EVAL_RESULTS_DIR}/mytool-export.json"
 
-# Alternative MCP target block. MCP targets parse and validate in Stage 1,
-# but are not runnable until Stage 2+.
+# Alternative MCP target block for a stdio MCP server.
 # target:
 #   kind: mcp
 #   name: todo
@@ -362,6 +361,7 @@ target:
 #     command: "${AX_EVAL_FIXTURE_DIR}/todo-mcp-server"
 #     args: ["--root", "${AX_EVAL_FIXTURE_DIR}"]
 #   tools: [add, list, complete, search]
+#   health_check: "./scripts/probe_todo.sh --health"
 interaction:
   target_commands: required
 

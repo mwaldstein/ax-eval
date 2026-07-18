@@ -173,6 +173,57 @@ normal CLI workflows. Set it to `optional` for validation scenarios where the
 agent may legitimately finish without calling the target tool, or `forbidden`
 when calling the target tool should fail the scenario.
 
+### MCP Targets
+
+MCP scenarios declare `target.kind: mcp`, a server `name`, a `tools` allow-list,
+and an agent-agnostic transport:
+
+```yaml
+target:
+  kind: mcp
+  name: notes
+  transport:
+    type: stdio
+    command: "python3"
+    args: ["${AX_EVAL_FIXTURE_DIR}/notes_mcp_server.py"]
+  tools: [add_note, list_notes]
+  env:
+    NOTE_STORE: "${AX_EVAL_FIXTURE_DIR}/notes.json"
+  health_check: "python3 ./scripts/probe_notes.py --health"
+```
+
+`stdio` launches a local server process. `http` connects to a Streamable HTTP
+server and can include static headers:
+
+```yaml
+transport:
+  type: http
+  url: "https://mcp.example.com/mcp"
+  headers:
+    X-API-Key: "${SEARCH_API_KEY}"
+```
+
+Before the agent starts, the selected adapter renders this target into the
+host's MCP configuration. opencode and claude-code use workspace-local config
+files. Codex reads `~/.codex/config.toml`, so the codex adapter writes the MCP
+server entry before the run and restores the prior file content after the agent
+exits. This is an accepted isolation tradeoff; see [docs/tradeoffs.md](tradeoffs.md).
+
+For outcome gates, prefer a fixture probe script. MCP server state often is not
+visible as simple files in the workspace, and ax-eval does not ship a generic
+MCP client gate yet. The common pattern is:
+
+- `target.health_check` runs `./scripts/probe_*.py --health`.
+- `evaluation.gates` uses a `script` gate such as `./scripts/probe_*.py
+  --require-note ...`.
+- Optional `scripts.evaluators` read the same backing store or probe surface and
+  print evaluator JSON.
+
+Judge prompts are target-aware. For CLI scenarios the judge sees the CLI tool
+name and command excerpts. For MCP scenarios it sees the MCP server name, the
+declared tool list, and a bounded excerpt of structured MCP calls including
+tool arguments and error status.
+
 ### Design Principles
 
 Good scenarios evaluate outcomes, not the exact process an agent used. Because LLMs are nondeterministic, prefer checks like "was the summary created?" over "did the agent run these exact commands in this exact order?"
@@ -299,6 +350,8 @@ The tutorial covers reading your first run output. This section covers advanced 
 
 The `interaction_evidence_source` field in `metrics.json` shows how command metrics were built:
 - `structured_tool_calls` — the adapter provided canonical command events.
+- `structured_mcp_tool_calls` — the adapter provided canonical MCP tool-call
+  events.
 - `transcript_regex_fallback` — metrics came from transcript regex analysis for an adapter that cannot expose structured tool calls.
 
 Structured-capable adapters must not use the fallback. If you see `transcript_regex_fallback` from opencode, claude-code, or codex, the adapter's raw-output parser likely no longer matches the CLI output schema.

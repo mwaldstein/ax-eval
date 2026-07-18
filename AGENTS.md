@@ -58,6 +58,17 @@ cargo run -- run --scenario <name> --tool opencode
 
 Follow `src/adapter/README.md`.
 
+### Adding an MCP Provisioning Target
+
+1. Add or update the adapter's `ToolAdapter::provision_target` implementation.
+2. Render `stdio` and `http` transports into the host's native MCP config.
+3. Expand `${AX_EVAL_FIXTURE_DIR}` and `${AX_EVAL_RESULTS_DIR}` consistently.
+4. Restore any global config touched during provisioning.
+5. Add adapter-local provisioning tests and MCP normalization tests.
+6. Update `docs/mcp-targets.md`, `docs/scenarios.md`, `docs/user-guide.md`,
+   `src/adapter/README.md`, examples, and CLI templates/snapshots if the user
+   surface changes.
+
 ### Updating Scenario Schema
 
 1. Modify types in `src/scenario/types.rs`.

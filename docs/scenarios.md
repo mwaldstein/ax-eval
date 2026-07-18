@@ -12,16 +12,43 @@ A scenario is the unit of evaluation. Each scenario defines a task for an LLM ag
 
 ## Target Tool Configuration
 
-Each scenario must declare the CLI tool under evaluation. This is the **target tool** — the thing the LLM agent will be asked to use.
+Each scenario must declare the target under evaluation. This is the **target tool** — the thing the LLM agent will be asked to use. A target is either a CLI binary or an MCP server.
 
 ### Fields
 
+`target` is a tagged union. Existing flat CLI targets without `kind` still parse
+as CLI targets for compatibility.
+
+#### `CliTarget`
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `target.binary` | string | yes | Binary name used to identify target tool invocations in interaction evidence. Not executed by the harness; the agent discovers and runs the tool based on AGENTS.md and the fixture workspace. The path portion is ignored — only the filename is matched (e.g. `./todo`, `todo`, and `/usr/local/bin/todo` all match `todo`). |
-| `target.command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. No default; when omitted, only aggregate command counts are available for regex-based metrics. |
-| `target.env` | map<string, string> | no | Environment variables to set for the target tool (e.g., config paths, auth tokens, fixture paths) |
-| `target.health_check` | string | no | Command to verify the tool is working before/after runs |
+| `kind` | `cli` | no | Target discriminant. Optional for backward compatibility. |
+| `binary` | string | yes | Binary name used to identify target tool invocations in interaction evidence. Not executed by the harness; the agent discovers and runs the tool based on AGENTS.md and the fixture workspace. The path portion is ignored, so `./todo`, `todo`, and `/usr/local/bin/todo` all match `todo`. |
+| `command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. No default; when omitted, only aggregate command counts are available for regex-based metrics. |
+| `env` | map<string, string> | no | Environment variables to set for the target tool, such as config paths, auth tokens, and fixture paths. |
+| `health_check` | string | no | Shell command to verify the tool is working before/after runs. |
+
+#### `McpTarget`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `kind` | `mcp` | yes | Target discriminant. |
+| `name` | string | yes | MCP server identity used for evidence matching and judge prompts. |
+| `transport` | `McpTransport` | yes | Agent-agnostic connection description rendered by each adapter into the host's native MCP config. |
+| `tools` | list<string> | yes | Declared tool surface. Used as an evidence allow-list and bounded judge context. Must contain at least one tool. |
+| `env` | map<string, string> | no | Environment variables for the server process. Supports the same run-directory placeholders as CLI targets. |
+| `health_check` | string | no | Shell command to verify server prerequisites. MCP scenarios commonly use a fixture probe script. |
+
+#### `McpTransport`
+
+| Variant | Fields | Description |
+|---------|--------|-------------|
+| `stdio` | `command: string`, `args: list<string>` | Launch a local MCP server over stdin/stdout. `args` defaults to an empty list. |
+| `http` | `url: string`, `headers: map<string,string>` | Connect to a Streamable HTTP MCP server. `headers` is optional. |
+
+There is no `sse` transport variant. ax-eval supports stdio and Streamable HTTP
+because they are the portable MCP transports across supported harnesses.
 
 ### Configuration Source
 
@@ -29,6 +56,7 @@ Target tool config is defined inline in scenario YAML so each scenario is self-c
 
 ```yaml
 target:
+  kind: cli
   binary: mytool
   command_pattern: "mytool\\s+"
   health_check: "mytool --version"
@@ -57,6 +85,7 @@ workspace:
 
 ```yaml
 target:
+  kind: cli
   binary: mytool
   env:
     MYTOOL_ROOT_DIR: "${AX_EVAL_FIXTURE_DIR}"
@@ -158,11 +187,23 @@ name: string                     # Human-readable name (required)
 description: string              # What this scenario tests (required)
 
 target:                          # Target tool configuration (required)
+  kind: cli                      # optional for CLI; use mcp for MCP servers
   binary: string
   command_pattern: string        # optional
   health_check: string           # optional
   env:                           # optional
     KEY: value
+
+# MCP alternative:
+# target:
+#   kind: mcp
+#   name: string
+#   transport:
+#     type: stdio
+#     command: string
+#     args: [string]
+#   tools: [tool_name]
+#   health_check: string         # optional shell probe
 
 template_folder: string          # Path to fixture directory (required)
 
@@ -228,6 +269,7 @@ description: >
   brief, assign priorities, and filter by status.
 
 target:
+  kind: cli
   binary: taskmgr
   command_pattern: "taskmgr\\s+(add|list|done|priority|show|search)"
   health_check: "taskmgr --version"
@@ -301,6 +343,72 @@ tags:
 
 tier: 1
 ```
+
+### Complete MCP Example
+
+This scenario evaluates a local stdio MCP notes server. The agent uses MCP tool
+calls instead of shelling out to a target binary; gates inspect the resulting
+server state through a fixture probe script.
+
+```yaml
+name: notes_mcp_capture
+description: Verify the agent can use the notes MCP server to persist notes.
+
+target:
+  kind: mcp
+  name: notes
+  transport:
+    type: stdio
+    command: "python3"
+    args: ["${AX_EVAL_FIXTURE_DIR}/notes_mcp_server.py"]
+  tools: [add_note, list_notes]
+  env:
+    NOTE_STORE: "${AX_EVAL_FIXTURE_DIR}/notes.json"
+  health_check: "python3 ./scripts/probe_notes.py --health"
+
+template_folder: ax-eval-fixtures/templates/notes_mcp_capture
+
+task:
+  prompt: |
+    Use the notes MCP server to add two notes:
+    - Launch checklist
+    - Retrospective notes
+
+    Then list the notes to verify both were saved.
+
+setup:
+  commands:
+    - "chmod +x notes_mcp_server.py scripts/probe_notes.py"
+
+evaluation:
+  gates:
+    - type: script
+      command: "python3 ./scripts/probe_notes.py --require-note 'Launch checklist' --require-note 'Retrospective notes'"
+      description: "Both notes were persisted by the MCP server"
+  judge:
+    enabled: true
+    criteria:
+      - id: task_completion
+        weight: 0.50
+        description: "The agent added both requested notes and verified them"
+      - id: mcp_tool_usage
+        weight: 0.30
+        description: "The agent used the MCP server tools correctly"
+      - id: efficiency
+        weight: 0.20
+        description: "The agent completed the task without unnecessary failed calls"
+    pass_threshold: 0.70
+
+tags:
+  - examples
+  - mcp
+```
+
+MCP scenarios typically use `script` gates and custom evaluators plus a fixture
+probe script because server state is often not visible as ordinary workspace
+files. The probe can inspect a backing store, call a server-specific admin
+surface, or validate exported state. ax-eval does not include a first-class MCP
+ping or MCP gate in v1.
 
 ---
 
