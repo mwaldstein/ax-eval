@@ -62,12 +62,21 @@ Follow `src/adapter/README.md`.
 
 1. Add or update the adapter's `ToolAdapter::provision_target` implementation.
 2. Render `stdio` and `http` transports into the host's native MCP config.
-3. Expand `${AX_EVAL_FIXTURE_DIR}` and `${AX_EVAL_RESULTS_DIR}` consistently.
-4. Restore any global config touched during provisioning.
-5. Add adapter-local provisioning tests and MCP normalization tests.
-6. Update `docs/mcp-targets.md`, `docs/scenarios.md`, `docs/user-guide.md`,
-   `src/adapter/README.md`, examples, and CLI templates/snapshots if the user
-   surface changes.
+3. Render `target.auth` into the host's credential mechanism: a `Bearer` /
+   static header for opencode and claude-code (disable the host's automatic
+   OAuth), the env-var name (`bearer_token_env_var`) for codex, and no
+   credential for `host_session`. Resolve secrets from the environment via
+   `crate::mcp_auth`; never write a resolved token into a file ax-eval retains
+   (codex is safe by construction; opencode/claude-code workspace config is
+   scrubbed post-run in `src/run/execution.rs`).
+4. Expand `${AX_EVAL_FIXTURE_DIR}`, `${AX_EVAL_RESULTS_DIR}`, and `${env:NAME}`
+   consistently.
+5. Restore any global config touched during provisioning.
+6. Add adapter-local provisioning tests (including golden auth-config output and
+   a no-secret-in-retained-artifact assertion) and MCP normalization tests.
+7. Update `docs/mcp-targets.md`, `docs/mcp-auth.md`, `docs/scenarios.md`,
+   `docs/user-guide.md`, `src/adapter/README.md`, the `mcp-auth` guidance topic,
+   examples, and CLI templates/snapshots if the user surface changes.
 
 ### Updating Scenario Schema
 

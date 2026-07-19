@@ -337,7 +337,12 @@ Sources:
         slug: "agent-auth",
         title: "Agent Authentication",
         summary: "Support non-browser auth, scoped tokens, and clear permission failures.",
-        related: &["bounded-autonomy", "typed-errors", "agent-instructions"],
+        related: &[
+            "bounded-autonomy",
+            "typed-errors",
+            "agent-instructions",
+            "mcp-auth",
+        ],
         body: r#"# Agent Authentication
 
 Agents often run in terminals, CI, sandboxes, or remote machines where browser login is unavailable.
@@ -363,6 +368,7 @@ Sources:
         related: &[
             "mcp-tool-descriptions",
             "mcp-errors",
+            "mcp-auth",
             "cli-design",
             "workflow-commands",
         ],
@@ -440,6 +446,45 @@ Sources:
 "#,
     },
     GuidanceTopic {
+        slug: "mcp-auth",
+        title: "MCP Server Authentication",
+        summary: "Let agents authenticate without a browser; evaluate protected servers via env credentials or a host session.",
+        related: &["agent-auth", "mcp-server-design", "mcp-errors", "scenario-authoring"],
+        body: r#"# MCP Server Authentication
+
+The MCP authorization spec puts auth on HTTP transports (stdio servers take
+credentials from their process environment). The OAuth flow — discovery,
+dynamic client registration, PKCE, token refresh — is the client's job; in an
+evaluation the client is the agent's host, not the harness.
+
+If you author a protected server, make it usable by non-interactive agents:
+
+- Offer a static-credential path (personal access token or API key via a
+  header) alongside OAuth. Terminals, CI, and sandboxes cannot run a browser
+  login, so an OAuth-only server is unevaluable and unusable there.
+- If you support OAuth, implement RFC 9728 protected-resource-metadata
+  discovery and dynamic client registration so hosts self-register; issue
+  short-lived tokens with refresh; scope read vs write.
+- Return `401` with `WWW-Authenticate`; make `403` scope errors name the
+  missing scope. Keep tokens out of server logs.
+
+To evaluate a protected server with ax-eval (see docs/mcp-auth.md, ADR-0006):
+
+- Declare `target.auth`: `bearer_env` (token from a named env var) or `headers`
+  for a static credential; `host_session` to reuse a token the host cached from
+  an out-of-band login. ax-eval renders the credential config; it never runs
+  OAuth itself.
+- Scenario YAML names environment variables, never literal secrets. Resolved
+  secrets are read at preflight and kept out of results artifacts.
+- Pick the mode by what the server issues: a PAT/API key → `bearer_env`; pure
+  OAuth → `host_session` after logging in once with the host's own command.
+
+Sources:
+- MCP authorization specification: https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization
+- Agent Experience Design: https://axd.md/
+"#,
+    },
+    GuidanceTopic {
         slug: "scenario-authoring",
         title: "Scenario Authoring",
         summary: "Write scenarios that evaluate outcomes and expose interaction quality.",
@@ -463,7 +508,7 @@ Good scenarios:
 - Add rich fixture guidance when the experiment is about tool capability rather than documentation discovery.
 - Compare minimal vs rich guidance when the experiment is about documentation quality.
 
-For MCP targets, a few instincts change: fixture guidance describes when and why to use each tool rather than call syntax (the server advertises its own descriptions); declare only the tools the task needs; verify server state with a script gate and probe since it is usually not workspace files; and prefer read-only or fixture-backed servers, because ax-eval cannot undo writes a remote server makes outside the fixture. See docs/scenarios.md, "Authoring MCP scenarios".
+For MCP targets, a few instincts change: fixture guidance describes when and why to use each tool rather than call syntax (the server advertises its own descriptions); declare only the tools the task needs; verify server state with a script gate and probe since it is usually not workspace files; and prefer read-only or fixture-backed servers, because ax-eval cannot undo writes a remote server makes outside the fixture. For a protected server, declare `target.auth` (see `mcp-auth`) and reference credentials by environment-variable name, never as literals. See docs/scenarios.md, "Authoring MCP scenarios".
 
 Use gates for catastrophic failures. Use the interaction profile to understand whether the tool's role, workflow, and state model were legible to the agent.
 
@@ -601,6 +646,7 @@ mod tests {
         assert!(output.contains("mcp-server-design"));
         assert!(output.contains("mcp-tool-descriptions"));
         assert!(output.contains("mcp-errors"));
+        assert!(output.contains("mcp-auth"));
         assert!(output.contains("Related:"));
     }
 

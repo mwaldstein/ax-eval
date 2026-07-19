@@ -209,6 +209,41 @@ files. Codex reads `~/.codex/config.toml`, so the codex adapter writes the MCP
 server entry before the run and restores the prior file content after the agent
 exits. This is an accepted isolation tradeoff; see [docs/tradeoffs.md](tradeoffs.md).
 
+#### Authenticating to protected MCP servers
+
+For a server that requires credentials, add an HTTP-only `target.auth` block.
+ax-eval renders the credential into the host's config but never runs OAuth
+itself — the agent's host is the OAuth client (see
+[docs/mcp-auth.md](mcp-auth.md) and [ADR-0006](adr/0006-authenticated-mcp-targets.md)).
+
+```yaml
+target:
+  kind: mcp
+  name: github
+  transport:
+    type: http
+    url: "https://api.githubcopilot.com/mcp/"
+  auth:
+    type: bearer_env      # bearer token read from an env var NAME (never a literal)
+    env: GITHUB_PAT
+  tools: [search_issues, get_file_contents]
+```
+
+Modes: `bearer_env` (bearer token from a named env var), `headers` (static
+headers for API-key schemes; values may use `${env:NAME}`), and `host_session`
+(reuse a token the host cached from an out-of-band `opencode mcp auth` / `codex
+mcp login` / claude-code `/mcp` login). Pick by what the server issues: a
+personal access token or API key → `bearer_env`; a pure-OAuth server →
+`host_session`. An OAuth access token is short-lived and refreshed, so it is not
+an env-var value.
+
+Scenario YAML names environment variables, never literal secrets (validation
+rejects obvious secrets). For the static modes, every referenced variable must
+be set and non-empty or the run fails in preflight, before any spend. Resolved
+secrets are read at provision time and scrubbed from retained results artifacts;
+codex stores only the env-var name. `host_session` is not preflighted yet, so a
+missing host login may surface only at the first tool call.
+
 For outcome gates, prefer a fixture probe script. MCP server state often is not
 visible as simple files in the workspace, and ax-eval does not ship a generic
 MCP client gate yet. The common pattern is:
