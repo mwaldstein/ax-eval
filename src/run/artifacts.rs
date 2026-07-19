@@ -26,12 +26,29 @@ impl RunArtifacts {
         &self.artifacts_dir
     }
 
+    pub fn results_dir(&self) -> &Path {
+        &self.results_dir
+    }
+
     pub fn transcript_path(&self) -> PathBuf {
         self.artifacts_dir.join("transcript.raw.txt")
     }
 
     pub fn events_path(&self) -> PathBuf {
         self.artifacts_dir.join("events.jsonl")
+    }
+
+    pub fn mcp_tools_list_path(&self) -> PathBuf {
+        self.artifacts_dir.join("mcp-tools-list.json")
+    }
+
+    pub fn write_mcp_tools_list(&self, response: &serde_json::Value) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&self.artifacts_dir)?;
+        std::fs::write(
+            self.mcp_tools_list_path(),
+            serde_json::to_vec_pretty(response)?,
+        )?;
+        Ok(())
     }
 
     pub fn fixture_transcript_path(&self) -> PathBuf {
@@ -94,6 +111,13 @@ mod tests {
                 .join("results")
                 .join("artifacts")
                 .join("events.jsonl")
+        );
+        assert_eq!(
+            artifacts.mcp_tools_list_path(),
+            dir.path()
+                .join("results")
+                .join("artifacts")
+                .join("mcp-tools-list.json")
         );
         assert_eq!(
             artifacts.fixture_transcript_path(),

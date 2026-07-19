@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.3] - 2026-07-19
+
+### Added
+
+- MCP runs now inspect `tools/list` before agent execution, retain the complete
+  advertised surface as `artifacts/mcp-tools-list.json`, and fail early when
+  `target.tools` contains names the server does not advertise. Inspection
+  supports stdio and Streamable HTTP targets with static authentication;
+  `host_session` remains agent-host-only and skips this preflight.
+- Scenarios can declare a top-level `agent_env` allowlist. Agent processes now
+  receive an adapter-specific launch/authentication baseline plus explicitly
+  allowed parent variables, while stdio MCP `target.env` values are supplied
+  only to the server child configuration.
+
 ### Changed
 
 - Renamed the interaction efficiency metric `retry_count` to
@@ -18,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   surfaces. CLI help, errors, structured output, MCP descriptions, and schemas
   are now framed as the default places to improve discoverability; AGENTS.md is
   positioned as optional fixture context or an explicit guidance-test variable.
+- Corrected `first_try_success_rate` to divide successful first occurrences by
+  unique action names rather than total calls. Unknown command outcomes no
+  longer count as successes. This changes reported interaction scores.
 
 ### Fixed
 
@@ -29,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool-call/result summaries in mixed shell/MCP JSONL output. Structured MCP
   evidence was already captured; the human transcript no longer drops those
   meaningful events.
+- Adapter normalizers preserve missing command exit codes as unknown instead of
+  treating them as successful exits.
+- Codex judge parsing now extracts valid `<judge_result>` payloads from real
+  normalized transcripts, nested JSON wrappers, and encoded raw JSONL output.
+- A setup command that exits nonzero now stops setup and skips agent execution
+  while still writing setup evidence, metrics, reports, and a failed results
+  record.
 
 ## [0.4.0-beta.2] - 2026-07-18
 
@@ -207,7 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_prime_output` from fixture utilities
 - `SPLIT_PLAN.md` (superseded by completed implementation)
 
-[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.2...HEAD
+[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.3...HEAD
+[0.4.0-beta.3]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.2...v0.4.0-beta.3
 [0.4.0-beta.2]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.1...v0.4.0-beta.2
 [0.4.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.4...v0.4.0-beta.1
 [0.3.0-beta.4]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.3...v0.3.0-beta.4

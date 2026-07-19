@@ -85,6 +85,7 @@ mod tests {
             run: None,
             scripts: None,
             interaction: Default::default(),
+            agent_env: vec![],
         }
     }
 

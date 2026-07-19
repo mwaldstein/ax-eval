@@ -1,6 +1,6 @@
 [package]
 name = "ax-eval"
-version = "0.4.0-beta.2"
+version = "0.4.0-beta.3"
 edition = "2021"
 description = "Evaluate how coding agents use CLI tools"
 license = "MIT"
@@ -25,6 +25,7 @@ chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 wait-timeout = "0.2"
 yaml_serde = "0.10.4"
+ureq = { version = "2.12", default-features = false, features = ["tls"] }
 
 [dev-dependencies]
 tempfile = "3.24.0"

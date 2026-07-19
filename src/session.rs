@@ -59,7 +59,37 @@ impl SessionRunner {
         timeout_secs: u64,
         env_vars: &[(String, String)],
     ) -> anyhow::Result<CommandResult> {
-        match self.run_command_pty_with_env(cmd, args, cwd, timeout_secs, env_vars) {
+        self.run_command_result_with_env_inheritance(cmd, args, cwd, timeout_secs, env_vars, true)
+    }
+
+    pub fn run_command_result_with_projected_env(
+        &self,
+        cmd: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout_secs: u64,
+        env_vars: &[(String, String)],
+    ) -> anyhow::Result<CommandResult> {
+        self.run_command_result_with_env_inheritance(cmd, args, cwd, timeout_secs, env_vars, false)
+    }
+
+    fn run_command_result_with_env_inheritance(
+        &self,
+        cmd: &str,
+        args: &[&str],
+        cwd: &Path,
+        timeout_secs: u64,
+        env_vars: &[(String, String)],
+        inherit_parent_env: bool,
+    ) -> anyhow::Result<CommandResult> {
+        match self.run_command_pty_with_env(
+            cmd,
+            args,
+            cwd,
+            timeout_secs,
+            env_vars,
+            inherit_parent_env,
+        ) {
             Ok(result) => Ok(result),
             Err(SessionCommandError::TimedOut(secs)) => {
                 Err(anyhow::anyhow!("Command timed out after {} seconds", secs))
@@ -67,7 +97,14 @@ impl SessionRunner {
             Err(SessionCommandError::Other(e)) => {
                 tracing::debug!("PTY unavailable, falling back to pipes: {}", e);
                 let env = env_vars.iter().cloned().collect::<HashMap<_, _>>();
-                crate::command_execution::run_piped_command(cmd, args, cwd, timeout_secs, &env)
+                crate::command_execution::run_piped_command_with_inheritance(
+                    cmd,
+                    args,
+                    cwd,
+                    timeout_secs,
+                    &env,
+                    inherit_parent_env,
+                )
             }
         }
     }
@@ -79,6 +116,7 @@ impl SessionRunner {
         cwd: &Path,
         timeout_secs: u64,
         env_vars: &[(String, String)],
+        inherit_parent_env: bool,
     ) -> Result<CommandResult, SessionCommandError> {
         let pair = self
             .pty_system
@@ -91,6 +129,9 @@ impl SessionRunner {
             .map_err(SessionCommandError::Other)?;
 
         let mut cmd_builder = CommandBuilder::new(cmd);
+        if !inherit_parent_env {
+            cmd_builder.env_clear();
+        }
         cmd_builder.args(args);
         cmd_builder.cwd(cwd);
         for (key, value) in env_vars {
@@ -301,5 +342,32 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("2 seconds"));
+    }
+
+    #[test]
+    fn projected_environment_clears_parent_and_preserves_allowed_values() {
+        let runner = SessionRunner::new();
+        let dir = tempdir().unwrap();
+        let private_name = "AX_EVAL_SESSION_PRIVATE_UNIQUE";
+        std::env::set_var(private_name, "must-not-leak");
+        let env = vec![(
+            "AX_EVAL_SESSION_ALLOWED_UNIQUE".to_string(),
+            "allowed".to_string(),
+        )];
+
+        let result = runner
+            .run_command_result_with_projected_env(
+                "/bin/sh",
+                &[
+                    "-c",
+                    "printf '%s:%s' \"${AX_EVAL_SESSION_PRIVATE_UNIQUE-unset}\" \"$AX_EVAL_SESSION_ALLOWED_UNIQUE\"",
+                ],
+                dir.path(),
+                5,
+                &env,
+            )
+            .expect("projected command");
+
+        assert_eq!(result.output(), "unset:allowed");
     }
 }

@@ -20,6 +20,7 @@ mod interaction_evidence;
 mod interaction_profile;
 mod judge;
 mod mcp_auth;
+mod mcp_inspection;
 mod output;
 mod results;
 mod run;

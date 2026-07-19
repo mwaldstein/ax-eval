@@ -4,7 +4,7 @@ mod tests {
     use crate::adapter::ToolAdapter;
     use crate::interaction_evidence::InteractionInput;
     use crate::scenario::Scenario;
-    use crate::target_env::TargetEnvironment;
+    use crate::target_env::AgentEnvironment;
 
     #[test]
     fn test_mock_adapter_is_available() {
@@ -56,7 +56,7 @@ evaluation:
             temp_dir.path(),
             Some("mock"),
             30,
-            &TargetEnvironment::default(),
+            &AgentEnvironment::default(),
         );
 
         assert!(result.is_ok());
@@ -99,7 +99,7 @@ evaluation:
             temp_dir.path(),
             Some("mock"),
             30,
-            &TargetEnvironment::default(),
+            &AgentEnvironment::default(),
         );
 
         assert!(result.is_ok());
@@ -138,7 +138,7 @@ evaluation:
             temp_dir.path(),
             Some("mock"),
             30,
-            &TargetEnvironment::default(),
+            &AgentEnvironment::default(),
         );
 
         assert!(result.is_ok());
@@ -170,7 +170,7 @@ evaluation:
             temp_dir.path(),
             Some("mock"),
             30,
-            &TargetEnvironment::default(),
+            &AgentEnvironment::default(),
         );
 
         assert!(result.is_ok());

@@ -1,6 +1,6 @@
 # Harness Materialization
 
-**Status: Draft (0.4.0 scope)**
+**Status: Draft (deferred to 0.5.0)**
 
 ## Purpose
 

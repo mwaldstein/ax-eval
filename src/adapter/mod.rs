@@ -10,7 +10,7 @@ mod mock_test;
 
 use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
 use crate::scenario::{Scenario, TargetConfig};
-use crate::target_env::TargetEnvironment;
+use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use std::path::Path;
 
 /// Error type for adapter operations.
@@ -95,6 +95,38 @@ impl TargetProvision {
 
 /// Trait for tool adapters that execute LLM CLI tools.
 pub trait ToolAdapter: Send + Sync {
+    /// Whether real runs through this adapter should preflight MCP `tools/list`.
+    fn requires_mcp_inspection(&self) -> bool {
+        true
+    }
+
+    /// Whether this host reads MCP bearer credentials from the agent process.
+    fn requires_mcp_bearer_env(&self) -> bool {
+        false
+    }
+
+    /// Parent environment names required to launch and authenticate this agent.
+    fn required_agent_env(&self) -> &'static [&'static str] {
+        &[
+            "HOME",
+            "PATH",
+            "USER",
+            "LOGNAME",
+            "SHELL",
+            "TERM",
+            "COLORTERM",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "XDG_CACHE_HOME",
+            "XDG_DATA_HOME",
+            "SSH_AUTH_SOCK",
+        ]
+    }
+
     /// Whether this adapter provides structured tool-call evidence for interaction profiles.
     fn supports_structured_tool_calls(&self) -> bool {
         false
@@ -105,6 +137,7 @@ pub trait ToolAdapter: Send + Sync {
         &self,
         target: &TargetConfig,
         _workspace: &Path,
+        _target_env: &TargetEnvironment,
     ) -> anyhow::Result<TargetProvision> {
         match target {
             TargetConfig::Cli(_) => Ok(TargetProvision::none()),
@@ -136,6 +169,6 @@ pub trait ToolAdapter: Send + Sync {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
-        target_env: &TargetEnvironment,
+        agent_env: &AgentEnvironment,
     ) -> anyhow::Result<ToolRunOutput>;
 }

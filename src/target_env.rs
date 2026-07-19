@@ -6,6 +6,75 @@ pub struct TargetEnvironment {
     vars: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AgentEnvironment {
+    vars: HashMap<String, String>,
+}
+
+impl AgentEnvironment {
+    pub fn projected(
+        required_names: &[&str],
+        additional_names: &[String],
+        target: &crate::scenario::TargetConfig,
+        target_env: &TargetEnvironment,
+        include_mcp_bearer_env: bool,
+    ) -> Self {
+        let mut vars = HashMap::new();
+        for name in required_names
+            .iter()
+            .copied()
+            .chain(additional_names.iter().map(String::as_str))
+        {
+            if let Some(value) = std::env::var_os(name) {
+                vars.insert(name.to_string(), value.to_string_lossy().into_owned());
+            }
+        }
+
+        // CLI targets are launched by the evaluated agent, so their configured
+        // environment remains visible. Preserve the same legacy behavior for
+        // HTTP MCP targets; stdio target variables are rendered only into the
+        // child config.
+        if !matches!(
+            target,
+            crate::scenario::TargetConfig::Mcp(crate::scenario::McpTarget {
+                transport: crate::scenario::McpTransport::Stdio { .. },
+                ..
+            })
+        ) {
+            vars.extend(target_env.as_map().clone());
+        }
+
+        // Codex's MCP configuration refers to bearer credentials by variable
+        // name rather than persisting the resolved secret. Keep that declared
+        // credential available to the MCP client process under env isolation.
+        if include_mcp_bearer_env {
+            if let crate::scenario::TargetConfig::Mcp(crate::scenario::McpTarget {
+                auth: Some(crate::scenario::McpAuth::BearerEnv { env }),
+                ..
+            }) = target
+            {
+                if let Some(value) = std::env::var_os(env) {
+                    vars.insert(env.clone(), value.to_string_lossy().into_owned());
+                }
+            }
+        }
+
+        Self { vars }
+    }
+
+    #[cfg(test)]
+    pub fn as_map(&self) -> &HashMap<String, String> {
+        &self.vars
+    }
+
+    pub fn to_session_env(&self) -> Vec<(String, String)> {
+        self.vars
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
+    }
+}
+
 impl TargetEnvironment {
     pub fn expanded_from_config(
         target_env: Option<&HashMap<String, String>>,
@@ -33,15 +102,8 @@ impl TargetEnvironment {
         &self.vars
     }
 
-    pub fn to_session_env(&self) -> Vec<(String, String)> {
-        self.vars
-            .iter()
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect()
-    }
-
-    pub fn append_to_session_env(&self, env: &mut Vec<(String, String)>) {
-        env.extend(self.to_session_env());
+    pub fn is_empty(&self) -> bool {
+        self.vars.is_empty()
     }
 }
 
@@ -118,6 +180,106 @@ fn absolute_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scenario::Scenario;
+
+    fn stdio_mcp_scenario(agent_env: &str) -> Scenario {
+        yaml_serde::from_str(&format!(
+            r#"
+name: environment-separation
+description: Test environment separation
+template_folder: fixture
+target:
+  kind: mcp
+  name: private-server
+  transport:
+    type: stdio
+    command: private-server
+  tools: [read]
+  env:
+    PRIVATE_SERVER_TOKEN: server-secret
+task:
+  prompt: Read data
+evaluation:
+  gates: []
+agent_env: [{agent_env}]
+"#
+        ))
+        .expect("scenario")
+    }
+
+    #[test]
+    fn stdio_mcp_projection_excludes_target_private_values() {
+        let allowed_name = "AX_EVAL_AGENT_ENV_ALLOWED_UNIQUE";
+        std::env::set_var(allowed_name, "agent-visible");
+        let scenario = stdio_mcp_scenario(allowed_name);
+        let target_env = TargetEnvironment::expanded_from_config(
+            scenario.target.env(),
+            Path::new("fixture"),
+            Path::new("results"),
+        )
+        .expect("target env");
+
+        let agent_env = AgentEnvironment::projected(
+            &["PATH"],
+            &scenario.agent_env,
+            &scenario.target,
+            &target_env,
+            false,
+        );
+
+        assert_eq!(
+            agent_env.as_map().get(allowed_name).map(String::as_str),
+            Some("agent-visible")
+        );
+        assert!(!agent_env.as_map().contains_key("PRIVATE_SERVER_TOKEN"));
+        assert!(agent_env.as_map().contains_key("PATH"));
+    }
+
+    #[test]
+    fn cli_projection_keeps_legacy_target_environment() {
+        let target = crate::scenario::TargetConfig::cli_target("tool");
+        let target_env = TargetEnvironment {
+            vars: HashMap::from([("TOOL_ROOT".to_string(), "fixture-data".to_string())]),
+        };
+
+        let agent_env = AgentEnvironment::projected(&[], &[], &target, &target_env, false);
+
+        assert_eq!(
+            agent_env.as_map().get("TOOL_ROOT").map(String::as_str),
+            Some("fixture-data")
+        );
+    }
+
+    #[test]
+    fn bearer_auth_variable_is_available_to_isolated_mcp_client() {
+        let name = "AX_EVAL_AGENT_MCP_BEARER_UNIQUE";
+        std::env::set_var(name, "mcp-token");
+        let target = crate::scenario::TargetConfig::Mcp(crate::scenario::McpTarget {
+            name: "remote".to_string(),
+            transport: crate::scenario::McpTransport::Http {
+                url: "https://example.invalid/mcp".to_string(),
+                headers: None,
+            },
+            auth: Some(crate::scenario::McpAuth::BearerEnv {
+                env: name.to_string(),
+            }),
+            tools: vec!["read".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        let agent_env =
+            AgentEnvironment::projected(&[], &[], &target, &TargetEnvironment::default(), true);
+
+        assert_eq!(
+            agent_env.as_map().get(name).map(String::as_str),
+            Some("mcp-token")
+        );
+
+        let config_rendering_host =
+            AgentEnvironment::projected(&[], &[], &target, &TargetEnvironment::default(), false);
+        assert!(!config_rendering_host.as_map().contains_key(name));
+    }
 
     #[test]
     fn expands_fixture_and_results_placeholders() {
@@ -194,24 +356,6 @@ mod tests {
                 expected_results.to_string_lossy()
             ))
         );
-    }
-
-    #[test]
-    fn converts_to_session_env() {
-        let mut target_env = HashMap::new();
-        target_env.insert("TARGET_ENV_TEST".to_string(), "works".to_string());
-        target_env.insert("ANOTHER_VAR".to_string(), "also works".to_string());
-
-        let session_env = TargetEnvironment::expanded_from_config(
-            Some(&target_env),
-            Path::new(""),
-            Path::new(""),
-        )
-        .expect("target env")
-        .to_session_env();
-
-        assert!(session_env.contains(&("TARGET_ENV_TEST".to_string(), "works".to_string())));
-        assert!(session_env.contains(&("ANOTHER_VAR".to_string(), "also works".to_string())));
     }
 
     #[test]

@@ -6,7 +6,7 @@ use super::{DiscoverRequest, DEFAULT_SCENARIO_COUNT};
 use crate::adapter::registry::AdapterRegistry;
 use crate::adapter::ToolRunOutput;
 use crate::scenario::{Evaluation, Scenario, TargetConfig, Task};
-use crate::target_env::TargetEnvironment;
+use crate::target_env::AgentEnvironment;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -141,7 +141,13 @@ impl<'a, 'request> DiscoveryStageRunner<'a, 'request> {
             self.root_dir,
             Some(self.request.discover_model).filter(|model| *model != "default"),
             self.request.timeout_secs,
-            &TargetEnvironment::default(),
+            &AgentEnvironment::projected(
+                adapter.adapter().required_agent_env(),
+                &[],
+                &scenario.target,
+                &crate::target_env::TargetEnvironment::default(),
+                adapter.adapter().requires_mcp_bearer_env(),
+            ),
         )?;
         if output.exit_code != 0 {
             anyhow::bail!(
@@ -176,6 +182,7 @@ fn discovery_stage_scenario(target: &str, stage: &str, prompt: &str) -> Scenario
         run: None,
         scripts: None,
         interaction: Default::default(),
+        agent_env: vec![],
     }
 }
 

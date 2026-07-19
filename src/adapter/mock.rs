@@ -1,7 +1,7 @@
 use super::{TargetProvision, ToolAdapter, ToolRunOutput};
 use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
 use crate::scenario::{Scenario, TargetConfig};
-use crate::target_env::TargetEnvironment;
+use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use std::path::Path;
 
 pub struct MockAdapter;
@@ -55,6 +55,10 @@ impl MockAdapter {
 }
 
 impl ToolAdapter for MockAdapter {
+    fn requires_mcp_inspection(&self) -> bool {
+        false
+    }
+
     fn supports_structured_tool_calls(&self) -> bool {
         true
     }
@@ -70,6 +74,7 @@ impl ToolAdapter for MockAdapter {
         &self,
         _target: &TargetConfig,
         _workspace: &Path,
+        _target_env: &TargetEnvironment,
     ) -> anyhow::Result<TargetProvision> {
         Ok(TargetProvision::none())
     }
@@ -80,7 +85,7 @@ impl ToolAdapter for MockAdapter {
         _cwd: &Path,
         _model: Option<&str>,
         _timeout_secs: u64,
-        _target_env: &TargetEnvironment,
+        _agent_env: &AgentEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let transcript = self.generate_transcript(scenario);
         let interaction_input = match &scenario.target {

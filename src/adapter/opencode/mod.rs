@@ -5,13 +5,58 @@ use crate::mcp_auth::{merged_http_headers, static_auth_mode, StaticAuthMode};
 use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
-use crate::target_env::TargetEnvironment;
+use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use serde_json::{Map, Value};
 use std::path::Path;
 
 pub struct OpenCodeAdapter;
 
 impl ToolAdapter for OpenCodeAdapter {
+    fn required_agent_env(&self) -> &'static [&'static str] {
+        &[
+            "HOME",
+            "PATH",
+            "USER",
+            "LOGNAME",
+            "SHELL",
+            "TERM",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "COLORTERM",
+            "XDG_CACHE_HOME",
+            "XDG_DATA_HOME",
+            "SSH_AUTH_SOCK",
+            "SSL_CERT_FILE",
+            "SSL_CERT_DIR",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "no_proxy",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "GOOGLE_API_KEY",
+            "GEMINI_API_KEY",
+            "GROQ_API_KEY",
+            "MISTRAL_API_KEY",
+            "XAI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
+            "AWS_REGION",
+            "AWS_PROFILE",
+        ]
+    }
+
     fn supports_structured_tool_calls(&self) -> bool {
         true
     }
@@ -34,12 +79,13 @@ impl ToolAdapter for OpenCodeAdapter {
         &self,
         target: &TargetConfig,
         workspace: &Path,
+        target_env: &TargetEnvironment,
     ) -> anyhow::Result<TargetProvision> {
         let Some(target) = target.mcp() else {
             return Ok(TargetProvision::none());
         };
 
-        provision_mcp_target(target, workspace)?;
+        provision_mcp_target(target, workspace, target_env)?;
         Ok(TargetProvision::none())
     }
 
@@ -49,7 +95,7 @@ impl ToolAdapter for OpenCodeAdapter {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
-        target_env: &TargetEnvironment,
+        agent_env: &AgentEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
@@ -71,15 +117,22 @@ impl ToolAdapter for OpenCodeAdapter {
             .unwrap_or_else(|_| cwd.to_path_buf())
             .join(".opencode_config");
         std::fs::create_dir_all(&xdg_config_dir).ok();
-        let mut env_vars: Vec<(String, String)> = vec![(
+        let mut env_vars = agent_env.to_session_env();
+        env_vars.push((
             "XDG_CONFIG_HOME".to_string(),
             xdg_config_dir.to_string_lossy().to_string(),
-        )];
-        target_env.append_to_session_env(&mut env_vars);
+        ));
 
         let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let (output, exit_code) =
-            runner.run_command_with_env("opencode", &arg_refs, cwd, timeout_secs, &env_vars)?;
+        let result = runner.run_command_result_with_projected_env(
+            "opencode",
+            &arg_refs,
+            cwd,
+            timeout_secs,
+            &env_vars,
+        )?;
+        let output = result.output();
+        let exit_code = result.exit_code;
 
         Ok(normalize::normalize(output, exit_code))
     }
@@ -100,23 +153,22 @@ fn results_dir_for_workspace(workspace: &Path) -> &Path {
     workspace.parent().unwrap_or(workspace)
 }
 
-fn expanded_map(
-    values: &std::collections::HashMap<String, String>,
-    fixture_dir: &Path,
-    results_dir: &Path,
-) -> anyhow::Result<Map<String, Value>> {
-    values
-        .iter()
-        .map(|(key, value)| {
-            Ok((
-                key.clone(),
-                Value::String(expand_target_env_value(value, fixture_dir, results_dir)?),
-            ))
-        })
-        .collect()
-}
-
-fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<()> {
+fn provision_mcp_target(
+    target: &McpTarget,
+    workspace: &Path,
+    target_env: &TargetEnvironment,
+) -> anyhow::Result<()> {
+    let fallback_env;
+    let target_env = if target_env.is_empty() && target.env.is_some() {
+        fallback_env = TargetEnvironment::expanded_from_config(
+            target.env.as_ref(),
+            workspace,
+            results_dir_for_workspace(workspace),
+        )?;
+        &fallback_env
+    } else {
+        target_env
+    };
     let config_path = opencode_config_path(workspace);
     if let Some(parent) = config_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -141,7 +193,12 @@ fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<
 
     mcp.insert(
         target.name.clone(),
-        render_mcp_target(target, workspace, results_dir_for_workspace(workspace))?,
+        render_mcp_target(
+            target,
+            workspace,
+            results_dir_for_workspace(workspace),
+            target_env,
+        )?,
     );
 
     std::fs::write(config_path, serde_json::to_string_pretty(&config)? + "\n")?;
@@ -152,6 +209,7 @@ fn render_mcp_target(
     target: &McpTarget,
     fixture_dir: &Path,
     results_dir: &Path,
+    target_env: &TargetEnvironment,
 ) -> anyhow::Result<Value> {
     match &target.transport {
         McpTransport::Stdio { command, args } => {
@@ -169,10 +227,16 @@ fn render_mcp_target(
             entry.insert("type".to_string(), Value::String("local".to_string()));
             entry.insert("command".to_string(), Value::Array(command));
             entry.insert("enabled".to_string(), Value::Bool(true));
-            if let Some(env) = &target.env {
+            if !target_env.as_map().is_empty() {
                 entry.insert(
                     "environment".to_string(),
-                    Value::Object(expanded_map(env, fixture_dir, results_dir)?),
+                    Value::Object(
+                        target_env
+                            .as_map()
+                            .iter()
+                            .map(|(key, value)| (key.clone(), Value::String(value.clone())))
+                            .collect(),
+                    ),
                 );
             }
             Ok(Value::Object(entry))
@@ -239,7 +303,7 @@ mod tests {
         std::fs::create_dir_all(&workspace).expect("workspace");
 
         OpenCodeAdapter
-            .provision_target(&stdio_target(), &workspace)
+            .provision_target(&stdio_target(), &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let expected = format!(
@@ -307,7 +371,7 @@ mod tests {
         });
 
         OpenCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let expected = format!(
@@ -365,7 +429,7 @@ mod tests {
         });
 
         OpenCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");
@@ -399,7 +463,7 @@ mod tests {
         });
 
         OpenCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");
@@ -427,7 +491,7 @@ mod tests {
         });
 
         OpenCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");

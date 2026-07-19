@@ -327,6 +327,15 @@ pub fn validate_scenario(scenario: &Scenario) -> Vec<ValidationWarning> {
 }
 
 fn validate_scenario_hard_errors(scenario: &Scenario, path: &Path) -> anyhow::Result<()> {
+    for name in &scenario.agent_env {
+        if !is_valid_env_name(name) {
+            anyhow::bail!(
+                "{}: agent_env entry '{name}' is not a valid environment variable name",
+                path.display()
+            );
+        }
+    }
+
     if let Some(mcp) = scenario.target.mcp() {
         if mcp.tools.is_empty() {
             anyhow::bail!(
@@ -355,6 +364,21 @@ fn validate_scenario_hard_errors(scenario: &Scenario, path: &Path) -> anyhow::Re
                 );
             }
             _ => {}
+        }
+
+        if matches!(mcp.transport, McpTransport::Stdio { .. }) {
+            if let Some(target_env) = &mcp.env {
+                if let Some(name) = scenario
+                    .agent_env
+                    .iter()
+                    .find(|name| target_env.contains_key(name.as_str()))
+                {
+                    anyhow::bail!(
+                        "{}: agent_env cannot expose stdio MCP target-private variable '{name}'",
+                        path.display()
+                    );
+                }
+            }
         }
 
         validate_mcp_auth(mcp.auth.as_ref(), path)?;

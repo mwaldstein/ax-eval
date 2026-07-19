@@ -49,6 +49,9 @@ pub struct Scenario {
     /// Interaction evidence expectations for target-tool commands
     #[serde(default)]
     pub interaction: InteractionConfig,
+    /// Additional parent-process environment variables exposed to the agent.
+    #[serde(default)]
+    pub agent_env: Vec<String>,
 }
 
 /// Target tool configuration for a scenario.

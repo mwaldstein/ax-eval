@@ -66,7 +66,22 @@ pub fn run_piped_command(
     timeout_secs: u64,
     env: &HashMap<String, String>,
 ) -> anyhow::Result<CommandResult> {
-    let mut child = Command::new(binary)
+    run_piped_command_with_inheritance(binary, args, cwd, timeout_secs, env, true)
+}
+
+pub fn run_piped_command_with_inheritance(
+    binary: &str,
+    args: &[&str],
+    cwd: &Path,
+    timeout_secs: u64,
+    env: &HashMap<String, String>,
+    inherit_parent_env: bool,
+) -> anyhow::Result<CommandResult> {
+    let mut command = Command::new(binary);
+    if !inherit_parent_env {
+        command.env_clear();
+    }
+    let mut child = command
         .args(args)
         .current_dir(cwd)
         .envs(env)

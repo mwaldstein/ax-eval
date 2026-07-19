@@ -8,6 +8,13 @@ Define the scenario format, target tool configuration, and fixture structure for
 
 A scenario is the unit of evaluation. Each scenario defines a task for an LLM agent to attempt using a specific CLI tool, then evaluates the result. The framework is tool-agnostic: the scenario declares what tool is being evaluated and how to interact with it.
 
+The optional top-level `agent_env` field is a list of parent-process environment
+variable names that may be exposed to the evaluated agent. Agent launches clear
+the ambient environment, restore the adapter's built-in launch/authentication
+allowlist, then add the names declared here. Unset names are ignored. Use this
+for additional model-provider credentials, proxy settings, or custom CA paths;
+do not use it for stdio MCP server-private variables.
+
 ---
 
 ## Target Tool Configuration
@@ -38,7 +45,7 @@ as CLI targets for compatibility.
 | `transport` | `McpTransport` | yes | Agent-agnostic connection description rendered by each adapter into the host's native MCP config. |
 | `auth` | `McpAuth` | no | HTTP-only authentication mode. Static modes read secrets from environment variables at run preflight/provision time; scenario YAML contains names, not values. |
 | `tools` | list<string> | yes | Declared tool surface. Used as an evidence allow-list and bounded judge context. Must contain at least one tool. |
-| `env` | map<string, string> | no | Environment variables for the server process. Supports the same run-directory placeholders as CLI targets. |
+| `env` | map<string, string> | no | Private environment variables for the server process. Supports the same run-directory placeholders as CLI targets. For stdio targets these are rendered into the MCP child configuration and are not added to the evaluated agent's process environment. |
 | `health_check` | string | no | Shell command to verify server prerequisites. MCP scenarios commonly use a fixture probe script. |
 
 #### `McpTransport`
@@ -98,6 +105,25 @@ expanded after the isolated workspace is created:
 HTTP MCP auth headers may also use `${env:NAME}` to read a secret from the
 parent process environment. Bare `${NAME}` is left literal; use the namespaced
 form so secret expansion is explicit.
+
+For CLI compatibility, `target.env` remains visible to the agent because the
+agent launches the CLI target itself. For stdio MCP targets, `target.env` and
+`agent_env` are separate namespaces and validation rejects overlapping names.
+Example:
+
+```yaml
+agent_env: [CUSTOM_CA_BUNDLE]
+target:
+  kind: mcp
+  name: notes
+  transport:
+    type: stdio
+    command: "${AX_EVAL_FIXTURE_DIR}/notes-server"
+  tools: [read_note]
+  env:
+    NOTES_REPOSITORY: "${AX_EVAL_FIXTURE_DIR}/private-notes"
+    NOTES_TOKEN: "${env:NOTES_SERVER_TOKEN}"
+```
 
 Use these when the target tool needs a root/config/output path inside the test
 workspace:
@@ -639,7 +665,8 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
 │   ├── tool-output.raw.txt # Raw adapter output when available
 │   ├── interaction-events.json # Canonical structured CLI/MCP interaction events when available
 │   ├── command-events.json # Normalized command events for CLI runs when available
-│   └── mcp-events.json     # Structured MCP tool-call events for MCP runs when available
+│   ├── mcp-events.json     # Structured MCP tool-call events for MCP runs when available
+│   └── mcp-tools-list.json # Advertised MCP surface before the run (except host_session auth)
 └── fixture/                # The working directory, preserved after the run
     ├── AGENTS.md            # (from template)
     ├── README.md            # (from template)

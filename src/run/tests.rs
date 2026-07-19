@@ -601,11 +601,13 @@ description: Test lifecycle setup failure behavior
 template_folder: example_basic
 target:
   binary: taskmgr
+  health_check: "touch health-check-ran"
 task:
   prompt: "Create a task"
 setup:
   commands:
     - "exit 7"
+    - "touch setup-continued"
 evaluation:
   gates:
     - type: command_succeeds
@@ -617,6 +619,7 @@ evaluation:
         write_temp_scenario(dir.path(), "lifecycle_setup_failure_test", scenario_yaml);
     let results_db = ResultsDB::new(dir.path());
     let cache = Cache::new(dir.path());
+    let results_dir = dir.path().join("run-results");
 
     let record = run_single_scenario(ScenarioRunRequest {
         scenario: &scenario,
@@ -624,17 +627,45 @@ evaluation:
         tool: "mock",
         model: "mock",
         dry_run: false,
-        use_cache: false,
+        use_cache: true,
         timeout_secs: 300,
         no_judge: true,
         judge_model: None,
         judge_tool: None,
         results_db: &results_db,
         cache: &cache,
-        results_dir_override: None,
+        results_dir_override: Some(results_dir.clone()),
     })
     .expect("run with failed setup");
 
-    assert_eq!(record.outcome, "completed");
-    assert_eq!(results_db.load_all().expect("load result records").len(), 1);
+    assert_eq!(record.outcome, "setup failed: command 1 exited with code 7");
+    assert_eq!(record.gate_status, "not_configured");
+    assert!(!record.metrics.efficiency.completed);
+    assert_eq!(record.metrics.efficiency.total_commands, 0);
+    assert!(!results_dir.join("fixture/setup-continued").exists());
+    assert!(!results_dir.join("fixture/health-check-ran").exists());
+    assert!(!results_dir.join("artifacts/transcript.raw.txt").exists());
+    assert!(!results_dir
+        .join("artifacts/interaction-events.json")
+        .exists());
+
+    let events =
+        std::fs::read_to_string(results_dir.join("artifacts/events.jsonl")).expect("setup events");
+    assert!(events.contains(r#""type":"setup_command""#));
+    assert!(events.contains(r#""exit_code":7"#));
+
+    let report =
+        std::fs::read_to_string(results_dir.join("report.md")).expect("setup failure report");
+    assert!(report.contains("**Setup**: Failed"));
+    assert!(report.contains("`exit 7`"));
+
+    let records = results_db.load_all().expect("load result records");
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].id, record.id);
+    assert_eq!(
+        std::fs::read_dir(dir.path().join("cache"))
+            .expect("cache dir")
+            .count(),
+        0
+    );
 }

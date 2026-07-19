@@ -1,4 +1,5 @@
 use crate::evaluation::{failed_gate_identifiers, EvaluationMetrics, GateStatus};
+use crate::run::setup::SetupCommandReport;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunStatus {
@@ -34,6 +35,20 @@ impl RunStatus {
 
 pub fn determine_outcome(metrics: &EvaluationMetrics) -> String {
     RunStatus::from_metrics(metrics).outcome()
+}
+
+pub fn setup_failure_outcome(commands: &[SetupCommandReport]) -> String {
+    commands
+        .iter()
+        .position(|command| !command.success)
+        .map(|index| {
+            format!(
+                "setup failed: command {} exited with code {}",
+                index + 1,
+                commands[index].exit_code
+            )
+        })
+        .unwrap_or_else(|| "setup failed".to_string())
 }
 
 #[cfg(test)]
@@ -111,5 +126,20 @@ mod tests {
         let status = RunStatus::from_metrics(&metrics);
 
         assert_eq!(status.outcome(), "completed");
+    }
+
+    #[test]
+    fn setup_failure_outcome_identifies_failed_command() {
+        let commands = vec![SetupCommandReport {
+            command: "exit 7".to_string(),
+            exit_code: 7,
+            success: false,
+            output: String::new(),
+        }];
+
+        assert_eq!(
+            setup_failure_outcome(&commands),
+            "setup failed: command 1 exited with code 7"
+        );
     }
 }

@@ -6,7 +6,7 @@ use crate::scenario::McpAuth;
 use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
-use crate::target_env::TargetEnvironment;
+use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -36,6 +36,48 @@ impl CodexAdapter {
 }
 
 impl ToolAdapter for CodexAdapter {
+    fn requires_mcp_bearer_env(&self) -> bool {
+        true
+    }
+
+    fn required_agent_env(&self) -> &'static [&'static str] {
+        &[
+            "HOME",
+            "PATH",
+            "USER",
+            "LOGNAME",
+            "SHELL",
+            "TERM",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "COLORTERM",
+            "XDG_CACHE_HOME",
+            "XDG_DATA_HOME",
+            "SSH_AUTH_SOCK",
+            "SSL_CERT_FILE",
+            "SSL_CERT_DIR",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "no_proxy",
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENAI_ORGANIZATION",
+            "OPENAI_PROJECT",
+            "CODEX_HOME",
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_ENDPOINT",
+        ]
+    }
+
     fn supports_structured_tool_calls(&self) -> bool {
         true
     }
@@ -64,13 +106,14 @@ impl ToolAdapter for CodexAdapter {
         &self,
         target: &TargetConfig,
         workspace: &Path,
+        target_env: &TargetEnvironment,
     ) -> anyhow::Result<TargetProvision> {
         let Some(target) = target.mcp() else {
             return Ok(TargetProvision::none());
         };
 
         let config_path = self.config_path()?;
-        provision_mcp_target(target, workspace, &config_path)
+        provision_mcp_target(target, workspace, &config_path, target_env)
     }
 
     fn run(
@@ -79,7 +122,7 @@ impl ToolAdapter for CodexAdapter {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
-        target_env: &TargetEnvironment,
+        agent_env: &AgentEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
@@ -92,10 +135,17 @@ impl ToolAdapter for CodexAdapter {
         }
         args.push(&scenario.task.prompt);
 
-        let target_env = target_env.to_session_env();
+        let agent_env = agent_env.to_session_env();
 
-        let (output, exit_code) =
-            runner.run_command_with_env("codex", &args, cwd, timeout_secs, &target_env)?;
+        let result = runner.run_command_result_with_projected_env(
+            "codex",
+            &args,
+            cwd,
+            timeout_secs,
+            &agent_env,
+        )?;
+        let output = result.output();
+        let exit_code = result.exit_code;
 
         Ok(normalize::normalize(output, exit_code))
     }
@@ -109,7 +159,19 @@ fn provision_mcp_target(
     target: &McpTarget,
     workspace: &Path,
     config_path: &Path,
+    target_env: &TargetEnvironment,
 ) -> anyhow::Result<TargetProvision> {
+    let fallback_env;
+    let target_env = if target_env.is_empty() && target.env.is_some() {
+        fallback_env = TargetEnvironment::expanded_from_config(
+            target.env.as_ref(),
+            workspace,
+            results_dir_for_workspace(workspace),
+        )?;
+        &fallback_env
+    } else {
+        target_env
+    };
     let previous = match std::fs::read(config_path) {
         Ok(content) => Some(content),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
@@ -120,7 +182,12 @@ fn provision_mcp_target(
         std::fs::create_dir_all(parent)?;
     }
 
-    let rendered = render_mcp_target(target, workspace, results_dir_for_workspace(workspace))?;
+    let rendered = render_mcp_target(
+        target,
+        workspace,
+        results_dir_for_workspace(workspace),
+        target_env,
+    )?;
     let next = append_codex_mcp_entry(
         previous.as_deref().map(std::str::from_utf8).transpose()?,
         &target.name,
@@ -158,6 +225,7 @@ fn render_mcp_target(
     target: &McpTarget,
     fixture_dir: &Path,
     results_dir: &Path,
+    target_env: &TargetEnvironment,
 ) -> anyhow::Result<RenderedCodexMcpTarget> {
     match &target.transport {
         McpTransport::Stdio { command, args } => Ok(RenderedCodexMcpTarget::Stdio {
@@ -166,20 +234,13 @@ fn render_mcp_target(
                 .iter()
                 .map(|arg| expand_target_env_value(arg, fixture_dir, results_dir))
                 .collect::<anyhow::Result<Vec<_>>>()?,
-            env: target
-                .env
-                .as_ref()
-                .map(|env| {
-                    env.iter()
-                        .map(|(key, value)| {
-                            Ok((
-                                key.clone(),
-                                expand_target_env_value(value, fixture_dir, results_dir)?,
-                            ))
-                        })
-                        .collect::<anyhow::Result<BTreeMap<_, _>>>()
-                })
-                .transpose()?,
+            env: (!target_env.as_map().is_empty()).then(|| {
+                target_env
+                    .as_map()
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect()
+            }),
         }),
         McpTransport::Http { url, headers } => Ok(RenderedCodexMcpTarget::Http {
             url: expand_target_env_value(url, fixture_dir, results_dir)?,
@@ -323,7 +384,7 @@ mod tests {
         });
 
         let provision = CodexAdapter::with_config_path(config_path.clone())
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let expected = format!(
@@ -372,7 +433,7 @@ env = {{ TODO_DB = "{results}/todo.db" }}
         });
 
         let provision = CodexAdapter::with_config_path(config_path.clone())
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let expected = format!(
@@ -418,7 +479,7 @@ http_headers = {{ X-API-Key = "token-{fixture}" }}
         });
 
         let provision = CodexAdapter::with_config_path(config_path.clone())
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(&config_path).expect("provisioned config");
@@ -455,7 +516,7 @@ http_headers = {{ X-API-Key = "token-{fixture}" }}
         });
 
         let provision = CodexAdapter::with_config_path(config_path.clone())
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(&config_path).expect("provisioned config");
@@ -485,7 +546,7 @@ http_headers = {{ X-API-Key = "token-{fixture}" }}
         });
 
         let provision = CodexAdapter::with_config_path(config_path.clone())
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(&config_path).expect("provisioned config");

@@ -1,0 +1,5 @@
+I inspected the transcript and evaluated the run against each rubric criterion.
+
+<judge_result>
+{"scores":{"task_completion":0.92,"tool_usage_correctness":0.88,"efficiency":0.84},"weighted_score":0.89,"confidence":0.91,"issues":["One verification step was implicit"],"highlights":["Used the target tool successfully"],"rationale":"The requested result was produced with appropriate tool usage."}
+</judge_result>

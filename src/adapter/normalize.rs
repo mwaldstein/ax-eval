@@ -42,10 +42,16 @@ pub(crate) fn transcript_from_command_events(events: &[CommandEvent]) -> String 
         transcript.push_str("$ ");
         transcript.push_str(&event.command);
         transcript.push('\n');
-        transcript.push_str(&format!("exit code: {}\n\n", event.exit_code.unwrap_or(0)));
+        transcript.push_str("exit code: ");
+        transcript.push_str(&exit_code_text(event.exit_code));
+        transcript.push_str("\n\n");
     }
 
     transcript
+}
+
+pub(crate) fn exit_code_text(exit_code: Option<i32>) -> String {
+    exit_code.map_or_else(|| "unknown".to_string(), |code| code.to_string())
 }
 
 #[cfg(test)]
@@ -126,5 +132,15 @@ mod tests {
         }]);
 
         assert_eq!(transcript, "$ notes add hello\nexit code: 7\n\n");
+    }
+
+    #[test]
+    fn transcript_from_command_events_renders_unknown_exit_code() {
+        let transcript = transcript_from_command_events(&[CommandEvent {
+            command: "notes list".to_string(),
+            exit_code: None,
+        }]);
+
+        assert_eq!(transcript, "$ notes list\nexit code: unknown\n\n");
     }
 }

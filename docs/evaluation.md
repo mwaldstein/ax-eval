@@ -106,7 +106,7 @@ commands, error rate, etc.) are available.
 | **Error rate** | Proportion of target-tool commands that failed | Tool usability; unclear error messages |
 | **Tool reuse count** | Target-tool calls beyond the first call for each action name (`total_commands - unique_commands`) | Tool diversity and repetition; high values require context |
 | **Help-seeking** | Count of `--help` invocations | Documentation clarity |
-| **First-try success rate** | First observed action names that succeeded / total commands | Combined doc + UX quality; denominator will change in a future action-fingerprint schema |
+| **First-try success rate** | First observed action names that succeeded / unique action names | Combined documentation + UX quality; unknown outcomes are not successes |
 | **Iteration ratio** | unique commands / total commands | Efficiency; high = less repetition |
 | **Completion** | Did the agent complete the task vs give up or time out | Basic run-status signal |
 | **Command count** | Total target-tool commands executed | Efficiency (fewer is better, given completion) |

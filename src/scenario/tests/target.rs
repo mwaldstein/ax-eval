@@ -94,6 +94,85 @@ fn stdio_mcp_target_parses() {
 }
 
 #[test]
+fn scenario_agent_environment_allowlist_parses() {
+    let yaml = format!(
+        "{}\nagent_env: [CUSTOM_CA_BUNDLE, MODEL_API_KEY]\n",
+        yaml_with_target(
+            r#"  kind: mcp
+  name: todo
+  transport:
+    type: stdio
+    command: todo-mcp
+  tools: [list]
+"#,
+        )
+    );
+
+    let scenario: Scenario = yaml_serde::from_str(&yaml).expect("parse agent env allowlist");
+
+    assert_eq!(
+        scenario.agent_env,
+        vec!["CUSTOM_CA_BUNDLE", "MODEL_API_KEY"]
+    );
+}
+
+#[test]
+fn stdio_target_private_variable_cannot_be_allowlisted_for_agent() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("scenario.yaml");
+    std::fs::write(
+        &path,
+        format!(
+            "{}\nagent_env: [PRIVATE_TOKEN]\n",
+            yaml_with_target(
+                r#"  kind: mcp
+  name: todo
+  transport:
+    type: stdio
+    command: todo-mcp
+  tools: [list]
+  env:
+    PRIVATE_TOKEN: "${env:SERVER_TOKEN}"
+"#,
+            )
+        ),
+    )
+    .expect("write scenario");
+
+    let error = validate_scenario_file(&path)
+        .expect_err("overlapping target and agent env should fail")
+        .to_string();
+
+    assert!(
+        error.contains("agent_env cannot expose stdio MCP target-private variable 'PRIVATE_TOKEN'"),
+        "{error}"
+    );
+}
+
+#[test]
+fn invalid_agent_environment_name_is_rejected() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("scenario.yaml");
+    std::fs::write(
+        &path,
+        format!(
+            "{}\nagent_env: [\"NOT-AN-ENV-NAME\"]\n",
+            yaml_with_target("  binary: qipu\n")
+        ),
+    )
+    .expect("write scenario");
+
+    let error = validate_scenario_file(&path)
+        .expect_err("invalid agent env name should fail")
+        .to_string();
+
+    assert!(
+        error.contains("is not a valid environment variable name"),
+        "{error}"
+    );
+}
+
+#[test]
 fn http_mcp_target_with_headers_parses() {
     let scenario: Scenario = yaml_serde::from_str(&yaml_with_target(
         r#"  kind: mcp

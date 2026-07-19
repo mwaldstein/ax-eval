@@ -18,6 +18,59 @@ pub struct ResultRecordInput<'a> {
     pub transcript_path: String,
 }
 
+pub struct SetupFailureRecordInput<'a> {
+    pub scenario: &'a Scenario,
+    pub tool: &'a str,
+    pub model: &'a str,
+    pub cache_key: &'a CacheKey,
+    pub outcome: String,
+    pub duration_secs: f64,
+    pub transcript_path: String,
+}
+
+impl SetupFailureRecordInput<'_> {
+    pub fn build(self) -> ResultRecord {
+        use crate::results::EfficiencyMetricsRecord;
+
+        ResultRecord {
+            id: crate::results::generate_run_id(),
+            scenario_id: self.scenario.name.clone(),
+            scenario_hash: self.cache_key.scenario_hash.clone(),
+            tool: self.tool.to_string(),
+            model: self.model.to_string(),
+            timestamp: chrono::Utc::now(),
+            duration_secs: self.duration_secs,
+            cost_usd: None,
+            token_usage: None,
+            gate_status: "not_configured".to_string(),
+            metrics: EvaluationMetricsRecord {
+                gate_status: "not_configured".to_string(),
+                details: vec![],
+                judge_passed: None,
+                judge_threshold: None,
+                efficiency: EfficiencyMetricsRecord {
+                    total_commands: 0,
+                    unique_commands: 0,
+                    error_count: 0,
+                    tool_reuse_count: 0,
+                    help_invocations: 0,
+                    first_try_success_rate: 0.0,
+                    iteration_ratio: 0.0,
+                    completed: false,
+                },
+                interaction_evidence_source: None,
+                warnings: vec!["Setup failed before agent execution".to_string()],
+                composite_score: None,
+                evaluator_results: vec![],
+            },
+            judge_score: None,
+            outcome: self.outcome,
+            transcript_path: self.transcript_path,
+            cache_key: Some(self.cache_key.as_string()),
+        }
+    }
+}
+
 impl ResultRecordInput<'_> {
     pub fn build(self) -> ResultRecord {
         let metrics = self.metrics;
@@ -106,7 +159,7 @@ pub fn finalize_execution(
     use_cache: bool,
 ) -> anyhow::Result<ResultRecord> {
     results_db.append(record)?;
-    if use_cache {
+    if use_cache && setup_success {
         cache.put(cache_key, record)?;
     }
 
@@ -117,7 +170,7 @@ pub fn finalize_execution(
     println!("Artifacts written to: {}", results_dir.display());
 
     if !setup_success {
-        println!("\nWarning: Setup commands failed. Results may be invalid.");
+        println!("\nSetup commands failed. Agent execution was skipped.");
     }
 
     output::print_result_summary(record);
@@ -153,6 +206,7 @@ mod tests {
             run: None,
             scripts: None,
             interaction: Default::default(),
+            agent_env: vec![],
         }
     }
 

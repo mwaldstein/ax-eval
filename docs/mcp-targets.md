@@ -49,11 +49,10 @@ which explicitly defers MCP config provisioning as a non-goal.
 - Transforming tool descriptions or schemas between host dialects. The scenario
   describes the transport; the host discovers tool metadata via `tools/list`.
 - A first-class `mcp_ping` health/gate in v1. Shell `health_check` only; the
-  ping client is deferred.
+  gate integration is deferred.
 - Auto-generating scenarios from a raw `tools/list` inventory. Discovery for
   MCP *is* in scope (see Discovery for MCP below), but it is agent-mediated;
-  the harness-side protocol client, and the declared-vs-understood delta
-  report it enables, are follow-ups.
+  the declared-vs-understood delta report is a follow-up.
 - Authenticating to protected servers. This spec covers **unauthenticated**
   http/stdio targets. Credentials for protected servers — static bearer/API-key
   from the environment, or a host session established out of band — are
@@ -72,16 +71,18 @@ Three changes, each additive:
    the MCP variant carries an agent-agnostic transport.
 2. **Adapter-owned provisioning.** A new `ToolAdapter::provision_target` hook
    writes the host's native MCP config into the workspace before `run()`.
-3. **Additive evidence + unified metrics.** A new `McpToolCallEvent` variant
+3. **Harness inspection.** Before provisioning the agent host, ax-eval captures
+   `tools/list` and validates the declared allow-list.
+4. **Additive evidence + unified metrics.** A new `McpToolCallEvent` variant
    carries structured MCP calls; the metric engine is refactored onto an
    `(action, outcome)` projection shared by both kinds.
 
 ```text
-fixture copy → materialize artifacts (--tool) → provision_target (--tool) → adapter.run()
+fixture copy → inspect tools/list → provision_target (--tool) → adapter.run()
 ```
 
-`provision_target` runs after materialization and before the adapter, so MCP
-config lands in the same workspace the agent reads.
+`provision_target` runs after inspection and before the adapter, so MCP config
+lands in the same workspace the agent reads.
 
 ---
 
@@ -147,7 +148,7 @@ target:
 | `name` | string | yes | Server identity. Replaces `binary` for evidence matching and judge prompts. |
 | `transport` | `McpTransport` | yes | Agent-agnostic connection description. |
 | `tools` | list<string> | yes | Declared tool surface. Evidence allow-list and judge context. Enforces that observed calls map to the intended surface. |
-| `env` | map<string,string> | no | Environment variables for the server process. `${AX_EVAL_FIXTURE_DIR}` / `${AX_EVAL_RESULTS_DIR}` placeholders expanded as today. |
+| `env` | map<string,string> | no | Private environment variables for the server process. `${AX_EVAL_FIXTURE_DIR}` / `${AX_EVAL_RESULTS_DIR}` placeholders are expanded before adapter rendering. Values are excluded from the evaluated agent's process environment. |
 | `health_check` | string | no | Shell command (v1). Typically a fixture probe script. |
 
 #### `McpTransport`
@@ -172,6 +173,14 @@ harness-support matrix and a `validate` error on unsupported hosts.
 surface is not obvious from its name; declaring it lets the harness validate
 observed calls against the intended surface and gives the judge a bounded tool
 list.
+
+Before a real agent run, ax-eval performs the MCP initialization handshake and
+`tools/list` directly against stdio and Streamable HTTP targets. It retains the
+complete response as `artifacts/mcp-tools-list.json` and fails before agent
+execution when a declared tool is absent. This captures the exact names,
+descriptions, input schemas, and annotations available from the server. HTTP
+targets using `host_session` are excluded because those credentials are held by
+the agent host and are not available to ax-eval's inspection client.
 
 ---
 
@@ -206,6 +215,20 @@ with its CLI.
 `env` entries and `${AX_EVAL_FIXTURE_DIR}` / `${AX_EVAL_RESULTS_DIR}`
 placeholders reuse the existing expander in `src/target_env.rs`; no new
 substitution mechanism.
+
+### Agent and server environment boundary
+
+Agent processes run with ambient environment inheritance disabled. Each adapter
+restores a fixed baseline needed to locate and authenticate its CLI, and the
+scenario may add parent variable names through top-level `agent_env`. A stdio
+MCP target's `target.env` is instead rendered into the host's MCP child-process
+configuration. Validation rejects a variable name present in both maps.
+
+This is process-environment separation, not an operating-system security
+sandbox. The evaluated agent and its MCP host run as the same user, and native
+host configuration may contain the rendered child environment while the run is
+active. Protecting values from a hostile same-user process requires a separate
+broker or privilege boundary and is outside the 0.4.0 stdio scope.
 
 Remote (`http`) rendering, verified against current harness documentation
 2026-07-18:
@@ -348,8 +371,7 @@ unchanged.
 - **Health:** v1 keeps `health_check` as an optional shell command. MCP
   scenarios typically ship a probe script in the fixture (e.g. a small CLI the
   server exposes, or a script that reads the backing store). A first-class
-  `mcp_ping` health/gate — the harness does a JSON-RPC `initialize`/`ping` — is
-  a follow-up that requires a harness-side MCP client.
+  `mcp_ping` health/gate is a follow-up built on the inspection client.
 - **Gates:** unchanged. MCP scenarios lean on `script` gates and `evaluators`
   (`docs/scripts.md`) because server state is usually not filesystem-visible.
   No new gate type is required for v1; an `mcp_tool_succeeds` gate is a natural
@@ -391,7 +413,7 @@ success. So MCP discovery measures
 for correct, efficient first use — and what did the agent have to learn by
 trial that the declarations should have said?
 
-### Why this does not need a harness-side MCP client
+### Why discovery remains agent-mediated
 
 Discovery was never a protocol operation; it is an agent operation. The
 inspect stage provisions the server into a scratch workspace via the same
@@ -399,8 +421,9 @@ inspect stage provisions the server into a scratch workspace via the same
 exercise tools through its host — exactly as CLI discovery probes `--help`.
 This measures the *experienced* self-description surface (what the metadata
 communicates through a real harness), which is truer to the framework's
-philosophy than a raw `tools/list` dump would be — consistent with the
-adapter principle that the harness never invokes the target; the agent does.
+philosophy than a raw `tools/list` dump alone. The evaluation-time inspector
+provides the authoritative metadata artifact and allow-list validation, while
+the discovery agent measures what that surface communicates in practice.
 
 ### The port, stage by stage
 
@@ -435,22 +458,20 @@ unchanged; each stage's prompt and contract adapts:
   and harness problems, **description/schema problems** — the category the
   server author can actually act on.
 
-### What the protocol client adds later (and only this)
+### What remains to build on the protocol client
 
-A harness-side MCP client is an *instrumentation* enhancement on top of
-agent-mediated discovery, enabling:
+The evaluation-time MCP client now captures `tools/list` and validates scenario
+declarations. Discovery can build on it to add:
 
 - the **declared-vs-understood delta report**: diff the authoritative
   `tools/list` against the understanding document and the run evidence —
   "12 tools declared; the understanding covers 7 correctly; 3 were never
   exercised; `search`'s `date` parameter was misused in every scenario";
-- automatic validation of the scenario `tools` allow-list against the live
-  server;
 - the `mcp_ping` health gate.
 
 Sequencing: agent-mediated MCP discovery requires only Stages 1–2 (schema +
 provisioning) plus prompt and stamping work, and slots in as a stage after
-the core six. The client-gated delta report remains deferred.
+the core six. The delta report remains deferred.
 
 ---
 
@@ -458,7 +479,7 @@ the core six. The client-gated delta report remains deferred.
 
 ```text
 fixture copy (verbatim)
-  → materialize artifacts (--tool)        [harness-materialization.md]
+  → inspect tools/list                    [this doc]
   → provision_target (--tool)             [this doc]
   → adapter.run()                         [ADR-0001]
   → persist transcript + command events   [existing]
@@ -497,9 +518,8 @@ Not independently answerable today; each has an explicit revisit trigger.
 
 - **The discovery delta report and `mcp_ping`.** Agent-mediated `discover`
   for MCP is designed and in scope (see Discovery for MCP) — it needs no
-  protocol client. What stays deferred is the harness-side MCP client and
-  the instrumentation it enables: the declared-vs-understood delta report,
-  live validation of the `tools` allow-list, and the `mcp_ping` health gate.
+  additional protocol transport. What stays deferred is the
+  declared-vs-understood delta report and the `mcp_ping` health gate.
   Revisit: after MCP discovery ships and real runs show what the delta
   report should contain.
 - **Mixed CLI+MCP targets.** Singular target per scenario stands (ADR-0005

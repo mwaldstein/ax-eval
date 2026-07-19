@@ -2,10 +2,15 @@ use crate::adapter::registry::{AdapterRegistry, CheckedAdapter};
 use crate::output;
 use crate::results::{CacheKey, ResultRecord};
 use crate::run::execution::{determine_outcome, run_attempt, RunAttemptInput};
-use crate::run::records::{finalize_execution, handle_dry_run, ResultRecordInput};
+use crate::run::records::{
+    finalize_execution, handle_dry_run, ResultRecordInput, SetupFailureRecordInput,
+};
 use crate::run::setup::{prepare_writer_and_setup, PreparedRunContext, PreparedScenarioRun};
+use crate::run::status::setup_failure_outcome;
 use crate::run::transcript::{write_transcript_files, TranscriptFilesInput};
 use crate::run::{ScenarioRunPlan, ScenarioRunRequest};
+use crate::transcript::types::{EfficiencyReport, SetupCommandResult};
+use crate::transcript::{RunMetadata, RunReport};
 
 pub struct ScenarioRunLifecycle<'a> {
     request: ScenarioRunRequest<'a>,
@@ -90,8 +95,13 @@ impl<'a> ScenarioRunLifecycle<'a> {
             owned_adapter = adapter_registry.resolve_checked(self.request.tool)?;
             &owned_adapter
         };
+        let setup_started = std::time::Instant::now();
         let prepared =
             prepare_writer_and_setup(&context, self.request.scenario, self.plan.effective_timeout)?;
+
+        if !prepared.setup_success {
+            return self.finalize_setup_failure(prepared, cache_key, setup_started.elapsed());
+        }
 
         let evaluation = run_attempt(RunAttemptInput {
             adapter: checked_adapter.adapter(),
@@ -108,6 +118,89 @@ impl<'a> ScenarioRunLifecycle<'a> {
         })?;
 
         self.finalize_prepared_run(prepared, evaluation, cache_key)
+    }
+
+    fn finalize_setup_failure(
+        &self,
+        prepared: PreparedScenarioRun,
+        cache_key: CacheKey,
+        duration: std::time::Duration,
+    ) -> anyhow::Result<ResultRecord> {
+        let outcome = setup_failure_outcome(&prepared.setup_commands);
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let duration_secs = duration.as_secs_f64();
+
+        prepared.writer.write_run_metadata(&RunMetadata {
+            scenario_id: self.request.scenario.name.clone(),
+            scenario_hash: cache_key.scenario_hash.clone(),
+            tool: self.request.tool.to_string(),
+            model: self.request.model.to_string(),
+            timestamp: timestamp.clone(),
+            duration_secs,
+            cost_estimate_usd: None,
+            token_usage: None,
+        })?;
+        prepared.writer.write_report(&RunReport {
+            scenario_id: self.request.scenario.name.clone(),
+            tool: self.request.tool.to_string(),
+            model: self.request.model.to_string(),
+            timestamp,
+            duration_secs,
+            cost_usd: None,
+            token_usage: None,
+            gate_status: crate::evaluation::GateStatus::NotConfigured,
+            judge_score: None,
+            judge_passed: None,
+            judge_threshold: None,
+            composite_score: None,
+            gate_details: vec![],
+            efficiency: EfficiencyReport {
+                total_commands: 0,
+                unique_commands: 0,
+                error_count: 0,
+                tool_reuse_count: 0,
+                help_invocations: 0,
+                first_try_success_rate: 0.0,
+                iteration_ratio: 0.0,
+                completed: false,
+            },
+            setup_success: false,
+            setup_commands: prepared
+                .setup_commands
+                .iter()
+                .map(|command| SetupCommandResult {
+                    command: command.command.clone(),
+                    success: command.success,
+                    output: command.output.clone(),
+                })
+                .collect(),
+        })?;
+
+        let transcript_path = prepared
+            .artifacts
+            .artifacts_dir()
+            .to_string_lossy()
+            .to_string();
+        let record = SetupFailureRecordInput {
+            scenario: self.request.scenario,
+            tool: self.request.tool,
+            model: self.request.model,
+            cache_key: &cache_key,
+            outcome,
+            duration_secs,
+            transcript_path,
+        }
+        .build();
+
+        finalize_execution(
+            self.request.results_db,
+            self.request.cache,
+            &cache_key,
+            &record,
+            &self.plan.results_dir,
+            false,
+            self.request.use_cache,
+        )
     }
 
     fn finalize_prepared_run(

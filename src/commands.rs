@@ -339,6 +339,11 @@ tags:
 tier: 0
 template_folder: example_cli_workflow
 
+# Additional parent-process variables exposed to the evaluated agent. Adapter
+# launch/auth variables are included automatically. Do not list stdio MCP
+# target-private variables here.
+# agent_env: [CUSTOM_CA_BUNDLE]
+
 target:
   # If mytool is built outside the fixture, make it discoverable before running:
   # PATH="$PWD/target/debug:$PATH" AX_EVAL_ENABLED=1 ax-eval run --scenario ...
@@ -365,6 +370,8 @@ target:
 #     command: "${AX_EVAL_FIXTURE_DIR}/todo-mcp-server"
 #     args: ["--root", "${AX_EVAL_FIXTURE_DIR}"]
 #   tools: [add, list, complete, search]
+#   env:
+#     TODO_DB: "${AX_EVAL_FIXTURE_DIR}/todo.db"
 #   health_check: "./scripts/probe_todo.sh --health"
 #
 # remote (Streamable HTTP) MCP server:

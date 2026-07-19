@@ -135,8 +135,12 @@ agent execution.
 
 ### Target Tool Lookup During Development
 
-`ax-eval` does not rewrite `PATH` for the target tool. The agent sees the
-environment you give the harness, plus any variables declared in `target.env`.
+`ax-eval` does not rewrite `PATH` for the target tool. Agent processes use a
+deny-by-default environment projection containing the selected adapter's
+launch and authentication variables. Add names from the parent environment
+through top-level `agent_env`. CLI `target.env` remains visible because the
+agent launches the CLI target itself; stdio MCP `target.env` is private to the
+server child configuration.
 When the target CLI is built outside the fixture, make that build directory
 discoverable before running the scenario:
 
@@ -165,6 +169,13 @@ in `target.env` are literal except for the documented
 so `PATH: "...:${PATH}"` will not inherit the caller's path. Use a relative
 command such as `./mytool` only when the binary is copied into the fixture
 itself.
+
+For an additional model-provider credential, proxy, or custom CA variable,
+allowlist its name without placing its value in scenario YAML:
+
+```yaml
+agent_env: [CUSTOM_CA_BUNDLE]
+```
 
 ### Interaction Policy
 
@@ -208,6 +219,13 @@ host's MCP configuration. opencode and claude-code use workspace-local config
 files. Codex reads `~/.codex/config.toml`, so the codex adapter writes the MCP
 server entry before the run and restores the prior file content after the agent
 exits. This is an accepted isolation tradeoff; see [docs/tradeoffs.md](tradeoffs.md).
+
+Before provisioning the agent host, ax-eval connects directly to stdio and
+Streamable HTTP MCP targets, performs `tools/list`, writes the full response to
+`artifacts/mcp-tools-list.json`, and verifies every declared `target.tools`
+name. Stale declarations therefore fail before agent execution. Targets using
+`host_session` skip this step because their credentials exist only inside the
+agent host; they retain first-call validation behavior.
 
 #### Authenticating to protected MCP servers
 

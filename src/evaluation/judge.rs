@@ -3,7 +3,7 @@ use crate::evaluation::GateStatus;
 use crate::interaction_evidence::{InteractionInput, McpToolCallEvent};
 use crate::judge::{load_rubric, Criterion, JudgeResponse, OutputFormat, Rubric};
 use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
-use crate::target_env::TargetEnvironment;
+use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -156,7 +156,13 @@ fn run_judge_evaluation_with_adapter(
         env_root,
         judge_model,
         300,
-        &TargetEnvironment::default(),
+        &AgentEnvironment::projected(
+            adapter.required_agent_env(),
+            &judge_scenario.agent_env,
+            &judge_scenario.target,
+            &TargetEnvironment::default(),
+            false,
+        ),
     )?;
 
     if output.exit_code != 0 {
@@ -202,6 +208,7 @@ fn judge_scenario(source: &Scenario, prompt: String) -> Scenario {
         run: None,
         scripts: None,
         interaction: Default::default(),
+        agent_env: vec![],
     }
 }
 
@@ -320,9 +327,23 @@ fn parse_judge_response(output: &str) -> Result<JudgeResponse> {
         return Ok(response);
     }
 
-    if let Some(enveloped) = extract_judge_result_envelope(output) {
-        if let Ok(response) = serde_json::from_str::<JudgeResponse>(enveloped.trim()) {
+    if let Some(response) = parse_judge_result_envelopes(output) {
+        return Ok(response);
+    }
+
+    if let Ok(wrapper) = serde_json::from_str::<serde_json::Value>(output) {
+        if let Some(response) = parse_judge_result_from_value(&wrapper) {
             return Ok(response);
+        }
+    }
+
+    for (index, _) in output.match_indices('{') {
+        let mut stream =
+            serde_json::Deserializer::from_str(&output[index..]).into_iter::<serde_json::Value>();
+        if let Some(Ok(wrapper)) = stream.next() {
+            if let Some(response) = parse_judge_result_from_value(&wrapper) {
+                return Ok(response);
+            }
         }
     }
 
@@ -337,12 +358,63 @@ fn parse_judge_response(output: &str) -> Result<JudgeResponse> {
     anyhow::bail!("Failed to parse judge response: {}", output)
 }
 
-fn extract_judge_result_envelope(output: &str) -> Option<&str> {
+fn parse_judge_result_envelopes(output: &str) -> Option<JudgeResponse> {
     let start_tag = "<judge_result>";
     let end_tag = "</judge_result>";
-    let start = output.find(start_tag)? + start_tag.len();
-    let end = output[start..].find(end_tag)? + start;
-    Some(&output[start..end])
+    let mut remaining = output;
+
+    while let Some(start) = remaining.find(start_tag) {
+        let payload = &remaining[start + start_tag.len()..];
+        let Some(end) = payload.find(end_tag) else {
+            remaining = payload;
+            continue;
+        };
+
+        if let Some(response) = parse_judge_result_payload(&payload[..end]) {
+            return Some(response);
+        }
+        remaining = payload;
+    }
+
+    None
+}
+
+fn parse_judge_result_payload(payload: &str) -> Option<JudgeResponse> {
+    const MAX_ENCODED_LAYERS: usize = 4;
+    let mut candidate = payload.trim().to_string();
+
+    for depth in 0..=MAX_ENCODED_LAYERS {
+        if let Ok(response) = serde_json::from_str::<JudgeResponse>(&candidate) {
+            return Some(response);
+        }
+        if depth == MAX_ENCODED_LAYERS {
+            return None;
+        }
+
+        // Raw CLI wrappers may JSON-encode their text field more than once.
+        let Ok(serde_json::Value::String(decoded)) = serde_json::from_str(&candidate) else {
+            return None;
+        };
+        candidate = decoded.trim().to_string();
+    }
+
+    None
+}
+
+fn parse_judge_result_from_value(value: &serde_json::Value) -> Option<JudgeResponse> {
+    match value {
+        serde_json::Value::String(text) => parse_judge_result_envelopes(text).or_else(|| {
+            serde_json::from_str::<serde_json::Value>(text)
+                .ok()
+                .as_ref()
+                .and_then(parse_judge_result_from_value)
+        }),
+        serde_json::Value::Array(values) => values.iter().find_map(parse_judge_result_from_value),
+        serde_json::Value::Object(object) => {
+            object.values().find_map(parse_judge_result_from_value)
+        }
+        _ => None,
+    }
 }
 
 fn resolve_judge_tool<'a>(judge_config: &'a JudgeConfig, judge_tool: Option<&'a str>) -> &'a str {
@@ -375,7 +447,7 @@ mod tests {
             _cwd: &Path,
             model: Option<&str>,
             timeout_secs: u64,
-            _target_env: &TargetEnvironment,
+            _agent_env: &AgentEnvironment,
         ) -> anyhow::Result<ToolRunOutput> {
             assert!(scenario.name.ends_with("_judge"));
             assert!(scenario.task.prompt.contains("Return only valid JSON"));
@@ -406,6 +478,7 @@ mod tests {
             run: None,
             scripts: None,
             interaction: Default::default(),
+            agent_env: vec![],
         }
     }
 
@@ -676,6 +749,96 @@ terminal text after
             response.highlights,
             vec!["Used the target tool effectively".to_string()]
         );
+    }
+
+    #[test]
+    fn judge_response_parser_accepts_recorded_codex_transcript() {
+        let output = include_str!("fixtures/codex_judge_transcript.txt");
+
+        let response = parse_judge_response(output).expect("parse Codex transcript");
+
+        assert_eq!(response.weighted_score, 0.89);
+        assert_eq!(response.confidence, 0.91);
+    }
+
+    #[test]
+    fn judge_response_parser_accepts_recorded_codex_raw_jsonl() {
+        let output = include_str!("fixtures/codex_judge_raw.jsonl");
+
+        let response = parse_judge_response(output).expect("parse Codex raw JSONL");
+
+        assert_eq!(response.weighted_score, 0.89);
+        assert_eq!(
+            response.highlights,
+            vec!["Used the target tool successfully".to_string()]
+        );
+    }
+
+    #[test]
+    fn judge_parser_accepts_mixed_codex_command_and_agent_message_output() {
+        let command = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "type": "command_execution",
+                "command": "cat transcript.raw.txt",
+                "aggregated_output": "run output",
+                "exit_code": 0,
+                "status": "completed"
+            }
+        });
+        let raw = format!(
+            "{}\n{}",
+            command,
+            include_str!("fixtures/codex_judge_raw.jsonl")
+        );
+        let output = crate::adapter::codex::normalize::normalize(raw, 0);
+
+        let response = parse_judge_response(&judge_output_text(&output))
+            .expect("parse mixed normalized Codex judge output");
+
+        assert_eq!(response.weighted_score, 0.89);
+        assert!(output.transcript.contains("cat transcript.raw.txt"));
+        assert!(output.transcript.contains("<judge_result>"));
+    }
+
+    #[test]
+    fn judge_response_parser_accepts_json_encoded_envelope_payload() {
+        let encoded = serde_json::to_string(&judge_json(0.86)).expect("encode judge JSON");
+        let output = format!("<judge_result>{encoded}</judge_result>");
+
+        let response = parse_judge_response(&output).expect("parse encoded envelope payload");
+
+        assert_eq!(response.weighted_score, 0.86);
+    }
+
+    #[test]
+    fn judge_response_parser_accepts_nested_judge_result_envelope() {
+        let output = format!(
+            "<judge_result>final response:\n<judge_result>{}</judge_result></judge_result>",
+            judge_json(0.81)
+        );
+
+        let response = parse_judge_response(&output).expect("parse nested result envelope");
+
+        assert_eq!(response.weighted_score, 0.81);
+    }
+
+    #[test]
+    fn judge_response_parser_rejects_invalid_json_in_codex_wrapper() {
+        let output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "type": "agent_message",
+                "text": concat!(
+                    "<judge_result>",
+                    r#"{"scores":{},"weighted_score":"high","confidence":0.9,"issues":[],"highlights":[],"rationale":"Invalid score type."}"#,
+                    "</judge_result>"
+                )
+            }
+        })
+        .to_string();
+
+        assert!(parse_judge_response(&output).is_err());
     }
 
     #[test]

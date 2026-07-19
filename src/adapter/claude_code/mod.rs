@@ -5,13 +5,60 @@ use crate::mcp_auth::merged_http_headers;
 use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
-use crate::target_env::TargetEnvironment;
+use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use serde_json::{Map, Value};
 use std::path::Path;
 
 pub struct ClaudeCodeAdapter;
 
 impl ToolAdapter for ClaudeCodeAdapter {
+    fn required_agent_env(&self) -> &'static [&'static str] {
+        &[
+            "HOME",
+            "PATH",
+            "USER",
+            "LOGNAME",
+            "SHELL",
+            "TERM",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "COLORTERM",
+            "XDG_CACHE_HOME",
+            "XDG_DATA_HOME",
+            "SSH_AUTH_SOCK",
+            "SSL_CERT_FILE",
+            "SSL_CERT_DIR",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "no_proxy",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_BASE_URL",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "CLAUDE_CONFIG_DIR",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
+            "AWS_REGION",
+            "AWS_DEFAULT_REGION",
+            "AWS_PROFILE",
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX",
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            "CLOUD_ML_REGION",
+            "ANTHROPIC_VERTEX_PROJECT_ID",
+        ]
+    }
+
     fn supports_structured_tool_calls(&self) -> bool {
         true
     }
@@ -34,12 +81,13 @@ impl ToolAdapter for ClaudeCodeAdapter {
         &self,
         target: &TargetConfig,
         workspace: &Path,
+        target_env: &TargetEnvironment,
     ) -> anyhow::Result<TargetProvision> {
         let Some(target) = target.mcp() else {
             return Ok(TargetProvision::none());
         };
 
-        provision_mcp_target(target, workspace)?;
+        provision_mcp_target(target, workspace, target_env)?;
         Ok(TargetProvision::none())
     }
 
@@ -49,7 +97,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         cwd: &Path,
         model: Option<&str>,
         timeout_secs: u64,
-        target_env: &TargetEnvironment,
+        agent_env: &AgentEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
 
@@ -70,11 +118,18 @@ impl ToolAdapter for ClaudeCodeAdapter {
         }
         args.push(scenario.task.prompt.clone());
 
-        let target_env = target_env.to_session_env();
+        let agent_env = agent_env.to_session_env();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
 
-        let (output, exit_code) =
-            runner.run_command_with_env("claude", &arg_refs, cwd, timeout_secs, &target_env)?;
+        let result = runner.run_command_result_with_projected_env(
+            "claude",
+            &arg_refs,
+            cwd,
+            timeout_secs,
+            &agent_env,
+        )?;
+        let output = result.output();
+        let exit_code = result.exit_code;
 
         Ok(normalize::normalize(output, exit_code))
     }
@@ -88,28 +143,32 @@ fn results_dir_for_workspace(workspace: &Path) -> &Path {
     workspace.parent().unwrap_or(workspace)
 }
 
-fn expanded_map(
-    values: &std::collections::HashMap<String, String>,
-    fixture_dir: &Path,
-    results_dir: &Path,
-) -> anyhow::Result<Map<String, Value>> {
-    values
-        .iter()
-        .map(|(key, value)| {
-            Ok((
-                key.clone(),
-                Value::String(expand_target_env_value(value, fixture_dir, results_dir)?),
-            ))
-        })
-        .collect()
-}
-
-fn provision_mcp_target(target: &McpTarget, workspace: &Path) -> anyhow::Result<()> {
+fn provision_mcp_target(
+    target: &McpTarget,
+    workspace: &Path,
+    target_env: &TargetEnvironment,
+) -> anyhow::Result<()> {
+    let fallback_env;
+    let target_env = if target_env.is_empty() && target.env.is_some() {
+        fallback_env = TargetEnvironment::expanded_from_config(
+            target.env.as_ref(),
+            workspace,
+            results_dir_for_workspace(workspace),
+        )?;
+        &fallback_env
+    } else {
+        target_env
+    };
     let config_path = mcp_config_path(workspace);
     let mut mcp_servers = Map::new();
     mcp_servers.insert(
         target.name.clone(),
-        render_mcp_target(target, workspace, results_dir_for_workspace(workspace))?,
+        render_mcp_target(
+            target,
+            workspace,
+            results_dir_for_workspace(workspace),
+            target_env,
+        )?,
     );
 
     let mut root = Map::new();
@@ -125,6 +184,7 @@ fn render_mcp_target(
     target: &McpTarget,
     fixture_dir: &Path,
     results_dir: &Path,
+    target_env: &TargetEnvironment,
 ) -> anyhow::Result<Value> {
     match &target.transport {
         McpTransport::Stdio { command, args } => {
@@ -148,10 +208,16 @@ fn render_mcp_target(
                         .collect::<anyhow::Result<Vec<_>>>()?,
                 ),
             );
-            if let Some(env) = &target.env {
+            if !target_env.as_map().is_empty() {
                 entry.insert(
                     "env".to_string(),
-                    Value::Object(expanded_map(env, fixture_dir, results_dir)?),
+                    Value::Object(
+                        target_env
+                            .as_map()
+                            .iter()
+                            .map(|(key, value)| (key.clone(), Value::String(value.clone())))
+                            .collect(),
+                    ),
                 );
             }
             Ok(Value::Object(entry))
@@ -211,7 +277,7 @@ mod tests {
         });
 
         ClaudeCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let expected = format!(
@@ -262,7 +328,7 @@ mod tests {
         });
 
         ClaudeCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let expected = format!(
@@ -310,7 +376,7 @@ mod tests {
         });
 
         ClaudeCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(mcp_config_path(&workspace)).expect("config");
@@ -342,7 +408,7 @@ mod tests {
         });
 
         ClaudeCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(mcp_config_path(&workspace)).expect("config");
@@ -369,7 +435,7 @@ mod tests {
         });
 
         ClaudeCodeAdapter
-            .provision_target(&target, &workspace)
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
             .expect("provision");
 
         let content = std::fs::read_to_string(mcp_config_path(&workspace)).expect("config");

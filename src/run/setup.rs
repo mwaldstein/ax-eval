@@ -65,6 +65,7 @@ pub struct PreparedScenarioRun {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetupCommandReport {
     pub command: String,
+    pub exit_code: i32,
     pub success: bool,
     pub output: String,
 }
@@ -119,6 +120,7 @@ pub fn execute_setup_commands(
         let success = exit_code == 0;
         setup_commands.push(SetupCommandReport {
             command: cmd.to_string(),
+            exit_code,
             success,
             output: output.clone(),
         });
@@ -135,9 +137,14 @@ pub fn execute_setup_commands(
         if !success {
             setup_success = false;
             println!("  Command failed with exit code {}", exit_code);
+            break;
         }
     }
-    println!("Setup complete.");
+    if setup_success {
+        println!("Setup complete.");
+    } else {
+        println!("Setup stopped after failure.");
+    }
 
     Ok((setup_success, setup_commands))
 }
@@ -203,14 +210,16 @@ pub fn prepare_writer_and_setup(
         (true, vec![])
     };
 
-    if let Some(health_check) = s.target.health_check() {
-        execute_health_check(
-            health_check,
-            &context.workspace.env,
-            &writer,
-            effective_timeout,
-            &context.target_env,
-        )?;
+    if setup_success {
+        if let Some(health_check) = s.target.health_check() {
+            execute_health_check(
+                health_check,
+                &context.workspace.env,
+                &writer,
+                effective_timeout,
+                &context.target_env,
+            )?;
+        }
     }
 
     Ok(PreparedScenarioRun {

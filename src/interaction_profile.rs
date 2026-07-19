@@ -53,7 +53,7 @@ pub(crate) fn reduce_target_actions(actions: &[TargetAction]) -> EfficiencyMetri
 
     for action in actions {
         if !seen_first.contains_key(&action.action) {
-            let first_try_success = action.outcome != Outcome::Failure;
+            let first_try_success = action.outcome == Outcome::Success;
             seen_first.insert(action.action.clone(), first_try_success);
             if first_try_success {
                 first_try_success_count += 1;
@@ -61,8 +61,8 @@ pub(crate) fn reduce_target_actions(actions: &[TargetAction]) -> EfficiencyMetri
         }
     }
 
-    let first_try_success_rate = if total_commands > 0 {
-        first_try_success_count as f64 / total_commands as f64
+    let first_try_success_rate = if !unique_commands.is_empty() {
+        first_try_success_count as f64 / unique_commands.len() as f64
     } else {
         0.0
     };
@@ -209,7 +209,7 @@ mod tests {
         assert_eq!(profile.metrics.error_count, 1);
         assert_eq!(profile.metrics.tool_reuse_count, 1);
         assert_eq!(profile.metrics.help_invocations, 1);
-        assert_eq!(profile.metrics.first_try_success_rate, 0.5);
+        assert_eq!(profile.metrics.first_try_success_rate, 2.0 / 3.0);
     }
 
     #[test]
@@ -229,6 +229,33 @@ mod tests {
         .unwrap_err();
 
         assert!(error.to_string().contains("returned transcript regex"));
+    }
+
+    #[test]
+    fn unknown_first_occurrence_is_not_a_success() {
+        let events = vec![
+            CommandEvent {
+                command: "notes list".to_string(),
+                exit_code: None,
+            },
+            CommandEvent {
+                command: "notes add hello".to_string(),
+                exit_code: Some(0),
+            },
+        ];
+        let target = target();
+
+        let profile = build_interaction_profile(InteractionProfileInput {
+            target: &target,
+            interaction_input: &InteractionInput::StructuredToolCalls(events),
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: unused_transcript_path(),
+            completed: true,
+            target_command_policy: TargetCommandPolicy::Required,
+        })
+        .expect("profile");
+
+        assert_eq!(profile.metrics.first_try_success_rate, 0.5);
     }
 
     #[test]
@@ -438,7 +465,7 @@ mod tests {
         assert_eq!(profile.metrics.unique_commands, 2);
         assert_eq!(profile.metrics.error_count, 1);
         assert_eq!(profile.metrics.tool_reuse_count, 1);
-        assert_eq!(profile.metrics.first_try_success_rate, 1.0 / 3.0);
+        assert_eq!(profile.metrics.first_try_success_rate, 0.5);
     }
 
     #[test]

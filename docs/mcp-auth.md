@@ -23,7 +23,7 @@ transport level, and the split matters for ax-eval:
 
 | Transport | How credentials are supplied | ax-eval's involvement |
 |---|---|---|
-| `stdio` | From the server process environment. The spec says stdio **SHOULD NOT** use the OAuth flow. | Already handled: `McpTarget.env` (mcp-targets.md). Nothing new. |
+| `stdio` | From the server process environment. The spec says stdio **SHOULD NOT** use the OAuth flow. | `McpTarget.env` is rendered for the MCP child and excluded from the evaluated agent's process environment. |
 | `http` | OAuth 2.1, or a static bearer/API-key header. | This document. |
 
 For `http`, the spec-defined OAuth flow is entirely a **client** responsibility:
@@ -253,9 +253,10 @@ before that:
   run path checks environment presence before `provision_target`, so an unset or
   empty variable fails before the agent launches.
 - `host_session`: not preflighted in this cut. ax-eval renders no credential and
-  emits a warning; if the host is not already logged in, the run may fail on the
-  first MCP tool call. Host status probes (`codex mcp get <name>`, `opencode mcp
-  debug`) remain future work.
+  cannot run its direct `tools/list` inspection because the credential exists
+  only inside the host. It emits a warning; if the host is not already logged
+  in, the run may fail on the first MCP tool call. Host status probes (`codex
+  mcp get <name>`, `opencode mcp debug`) remain future work.
 - A `401`/`403` observed *during* a run (token expired mid-run, insufficient
   scope) is captured as an MCP tool-call error (`is_error`) through the normal
   Stage 3/4 evidence path and surfaced in the profile; it is not retried by

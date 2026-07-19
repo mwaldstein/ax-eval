@@ -1,4 +1,4 @@
-use crate::adapter::normalize::{json_lines, output_from_structured_parts};
+use crate::adapter::normalize::{exit_code_text, json_lines, output_from_structured_parts};
 use crate::adapter::{TokenUsage, ToolRunOutput};
 use crate::interaction_evidence::{CommandEvent, McpToolCallEvent};
 use serde_json::Value;
@@ -110,11 +110,17 @@ fn command_event(event: &Value) -> Option<CommandEvent> {
         .and_then(|m| m.get("exit"))
         .and_then(Value::as_i64)
         .map(|code| code as i32)
-        .unwrap_or(0);
+        .or_else(
+            || match state.and_then(|s| s.get("status")).and_then(Value::as_str) {
+                Some("failed" | "error") => Some(1),
+                Some("success" | "succeeded") => Some(0),
+                _ => None,
+            },
+        );
 
     Some(CommandEvent {
         command: command.to_string(),
-        exit_code: Some(exit_code),
+        exit_code,
     })
 }
 
@@ -240,10 +246,9 @@ fn synthesize_transcript(output: &str) -> String {
             transcript.push_str(output);
             transcript.push('\n');
         }
-        transcript.push_str(&format!(
-            "exit code: {}\n\n",
-            command_event.exit_code.unwrap_or(0)
-        ));
+        transcript.push_str("exit code: ");
+        transcript.push_str(&exit_code_text(command_event.exit_code));
+        transcript.push_str("\n\n");
     }
 
     transcript
@@ -438,6 +443,48 @@ mod tests {
             "transcript should include command events: {}",
             output.transcript
         );
+    }
+
+    #[test]
+    fn preserves_missing_opencode_exit_code_as_unknown() {
+        let event = serde_json::json!({
+            "type": "tool_use",
+            "part": {
+                "type": "tool",
+                "tool": "bash",
+                "state": {
+                    "status": "completed",
+                    "input": {"command": "notes list"},
+                    "metadata": {"output": "[]"}
+                }
+            }
+        });
+
+        let output = normalize(event.to_string(), 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].exit_code, None);
+        assert!(output.transcript.contains("exit code: unknown"));
+        assert!(!output.transcript.contains("exit code: 0"));
+    }
+
+    #[test]
+    fn maps_explicit_opencode_failure_status_without_exit_code() {
+        let event = serde_json::json!({
+            "type": "tool_use",
+            "part": {
+                "type": "tool",
+                "tool": "bash",
+                "state": {
+                    "status": "failed",
+                    "input": {"command": "notes badcmd"},
+                    "metadata": {"output": "unknown command"}
+                }
+            }
+        });
+
+        let output = normalize(event.to_string(), 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].exit_code, Some(1));
     }
 
     #[test]

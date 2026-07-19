@@ -49,11 +49,10 @@ artifacts:
 Adapters that can expose structured tool calls must return structured command
 events and/or structured MCP tool-call events and set
 `supports_structured_tool_calls()` to `true` on their `ToolAdapter`
-implementation. For normal completed runs, those events must include at least
-one usable target-tool action for the scenario target: a command event for CLI
-targets or an MCP tool-call event for MCP targets. Evaluation fails when a
-structured-capable adapter falls back to transcript regex evidence or returns no
-usable target-tool events.
+implementation. Evaluation fails when a structured-capable adapter falls back
+to transcript regex evidence. A completed run with no usable target-tool events
+still produces a profile; `interaction.target_commands: required` records a
+failed guardrail so zero interaction remains measurable.
 
 When a host transcript contains both shell commands and MCP calls, the adapter
 must preserve both event streams in the canonical interaction input. The
@@ -63,9 +62,10 @@ interaction profile consumes the stream matching the scenario target kind.
 
 Implement `ToolAdapter::provision_target` when a host needs configuration before
 it can discover an MCP target. The hook runs after fixture materialization and
-before `run()`, with the isolated workspace root and parsed `TargetConfig`.
+before `run()`, with the isolated workspace root, parsed `TargetConfig`, and
+expanded target-private environment.
 
-- CLI targets should return `Ok(())`.
+- CLI targets should return `TargetProvision::none()`.
 - stdio MCP targets must expand `${AX_EVAL_FIXTURE_DIR}` and
   `${AX_EVAL_RESULTS_DIR}` in command, args, and env values before writing host
   config.

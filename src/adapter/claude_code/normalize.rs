@@ -85,11 +85,7 @@ fn result_exit_code(item: &Value) -> Option<i32> {
             .and_then(|matched| matched.as_str().parse::<i32>().ok());
     }
 
-    if text.to_lowercase().contains("error") || text.to_lowercase().contains("failed") {
-        Some(1)
-    } else {
-        Some(0)
-    }
+    None
 }
 
 fn content_to_text(content: &Value) -> Option<String> {
@@ -392,10 +388,6 @@ fn extract_structured_events(output: &str) -> (Vec<CommandEvent>, Vec<McpToolCal
         }
     }
 
-    for event in &mut command_events {
-        event.exit_code.get_or_insert(0);
-    }
-
     (command_events, mcp_events)
 }
 
@@ -486,7 +478,41 @@ mod tests {
         let output = normalize(raw, 0);
         let command_events = output.command_events().expect("structured command events");
         assert_eq!(command_events[0].command, "notes list");
-        assert_eq!(command_events[0].exit_code, Some(0));
+        assert_eq!(command_events[0].exit_code, None);
+        assert!(output.transcript.contains("exit code: unknown"));
+        assert!(!output.transcript.contains("exit code: 0"));
+    }
+
+    #[test]
+    fn preserves_claude_tool_result_without_status_as_unknown() {
+        let raw = format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "type": "assistant",
+                "message": {
+                    "content": [{
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "Bash",
+                        "input": {"command": "notes list"}
+                    }]
+                }
+            }),
+            serde_json::json!({
+                "type": "user",
+                "message": {
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": "[]"
+                    }]
+                }
+            })
+        );
+
+        let output = normalize(raw, 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].exit_code, None);
     }
 
     #[test]

@@ -11,11 +11,20 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
 - [x] Stage 4 — capture MCP tool events in `src/adapter/{opencode,codex,claude_code}/normalize.rs`
 - [x] Stage 5 — parameterise judge prompt by target kind (`JudgeTargetView`); include structured args for MCP
 - [x] Stage 6 — update `docs/scenarios.md`, `docs/evaluation.md`, `src/adapter/README.md`, `CONTEXT.md`, `SCENARIO_TEMPLATE`; add example MCP fixture; flip spec to Stable
-- [ ] Stage 7 — `discover` for MCP targets: `--target` invocation, MCP inspect prompt (declared-vs-learned framing), target-block stamping into authored scenarios, summary attribution for description/schema problems. Agent-mediated; needs only Stages 1–2. Design: `docs/mcp-targets.md` (Discovery for MCP). Harness-side MCP client + declared-vs-understood delta report stay deferred.
-- [ ] Persist advertised MCP surface — run `tools/list` before evaluation and save the full response, including descriptions, input schemas, and annotations, as a results artifact. Extend gates so scenarios can assert metadata fields such as `readOnlyHint` and `openWorldHint`.
-- [ ] Auto-validate `target.tools` against the server's actual `tools/list` during preflight. Unknown or stale declarations should fail early with an actionable diagnostic instead of producing post-run warnings.
-- [ ] Separate target-server environment from agent environment. Stdio MCP child processes need private env vars such as repository roots and service config, while evaluated agents should receive only an explicit allowlist so fixtures cannot be bypassed by reading target internals directly.
-- [ ] Harden Codex judge-result parsing by tolerating real Codex output shapes around the expected `<judge_result>` envelope, and add recorded-output regression fixtures so Codex can be used reliably as a judge.
+- [ ] Stage 7 — `discover` for MCP targets: `--target` invocation, MCP inspect prompt (declared-vs-learned framing), target-block stamping into authored scenarios, summary attribution for description/schema problems. Agent-mediated; reuse the evaluation-time MCP inspector for authoritative metadata. Design: `docs/mcp-targets.md` (Discovery for MCP). The declared-vs-understood delta report stays deferred.
+- [x] Persist advertised MCP surface — run `tools/list` before evaluation and save the full response, including descriptions, input schemas, and annotations, as `artifacts/mcp-tools-list.json`. `host_session` targets remain excluded because their credentials are held by the agent host.
+- [x] Auto-validate `target.tools` against the server's actual `tools/list` during preflight. Unknown or stale declarations fail before agent execution with an actionable diagnostic. `host_session` targets retain their documented first-call validation behavior.
+- [ ] Add MCP metadata gates so scenarios can assert advertised fields such as `readOnlyHint` and `openWorldHint` against `mcp-tools-list.json`.
+- [x] Separate target-server environment from agent environment. Stdio MCP `target.env` is private to the child configuration; evaluated agents receive an adapter baseline plus the explicit top-level `agent_env` allowlist.
+- [x] Harden Codex judge-result parsing around the expected `<judge_result>` envelope and cover normalized and raw recorded-output shapes.
+
+## 0.4.0 stabilization
+
+- [x] Correct `first_try_success_rate` to divide first-occurrence successes by unique actions, and preserve unknown command outcomes when adapters omit exit codes.
+- [x] Stop agent execution after the first setup command that exits nonzero while retaining setup artifacts and a failed result record.
+- [ ] Route every retained artifact through one redaction-aware sink, including raw transcripts, events, run metadata, and judge feedback.
+- [ ] Replace decorative agent-CLI authentication checks with host-specific status probes where available.
+- [ ] Finalize a failed or cancelled result with partial evidence for setup/health timeouts, agent timeouts, and post-run evaluation errors.
 
 ## Authenticated MCP targets
 
@@ -41,6 +50,7 @@ Evaluate agent use of protected MCP servers. Design: `docs/mcp-auth.md`, decisio
 
 ## Future
 
+- [ ] Harness materialization — implement the deferred `agent_guidance` and `skills` design in `docs/harness-materialization.md` for 0.5.0.
 - [ ] `ax-eval compare` — Diff two runs or show trend across a series.
 - [ ] Statistical significance testing across runs
 - [ ] Automatic regression detection — results database supports trend analysis; automated alerting not yet implemented.

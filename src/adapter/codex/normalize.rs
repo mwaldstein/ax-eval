@@ -1,4 +1,4 @@
-use crate::adapter::normalize::{json_lines, output_from_structured_parts};
+use crate::adapter::normalize::{exit_code_text, json_lines, output_from_structured_parts};
 use crate::adapter::{TokenUsage, ToolRunOutput};
 use crate::interaction_evidence::{CommandEvent, McpToolCallEvent};
 use serde_json::Value;
@@ -68,17 +68,18 @@ fn item_type(item: &Value) -> Option<&str> {
         .or_else(|| item.get("item_type").and_then(Value::as_str))
 }
 
-fn effective_exit_code(item: &Value) -> i32 {
-    let exit_code = item.get("exit_code").and_then(Value::as_i64).unwrap_or(0);
-    let status = item
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("completed");
+fn effective_exit_code(item: &Value) -> Option<i32> {
+    if let Some(exit_code) = item.get("exit_code").and_then(Value::as_i64) {
+        if item.get("status").and_then(Value::as_str) == Some("failed") && exit_code == 0 {
+            return Some(1);
+        }
+        return Some(exit_code as i32);
+    }
 
-    if status == "failed" && exit_code == 0 {
-        1
-    } else {
-        exit_code as i32
+    match item.get("status").and_then(Value::as_str) {
+        Some("failed" | "error") => Some(1),
+        Some("success" | "succeeded") => Some(0),
+        _ => None,
     }
 }
 
@@ -159,7 +160,7 @@ fn extract_command_events(output: &str) -> Vec<CommandEvent> {
         }
         events.push(CommandEvent {
             command: command.to_string(),
-            exit_code: Some(effective_exit_code(item)),
+            exit_code: effective_exit_code(item),
         });
     }
 
@@ -235,7 +236,7 @@ fn assistant_text_from_event(event: &Value) -> Option<String> {
         "item.completed" | "item.updated" => {
             let item = event.get("item")?;
             match item_type(item)? {
-                "message" | "assistant_message" => text_from_value(item),
+                "agent_message" | "message" | "assistant_message" => text_from_value(item),
                 _ => None,
             }
         }
@@ -321,7 +322,9 @@ fn synthesize_transcript(output: &str) -> String {
             transcript.push_str(command_output);
             transcript.push('\n');
         }
-        transcript.push_str(&format!("exit code: {}\n\n", effective_exit_code(item)));
+        transcript.push_str("exit code: ");
+        transcript.push_str(&exit_code_text(effective_exit_code(item)));
+        transcript.push_str("\n\n");
     }
 
     transcript
@@ -425,6 +428,45 @@ mod tests {
         let output = normalize(jsonl_output, 0);
         let command_events = output.command_events().expect("structured command events");
         assert!(output.transcript.contains("exit code: 1"));
+        assert_eq!(command_events[0].exit_code, Some(1));
+    }
+
+    #[test]
+    fn preserves_missing_codex_exit_code_as_unknown() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "command_execution",
+                "command": "bash -lc pwd",
+                "aggregated_output": "/workspace\n",
+                "status": "completed"
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        let command_events = output.command_events().expect("structured command events");
+        assert_eq!(command_events[0].exit_code, None);
+        assert!(output.transcript.contains("exit code: unknown"));
+        assert!(!output.transcript.contains("exit code: 0"));
+    }
+
+    #[test]
+    fn maps_explicit_codex_failure_status_without_exit_code() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "command_execution",
+                "command": "bash -lc false",
+                "status": "failed"
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+        let command_events = output.command_events().expect("structured command events");
         assert_eq!(command_events[0].exit_code, Some(1));
     }
 
