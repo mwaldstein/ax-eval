@@ -18,12 +18,14 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
 Evaluate agent use of protected MCP servers. Design: `docs/mcp-auth.md`, decision: `docs/adr/0006-authenticated-mcp-targets.md`. ax-eval renders credential config; the harness is the OAuth client.
 
 - [x] Author ADR-0006 + `docs/mcp-auth.md` spec
-- [ ] Prereq — `${env:NAME}` expansion in `src/target_env.rs` (also fixes the literal-`${VAR}` bug in mcp-targets.md's remote example); unset var is a provision-time error
-- [ ] `McpAuth` schema (`none | bearer_env | headers | host_session`) on `McpTarget`; http-only + literal-secret-rejection validation; deserialization tests
-- [ ] Auth rendering in each adapter's `provision_target` (bearer→host mechanism, disable auto-OAuth for static modes, codex passes env-var name); golden-config tests
-- [ ] Redaction: resolved secrets must never reach results artifacts (hard dependency on the audit's redaction-sink work)
-- [ ] Preflight: env-var presence for static modes; host status probe for `host_session` where available (`codex mcp get`, `opencode mcp debug`); documented gap for claude-code
-- [ ] Docs/template/CHANGELOG lockstep; flip `docs/mcp-auth.md` to Stable when static modes ship
+- [x] Prereq — `${env:NAME}` expansion in `src/target_env.rs` (also fixes the literal-`${VAR}` bug in mcp-targets.md's remote example); unset var is a provision-time error
+- [x] `McpAuth` schema (`none | bearer_env | headers | host_session`) on `McpTarget`; http-only + literal-secret-rejection validation; deserialization tests
+- [x] Auth rendering in each adapter's `provision_target` (bearer to host mechanism, disable auto-OAuth for static modes, codex passes env-var name); golden-config tests
+- [x] Redaction: resolved secrets must never reach results artifacts (hard dependency on the audit's redaction-sink work)
+- [x] Preflight: env-var presence for static modes; documented `host_session` gap
+- [x] Docs/template/CHANGELOG lockstep; flip `docs/mcp-auth.md` to Stable when static modes ship
+- [ ] Host-session status probes where available (`codex mcp get`, `opencode mcp debug`)
+- [ ] Out-of-band `mint-token` / login helper
 
 ## Medium-impact
 

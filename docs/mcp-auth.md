@@ -1,6 +1,6 @@
 # Authenticated MCP Targets
 
-**Status: Draft**
+**Status: Stable for `bearer_env` and `headers`; partial for `host_session`**
 
 ## Purpose
 
@@ -231,12 +231,13 @@ Non-negotiable, and the reason `auth` is a distinct feature rather than more
 2. **Resolve late.** Env vars resolve at provision time, in memory.
 3. **Never persisted.** A resolved token must not appear in `run.json`,
    `events.jsonl`, transcripts, `report.md`, `evaluation.md`, or any provisioned
-   config that ax-eval copies into the results tree. Where ax-eval writes a
-   header value into a workspace config (opencode/claude-code), that file lives
-   in the run workspace and is subject to the redaction sink; the codex path
-   avoids the problem by construction (name only). This bullet is the concrete
-   tie-in to the audit's redaction finding — authenticated targets make that fix
-   a hard dependency, not a nicety.
+   config retained in the results tree. Where ax-eval writes a header value into
+   a workspace config (opencode/claude-code), that file is necessary for the
+   live run and lives under `results/fixture`; immediately after the agent exits,
+   ax-eval scrubs the retained `.mcp.json` / `.opencode_config/opencode.json`
+   copy so inspectable artifacts show `Bearer [REDACTED]` or `[REDACTED]`
+   rather than the resolved value. The codex path avoids the problem by
+   construction by writing only `bearer_token_env_var = "<NAME>"`.
 4. **`host_session` stores nothing in ax-eval's tree at all** — the token lives
    only in the host's own store.
 
@@ -248,14 +249,13 @@ Money is spent the moment the agent runs, so credential problems must be caught
 before that:
 
 - `bearer_env` / `headers`: every referenced `${env:NAME}` / `env` must be set
-  and non-empty, checked during `validate` (structure) and again at run
-  provision (presence). Unset → hard error naming the variable.
-- `host_session`: where the host exposes a cheap status check
-  (`codex mcp get <name>`, `opencode mcp debug`), ax-eval runs it in preflight
-  and fails with a "run `<host login command>` first" message if no valid token
-  is present. claude-code exposes no scriptable status today, so ax-eval
-  documents that `host_session` + claude-code cannot be preflighted and the run
-  may fail at first tool call — surfaced as a warning, not a silent gap.
+  and non-empty. `validate` checks structure and literal-secret mistakes; the
+  run path checks environment presence before `provision_target`, so an unset or
+  empty variable fails before the agent launches.
+- `host_session`: not preflighted in this cut. ax-eval renders no credential and
+  emits a warning; if the host is not already logged in, the run may fail on the
+  first MCP tool call. Host status probes (`codex mcp get <name>`, `opencode mcp
+  debug`) remain future work.
 - A `401`/`403` observed *during* a run (token expired mid-run, insufficient
   scope) is captured as an MCP tool-call error (`is_error`) through the normal
   Stage 3/4 evidence path and surfaced in the profile; it is not retried by
@@ -313,8 +313,8 @@ naming it:
 
 ## In-System Documentation
 
-Per [ADR-0003](adr/0003-keep-cli-self-documenting.md), when this is implemented,
-update in lockstep:
+Per [ADR-0003](adr/0003-keep-cli-self-documenting.md), auth behavior is kept in
+lockstep across:
 
 - `src/scenario/types.rs`: `McpAuth` enum on `McpTarget`; deserialization tests
   in `src/scenario/tests/`.
@@ -322,14 +322,15 @@ update in lockstep:
   env-name presence.
 - `src/target_env.rs`: `${env:NAME}` expansion + tests (the prerequisite).
 - `src/adapter/{opencode,claude_code,codex}/mod.rs`: auth rendering in
-  `provision_target`; golden-config tests; redaction of written header values.
-- Redaction sink: ensure resolved secrets cannot reach artifacts (audit
-  dependency).
+  `provision_target`; golden-config tests; redaction of retained written header
+  values.
+- Redaction sink: resolved secrets are scrubbed from retained MCP config files
+  and from transcript/report patterns.
 - `docs/scenarios.md`, `docs/mcp-targets.md` (cross-link), `SCENARIO_TEMPLATE`,
   `docs/user-guide.md`, `docs/tradeoffs.md` (host_session global-state caveat),
   `CHANGELOG.md`.
-- Flip this doc's **Status** to Stable when the static modes ship;
-  `host_session` may remain Draft-flagged per host until preflight is proven.
+- Static modes are Stable. `host_session` remains partial until host status
+  preflight is proven.
 
 ---
 

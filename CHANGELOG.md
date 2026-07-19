@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- MCP auth schema for static credential modes. Scenarios can declare optional HTTP-only `target.auth` blocks for `none`, `bearer_env`, `headers`, and `host_session`, with validation that rejects stdio auth and obvious literal secrets in favor of `${env:NAME}` references.
+- MCP auth for protected HTTP MCP targets. Scenarios can declare optional HTTP-only `target.auth` blocks for `none`, static `bearer_env`, static `headers`, and `host_session` pass-through; adapters render host-native config for opencode, claude-code, and codex. Static secrets are read from environment variables at preflight/provision time and scrubbed from retained results artifacts; codex stores only the env-var name. `host_session` renders no credential and is not preflighted yet, so missing host logins may fail at first tool call.
 
 ## [0.4.0-beta.1] - 2026-07-18
 

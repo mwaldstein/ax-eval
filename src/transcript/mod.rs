@@ -4,6 +4,7 @@ pub mod types;
 pub mod writer;
 
 pub use analyzer::TranscriptAnalyzer;
+pub(crate) use redact::redact_sensitive;
 pub use types::{EfficiencyMetrics, EvaluationReport, RunMetadata, RunReport, TokenUsage};
 pub use writer::TranscriptWriter;
 

@@ -19,6 +19,7 @@ mod guidance;
 mod interaction_evidence;
 mod interaction_profile;
 mod judge;
+mod mcp_auth;
 mod output;
 mod results;
 mod run;

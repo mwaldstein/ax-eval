@@ -25,6 +25,22 @@ fn test_redact_api_key_header() {
 }
 
 #[test]
+fn test_redact_json_authorization_header() {
+    let input = r#"{ "Authorization": "Bearer json-secret-token" }"#;
+    let output = redact_sensitive(input);
+    assert!(output.contains("Bearer [REDACTED]"));
+    assert!(!output.contains("json-secret-token"));
+}
+
+#[test]
+fn test_redact_json_api_key_header() {
+    let input = r#"{ "X-API-Key": "json-api-key-secret" }"#;
+    let output = redact_sensitive(input);
+    assert!(output.contains("[REDACTED]"));
+    assert!(!output.contains("json-api-key-secret"));
+}
+
+#[test]
 fn test_redact_password() {
     let input = "password: mysecret123";
     let output = redact_sensitive(input);

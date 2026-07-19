@@ -1,6 +1,7 @@
 pub(crate) mod normalize;
 
 use super::{TargetProvision, ToolAdapter, ToolRunOutput};
+use crate::mcp_auth::{merged_http_headers, static_auth_mode, StaticAuthMode};
 use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
@@ -183,11 +184,24 @@ fn render_mcp_target(
                 "url".to_string(),
                 Value::String(expand_target_env_value(url, fixture_dir, results_dir)?),
             );
-            if let Some(headers) = headers {
+            if let Some(headers) = merged_http_headers(
+                headers.as_ref(),
+                target.auth.as_ref(),
+                fixture_dir,
+                results_dir,
+            )? {
                 entry.insert(
                     "headers".to_string(),
-                    Value::Object(expanded_map(headers, fixture_dir, results_dir)?),
+                    Value::Object(
+                        headers
+                            .into_iter()
+                            .map(|(key, value)| (key, Value::String(value)))
+                            .collect(),
+                    ),
                 );
+            }
+            if static_auth_mode(target.auth.as_ref()) == StaticAuthMode::Static {
+                entry.insert("oauth".to_string(), Value::Bool(false));
             }
             entry.insert("enabled".to_string(), Value::Bool(true));
             Ok(Value::Object(entry))
@@ -198,7 +212,7 @@ fn render_mcp_target(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scenario::{McpTarget, McpTransport, TargetConfig};
+    use crate::scenario::{McpAuth, McpTarget, McpTransport, TargetConfig};
     use std::collections::HashMap;
 
     fn stdio_target() -> TargetConfig {
@@ -324,5 +338,100 @@ mod tests {
             std::fs::read_to_string(opencode_config_path(&workspace)).expect("config"),
             expected
         );
+    }
+
+    #[test]
+    fn provisions_bearer_env_auth_with_oauth_disabled() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        let env_name = "AX_EVAL_OPENCODE_BEARER_AUTH_UNIQUE";
+        std::env::set_var(env_name, "opencode-secret-token");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: Some(HashMap::from([(
+                    "Authorization".to_string(),
+                    "Bearer transport-token".to_string(),
+                )])),
+            },
+            auth: Some(McpAuth::BearerEnv {
+                env: env_name.to_string(),
+            }),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        OpenCodeAdapter
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");
+        assert!(content.contains(r#""Authorization": "Bearer opencode-secret-token""#));
+        assert!(content.contains(r#""oauth": false"#));
+        assert!(!content.contains("transport-token"));
+    }
+
+    #[test]
+    fn provisions_auth_headers_over_transport_headers_with_oauth_disabled() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        let env_name = "AX_EVAL_OPENCODE_HEADER_AUTH_UNIQUE";
+        std::env::set_var(env_name, "api-key-secret");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: Some(HashMap::from([
+                    ("X-API-Key".to_string(), "transport-key".to_string()),
+                    ("X-Trace".to_string(), "trace".to_string()),
+                ])),
+            },
+            auth: Some(McpAuth::Headers {
+                headers: HashMap::from([("X-API-Key".to_string(), format!("${{env:{env_name}}}"))]),
+            }),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        OpenCodeAdapter
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");
+        assert!(content.contains(r#""X-API-Key": "api-key-secret""#));
+        assert!(content.contains(r#""X-Trace": "trace""#));
+        assert!(content.contains(r#""oauth": false"#));
+        assert!(!content.contains("transport-key"));
+    }
+
+    #[test]
+    fn provisions_host_session_without_credentials_or_oauth_override() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: None,
+            },
+            auth: Some(McpAuth::HostSession),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        OpenCodeAdapter
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");
+        assert!(!content.contains("Authorization"));
+        assert!(!content.contains(r#""oauth""#));
     }
 }

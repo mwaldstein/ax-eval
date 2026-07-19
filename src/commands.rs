@@ -379,6 +379,19 @@ target:
 #     env: MY_MCP_TOKEN
 #   tools: [query, index]
 #
+# remote MCP server with API-key headers:
+# target:
+#   kind: mcp
+#   name: search
+#   transport:
+#     type: http
+#     url: "https://mcp.example.com/mcp"
+#   auth:
+#     type: headers
+#     headers:
+#       X-API-Key: "${env:MY_MCP_API_KEY}"
+#   tools: [query, index]
+#
 # MCP authoring tips (see docs/scenarios.md, "Authoring MCP scenarios"):
 #   - AGENTS.md describes when/why to use each tool, not call syntax — the
 #     agent gets tool descriptions from the server itself.

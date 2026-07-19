@@ -1,11 +1,13 @@
 use crate::adapter::{TokenUsage, ToolAdapter, ToolRunOutput};
 use crate::evaluation::{EvaluationInput, EvaluationMetrics};
 use crate::interaction_profile::AdapterEvidenceCapability;
+use crate::mcp_auth::preflight_auth;
 use crate::run::artifacts::RunArtifacts;
 use crate::run::setup::{PreparedRunContext, PreparedScenarioRun};
 use crate::run::status;
 use crate::scenario::Scenario;
 use crate::target_env::TargetEnvironment;
+use crate::transcript::redact_sensitive;
 use crate::transcript::TranscriptWriter;
 use std::path::Path;
 
@@ -117,12 +119,45 @@ fn run_post_scripts(input: PostScriptRunInput<'_>) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn redact_retained_mcp_configs(
+    workspace: &Path,
+    target: &crate::scenario::TargetConfig,
+) -> anyhow::Result<()> {
+    // opencode and claude-code must read resolved static headers from workspace
+    // files during the live run. The workspace is retained under results/fixture,
+    // so scrub those inspectable copies immediately after the agent exits.
+    //
+    // Two passes: pattern-based redaction for well-known credential shapes, then
+    // exact-value redaction of the secrets ax-eval itself resolved — the latter
+    // catches custom-named auth headers no pattern would recognize.
+    let secrets = crate::mcp_auth::resolved_auth_secrets(target);
+    for path in [
+        workspace.join(".mcp.json"),
+        workspace.join(".opencode_config").join("opencode.json"),
+    ] {
+        if !path.exists() {
+            continue;
+        }
+        let content = std::fs::read_to_string(&path)?;
+        let mut redacted = redact_sensitive(&content);
+        for secret in &secrets {
+            redacted = redacted.replace(secret.as_str(), "[REDACTED]");
+        }
+        if redacted != content {
+            std::fs::write(path, redacted)?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResult> {
     let start = std::time::Instant::now();
     println!(
         "Running tool '{}' with model '{}'...",
         input.tool, input.model
     );
+    preflight_auth(&input.scenario.target)?;
     let provision = input
         .adapter
         .provision_target(&input.scenario.target, &input.context.workspace.env.root)?;
@@ -134,20 +169,34 @@ pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResul
         &input.context.target_env,
     );
     let cleanup_result = provision.cleanup();
+    let scrub_result =
+        redact_retained_mcp_configs(&input.context.workspace.env.root, &input.scenario.target);
     // A cleanup failure after a successful (paid) agent run must not discard
     // the run's evidence; warn and continue so results are persisted.
-    let run_output: ToolRunOutput = match (run_result, cleanup_result) {
-        (Ok(run_output), Ok(())) => run_output,
-        (Err(run_error), Ok(())) => return Err(run_error),
-        (Ok(run_output), Err(cleanup_error)) => {
+    let run_output: ToolRunOutput = match (run_result, cleanup_result, scrub_result) {
+        (Ok(run_output), Ok(()), Ok(())) => run_output,
+        (Err(run_error), Ok(()), Ok(())) => return Err(run_error),
+        (Ok(run_output), Err(cleanup_error), _) => {
             eprintln!(
                 "warning: target cleanup failed after a completed run; \
                  host config may need manual restoration: {cleanup_error:#}"
             );
             run_output
         }
-        (Err(run_error), Err(cleanup_error)) => {
+        (Err(run_error), Err(cleanup_error), _) => {
             return Err(run_error.context(format!("target cleanup also failed: {cleanup_error:#}")))
+        }
+        (Err(run_error), Ok(()), Err(scrub_error)) => {
+            return Err(run_error.context(format!(
+                "retained MCP config redaction also failed: {scrub_error:#}"
+            )))
+        }
+        (Ok(run_output), Ok(()), Err(scrub_error)) => {
+            eprintln!(
+                "warning: retained MCP config redaction failed after a completed run; \
+                 results may need manual review before sharing: {scrub_error:#}"
+            );
+            run_output
         }
     };
     let duration = start.elapsed();
@@ -223,7 +272,10 @@ mod tests {
     use crate::adapter::{AdapterError, TargetProvision, ToolStatus};
     use crate::fixture::TestEnv;
     use crate::interaction_evidence::{CommandEvent, InteractionInput, McpToolCallEvent};
-    use crate::scenario::{Evaluation, Scenario, ScriptEntry, ScriptsConfig, TargetConfig, Task};
+    use crate::scenario::{
+        Evaluation, McpAuth, McpTarget, McpTransport, Scenario, ScriptEntry, ScriptsConfig,
+        TargetConfig, Task,
+    };
     use std::sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -249,6 +301,40 @@ mod tests {
             tags: vec![],
             run: None,
             scripts,
+            interaction: Default::default(),
+        }
+    }
+
+    fn mcp_scenario_with_auth(auth: McpAuth) -> Scenario {
+        Scenario {
+            name: "mcp-auth-test".to_string(),
+            description: "Test MCP auth behavior".to_string(),
+            template_folder: "fixture".to_string(),
+            target: TargetConfig::Mcp(McpTarget {
+                name: "search".to_string(),
+                transport: McpTransport::Http {
+                    url: "https://mcp.example.com/mcp".to_string(),
+                    headers: None,
+                },
+                auth: Some(auth),
+                tools: vec!["query".to_string()],
+                env: None,
+                health_check: None,
+            }),
+            task: Task {
+                prompt: "Do the task".to_string(),
+            },
+            evaluation: Evaluation {
+                gates: vec![],
+                judge: None,
+                composite: None,
+            },
+            tier: 0,
+            tool_matrix: None,
+            setup: None,
+            tags: vec![],
+            run: None,
+            scripts: None,
             interaction: Default::default(),
         }
     }
@@ -338,6 +424,221 @@ mod tests {
         };
         assert!(error.to_string().contains("agent run failed"));
         assert!(cleaned.load(Ordering::SeqCst));
+    }
+
+    struct SecretWritingAdapter {
+        env_name: String,
+        ran: Arc<AtomicBool>,
+    }
+
+    impl ToolAdapter for SecretWritingAdapter {
+        fn is_available(&self) -> Result<ToolStatus, AdapterError> {
+            Ok(ToolStatus {
+                available: true,
+                authenticated: true,
+            })
+        }
+
+        fn provision_target(
+            &self,
+            _target: &TargetConfig,
+            workspace: &Path,
+        ) -> anyhow::Result<TargetProvision> {
+            let token = std::env::var(&self.env_name)?;
+            std::fs::write(
+                workspace.join(".mcp.json"),
+                format!(
+                    r#"{{
+  "mcpServers": {{
+    "search": {{
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {{
+        "Authorization": "Bearer {token}"
+      }}
+    }}
+  }}
+}}
+"#
+                ),
+            )?;
+            Ok(TargetProvision::none())
+        }
+
+        fn run(
+            &self,
+            _scenario: &Scenario,
+            _cwd: &Path,
+            _model: Option<&str>,
+            _timeout_secs: u64,
+            _target_env: &TargetEnvironment,
+        ) -> anyhow::Result<ToolRunOutput> {
+            self.ran.store(true, Ordering::SeqCst);
+            Ok(ToolRunOutput {
+                transcript: "done".to_string(),
+                raw_output: None,
+                exit_code: 0,
+                cost_usd: None,
+                token_usage: None,
+                interaction_input: InteractionInput::TranscriptRegex,
+            })
+        }
+    }
+
+    #[test]
+    fn run_attempt_redacts_retained_mcp_config_after_live_run() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("results").join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        let results_dir = dir.path().join("results");
+        let artifacts = RunArtifacts::new(&results_dir, &env);
+        let writer = artifacts.writer().expect("writer");
+        let context = PreparedRunContext {
+            workspace: crate::run::setup::ScenarioWorkspace {
+                env,
+                scenario_yaml: "scenario yaml".to_string(),
+                prompt: "prompt".to_string(),
+            },
+            target_env: TargetEnvironment::default(),
+            artifacts: artifacts.clone(),
+        };
+        let prepared = PreparedScenarioRun {
+            artifacts,
+            writer,
+            setup_success: true,
+            setup_commands: vec![],
+        };
+        let env_name = "AX_EVAL_RUN_SECRET_RETAINED_ARTIFACT_UNIQUE";
+        let token = "retained-artifact-secret-token";
+        std::env::set_var(env_name, token);
+        let scenario = mcp_scenario_with_auth(McpAuth::BearerEnv {
+            env: env_name.to_string(),
+        });
+        let ran = Arc::new(AtomicBool::new(false));
+        let adapter = SecretWritingAdapter {
+            env_name: env_name.to_string(),
+            ran: Arc::clone(&ran),
+        };
+
+        run_attempt(RunAttemptInput {
+            adapter: &adapter,
+            scenario: &scenario,
+            scenario_path: Path::new("scenario.yaml"),
+            context: &context,
+            prepared: &prepared,
+            tool: "secret-writer",
+            model: "model",
+            effective_timeout: 1,
+            no_judge: true,
+            judge_model: None,
+            judge_tool: None,
+        })
+        .expect("run attempt");
+
+        assert!(ran.load(Ordering::SeqCst));
+        let retained =
+            std::fs::read_to_string(context.workspace.env.root.join(".mcp.json")).expect("config");
+        assert!(!retained.contains(token));
+        assert!(retained.contains("Bearer [REDACTED]"));
+    }
+
+    #[test]
+    fn redact_retained_scrubs_custom_header_secret_by_exact_value() {
+        // A headers-mode secret under a custom header name matches none of the
+        // pattern-based redaction rules; exact-value redaction must still scrub it.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path();
+        let env_name = "AX_EVAL_CUSTOM_HEADER_SECRET_UNIQUE";
+        let token = "opaque-custom-header-secret-9f8e7d6c5b4a";
+        std::env::set_var(env_name, token);
+
+        let config = format!(
+            r#"{{"mcpServers":{{"s":{{"type":"http","url":"https://x","headers":{{"X-Weird-Auth":"{token}"}}}}}}}}"#
+        );
+        std::fs::write(workspace.join(".mcp.json"), &config).expect("write config");
+
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "s".to_string(),
+            transport: McpTransport::Http {
+                url: "https://x".to_string(),
+                headers: None,
+            },
+            auth: Some(McpAuth::Headers {
+                headers: std::collections::HashMap::from([(
+                    "X-Weird-Auth".to_string(),
+                    format!("${{env:{env_name}}}"),
+                )]),
+            }),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        redact_retained_mcp_configs(workspace, &target).expect("scrub");
+        std::env::remove_var(env_name);
+
+        let retained = std::fs::read_to_string(workspace.join(".mcp.json")).expect("read retained");
+        assert!(
+            !retained.contains(token),
+            "custom-header secret must be scrubbed: {retained}"
+        );
+        assert!(retained.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn run_attempt_fails_static_auth_preflight_before_adapter_run() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let env = TestEnv::new(dir.path().join("results").join("fixture")).expect("test env");
+        std::fs::create_dir_all(&env.root).expect("fixture dir");
+        let results_dir = dir.path().join("results");
+        let artifacts = RunArtifacts::new(&results_dir, &env);
+        let writer = artifacts.writer().expect("writer");
+        let context = PreparedRunContext {
+            workspace: crate::run::setup::ScenarioWorkspace {
+                env,
+                scenario_yaml: "scenario yaml".to_string(),
+                prompt: "prompt".to_string(),
+            },
+            target_env: TargetEnvironment::default(),
+            artifacts: artifacts.clone(),
+        };
+        let prepared = PreparedScenarioRun {
+            artifacts,
+            writer,
+            setup_success: true,
+            setup_commands: vec![],
+        };
+        let env_name = "AX_EVAL_RUN_PREFLIGHT_UNSET_UNIQUE";
+        std::env::remove_var(env_name);
+        let scenario = mcp_scenario_with_auth(McpAuth::BearerEnv {
+            env: env_name.to_string(),
+        });
+        let ran = Arc::new(AtomicBool::new(false));
+        let adapter = SecretWritingAdapter {
+            env_name: env_name.to_string(),
+            ran: Arc::clone(&ran),
+        };
+
+        let err = match run_attempt(RunAttemptInput {
+            adapter: &adapter,
+            scenario: &scenario,
+            scenario_path: Path::new("scenario.yaml"),
+            context: &context,
+            prepared: &prepared,
+            tool: "secret-writer",
+            model: "model",
+            effective_timeout: 1,
+            no_judge: true,
+            judge_model: None,
+            judge_tool: None,
+        }) {
+            Ok(_) => panic!("preflight should fail"),
+            Err(err) => err,
+        };
+
+        assert!(err.to_string().contains(env_name));
+        assert!(!ran.load(Ordering::SeqCst));
+        assert!(!context.workspace.env.root.join(".mcp.json").exists());
     }
 
     #[test]

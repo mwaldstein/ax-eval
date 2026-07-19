@@ -1,6 +1,8 @@
 pub(crate) mod normalize;
 
 use super::{TargetProvision, ToolAdapter, ToolRunOutput};
+use crate::mcp_auth::codex_http_headers;
+use crate::scenario::McpAuth;
 use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
@@ -148,6 +150,7 @@ enum RenderedCodexMcpTarget {
     Http {
         url: String,
         http_headers: Option<BTreeMap<String, String>>,
+        bearer_token_env_var: Option<String>,
     },
 }
 
@@ -180,20 +183,16 @@ fn render_mcp_target(
         }),
         McpTransport::Http { url, headers } => Ok(RenderedCodexMcpTarget::Http {
             url: expand_target_env_value(url, fixture_dir, results_dir)?,
-            http_headers: headers
-                .as_ref()
-                .map(|headers| {
-                    headers
-                        .iter()
-                        .map(|(key, value)| {
-                            Ok((
-                                key.clone(),
-                                expand_target_env_value(value, fixture_dir, results_dir)?,
-                            ))
-                        })
-                        .collect::<anyhow::Result<BTreeMap<_, _>>>()
-                })
-                .transpose()?,
+            http_headers: codex_http_headers(
+                headers.as_ref(),
+                target.auth.as_ref(),
+                fixture_dir,
+                results_dir,
+            )?,
+            bearer_token_env_var: match &target.auth {
+                Some(McpAuth::BearerEnv { env }) => Some(env.clone()),
+                _ => None,
+            },
         }),
     }
 }
@@ -234,10 +233,19 @@ fn codex_mcp_entry_toml(name: &str, rendered: &RenderedCodexMcpTarget) -> anyhow
                 output.push('\n');
             }
         }
-        RenderedCodexMcpTarget::Http { url, http_headers } => {
+        RenderedCodexMcpTarget::Http {
+            url,
+            http_headers,
+            bearer_token_env_var,
+        } => {
             output.push_str("url = ");
             output.push_str(&toml_string(url));
             output.push('\n');
+            if let Some(env) = bearer_token_env_var {
+                output.push_str("bearer_token_env_var = ");
+                output.push_str(&toml_string(env));
+                output.push('\n');
+            }
             if let Some(headers) = http_headers {
                 output.push_str("http_headers = ");
                 output.push_str(&toml_inline_table(headers));
@@ -285,7 +293,7 @@ fn toml_inline_table(values: &BTreeMap<String, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scenario::{McpTarget, McpTransport, TargetConfig};
+    use crate::scenario::{McpAuth, McpTarget, McpTransport, TargetConfig};
     use std::collections::HashMap;
 
     #[test]
@@ -382,5 +390,108 @@ http_headers = {{ X-API-Key = "token-{fixture}" }}
 
         provision.cleanup().expect("cleanup");
         assert!(!config_path.exists());
+    }
+
+    #[test]
+    fn provisions_bearer_env_name_without_resolved_token() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        let config_path = dir.path().join("home").join(".codex").join("config.toml");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        let env_name = "AX_EVAL_CODEX_BEARER_AUTH_UNIQUE";
+        std::env::set_var(env_name, "codex-secret-token");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: Some(HashMap::from([(
+                    "Authorization".to_string(),
+                    "Bearer transport-token".to_string(),
+                )])),
+            },
+            auth: Some(McpAuth::BearerEnv {
+                env: env_name.to_string(),
+            }),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        let provision = CodexAdapter::with_config_path(config_path.clone())
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let content = std::fs::read_to_string(&config_path).expect("provisioned config");
+        assert!(content.contains(&format!(r#"bearer_token_env_var = "{env_name}""#)));
+        assert!(!content.contains("codex-secret-token"));
+        assert!(!content.contains("transport-token"));
+
+        provision.cleanup().expect("cleanup");
+    }
+
+    #[test]
+    fn provisions_auth_headers_into_http_headers() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        let config_path = dir.path().join("home").join(".codex").join("config.toml");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        let env_name = "AX_EVAL_CODEX_HEADER_AUTH_UNIQUE";
+        std::env::set_var(env_name, "api-key-secret");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: Some(HashMap::from([
+                    ("X-API-Key".to_string(), "transport-key".to_string()),
+                    ("X-Trace".to_string(), "trace".to_string()),
+                ])),
+            },
+            auth: Some(McpAuth::Headers {
+                headers: HashMap::from([("X-API-Key".to_string(), format!("${{env:{env_name}}}"))]),
+            }),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        let provision = CodexAdapter::with_config_path(config_path.clone())
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let content = std::fs::read_to_string(&config_path).expect("provisioned config");
+        assert!(content
+            .contains(r#"http_headers = { X-API-Key = "api-key-secret", X-Trace = "trace" }"#));
+        assert!(!content.contains("transport-key"));
+
+        provision.cleanup().expect("cleanup");
+    }
+
+    #[test]
+    fn provisions_host_session_without_static_credentials() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        let config_path = dir.path().join("home").join(".codex").join("config.toml");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "search".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: None,
+            },
+            auth: Some(McpAuth::HostSession),
+            tools: vec!["query".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        let provision = CodexAdapter::with_config_path(config_path.clone())
+            .provision_target(&target, &workspace)
+            .expect("provision");
+
+        let content = std::fs::read_to_string(&config_path).expect("provisioned config");
+        assert!(!content.contains("bearer_token_env_var"));
+        assert!(!content.contains("http_headers"));
+
+        provision.cleanup().expect("cleanup");
     }
 }

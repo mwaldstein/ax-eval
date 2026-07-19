@@ -7,6 +7,14 @@ pub fn redact_sensitive(text: &str) -> String {
         (r"(?i)(sk-)[a-zA-Z0-9]{20,}", "$1[REDACTED]"),
         (r"(?i)Bearer\s+[A-Za-z0-9\-._~+/]+=*", "Bearer [REDACTED]"),
         (
+            r#"(?i)(Authorization["']?\s*[:=]\s*["']?)Bearer\s+[^"',\s}]+(["']?)"#,
+            "${1}Bearer [REDACTED]${2}",
+        ),
+        (
+            r#"(?i)((?:X-)?API-?Key["']?\s*[:=]\s*["']?)[^"',\s}]+(["']?)"#,
+            "${1}[REDACTED]${2}",
+        ),
+        (
             r#"(?i)(api[_-]?key|apikey|token):\s*['"]?[A-Za-z0-9\-._~+/=]+['"]?"#,
             "$1: [REDACTED]",
         ),

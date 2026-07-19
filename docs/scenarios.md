@@ -36,6 +36,7 @@ as CLI targets for compatibility.
 | `kind` | `mcp` | yes | Target discriminant. |
 | `name` | string | yes | MCP server identity used for evidence matching and judge prompts. |
 | `transport` | `McpTransport` | yes | Agent-agnostic connection description rendered by each adapter into the host's native MCP config. |
+| `auth` | `McpAuth` | no | HTTP-only authentication mode. Static modes read secrets from environment variables at run preflight/provision time; scenario YAML contains names, not values. |
 | `tools` | list<string> | yes | Declared tool surface. Used as an evidence allow-list and bounded judge context. Must contain at least one tool. |
 | `env` | map<string, string> | no | Environment variables for the server process. Supports the same run-directory placeholders as CLI targets. |
 | `health_check` | string | no | Shell command to verify server prerequisites. MCP scenarios commonly use a fixture probe script. |
@@ -49,6 +50,19 @@ as CLI targets for compatibility.
 
 There is no `sse` transport variant. ax-eval supports stdio and Streamable HTTP
 because they are the portable MCP transports across supported harnesses.
+
+#### `McpAuth`
+
+`auth` is valid only with `transport.type: http`. Static credential values are
+resolved from the parent process environment before the paid agent run; unset or
+empty variables fail preflight.
+
+| Variant | Fields | Description |
+|---------|--------|-------------|
+| `none` | none | No credentials. Equivalent to omitting `auth`. |
+| `bearer_env` | `env: string` | Read a bearer token from the named environment variable. opencode and claude-code receive an `Authorization: Bearer ...` header; codex receives the env-var name via `bearer_token_env_var`. |
+| `headers` | `headers: map<string,string>` | Static headers for API-key or non-Bearer schemes. Values may contain `${env:NAME}` references. |
+| `host_session` | none | Render no static credential and rely on the host's out-of-band cached MCP login. ax-eval does not preflight this yet, so a missing host login may fail at first tool call. |
 
 ### Configuration Source
 
@@ -80,6 +94,10 @@ expanded after the isolated workspace is created:
 - `${AX_EVAL_FIXTURE_DIR}`: absolute path to the per-run fixture directory.
 - `${AX_EVAL_RESULTS_DIR}`: absolute path to the per-run results directory.
 
+HTTP MCP auth headers may also use `${env:NAME}` to read a secret from the
+parent process environment. Bare `${NAME}` is left literal; use the namespaced
+form so secret expansion is explicit.
+
 Use these when the target tool needs a root/config/output path inside the test
 workspace:
 
@@ -107,10 +125,12 @@ PATH="$PWD/target/debug:$PATH" \
 
 ### Environment value expansion
 
-`target.env` values are literal except for two framework placeholders:
+`target.env` values are literal except for framework placeholders:
 
 - `${AX_EVAL_FIXTURE_DIR}` — absolute path to the per-run fixture directory.
 - `${AX_EVAL_RESULTS_DIR}` — absolute path to the per-run results directory.
+- `${env:NAME}` — value of environment variable `NAME`; missing variables are
+  errors when the value is expanded.
 
 The child process inherits the parent environment. `target.env` entries are
 layered on top, overriding any inherited values by name. This means setting
