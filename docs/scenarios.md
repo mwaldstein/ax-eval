@@ -24,7 +24,7 @@ as CLI targets for compatibility.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `kind` | `cli` | no | Target discriminant. Optional for backward compatibility. |
-| `binary` | string | yes | Binary name used to identify target tool invocations in interaction evidence. Not executed by the harness; the agent discovers and runs the tool based on AGENTS.md and the fixture workspace. The path portion is ignored, so `./todo`, `todo`, and `/usr/local/bin/todo` all match `todo`. |
+| `binary` | string | yes | Binary name used to identify target tool invocations in interaction evidence. Not executed by the harness; the agent discovers and runs the tool from the prompt, the fixture workspace, and the tool's own help/output surfaces. The path portion is ignored, so `./todo`, `todo`, and `/usr/local/bin/todo` all match `todo`. |
 | `command_pattern` | string | no | Regex for identifying target tool invocations only when transcript regex fallback evidence is used. No default; when omitted, only aggregate command counts are available for regex-based metrics. |
 | `env` | map<string, string> | no | Environment variables to set for the target tool, such as config paths, auth tokens, and fixture paths. |
 | `health_check` | string | no | Shell command to verify the tool is working before/after runs. |
@@ -83,7 +83,8 @@ target:
 
 `target.binary` identifies which commands in the agent's interaction belong to
 your tool (for interaction profiling and judge prompts). The harness does not
-execute it — the agent runs the tool itself based on the fixture's AGENTS.md.
+execute it — the agent runs the tool itself based on the prompt, fixture
+workspace, and the tool's own self-documenting surfaces.
 Only the filename is used for matching, so `./mytool`, `mytool`, and
 `/usr/local/bin/mytool` are equivalent.
 
@@ -110,11 +111,12 @@ target:
 ```
 
 `ax-eval` does not modify `PATH` to locate the target tool. The agent
-discovers and runs the tool based on AGENTS.md and the fixture workspace.
+discovers and runs the tool based on the prompt, fixture workspace, and the
+tool's own self-documenting surfaces.
 During local development, where the target tool often lives in a build output
 directory such as `target/debug`, `target/release`, or `dist`, make sure it
 is visible to the agent — either by putting the binary in the fixture directory
-(and documenting it in AGENTS.md) or by setting PATH before invoking the
+(and documenting it in the fixture when relevant) or by setting PATH before invoking the
 harness:
 
 ```bash
@@ -291,9 +293,11 @@ tool's surface and guidance lead an agent to the right usage — which is the
 thing ax-eval exists to measure. Numbered lists are fine when the items are
 *outcomes* ("create a task for each deliverable"), not command names.
 
-Put workflow and convention detail in the fixture's guidance file
-(AGENTS.md), where documenting the intended usage is the point — comparing
-guidance variants is a core workflow. If a run is only valid when the agent
+Use fixture guidance deliberately. If the experiment is about the target's own
+discoverability, keep AGENTS.md minimal or omit command recipes so `--help`,
+error messages, structured output, and MCP tool descriptions carry the load. If
+the experiment is about documentation quality, vary fixture guidance explicitly
+and compare the profile across variants. If a run is only valid when the agent
 actually exercises the target, enforce that with
 `interaction.target_commands: required` rather than with prompt
 instructions: the harness then fails evaluation when the target was never
@@ -457,14 +461,13 @@ tool **names, descriptions, and input schemas the server itself advertises**,
 which the agent's host injects into context automatically. That authored
 metadata is the thing under evaluation.
 
-- **Guidance describes *when and why*, not syntax.** For a CLI, the fixture's
-  `AGENTS.md` documents commands and flags. For MCP, the agent already receives
-  each tool's name, description, and schema from the server via `tools/list`, so
-  documenting call syntax is redundant and hides whether the server's own
-  descriptions are good enough. Point `AGENTS.md` at *workflow* instead: which
-  tool to reach for, sequencing and preconditions, error-recovery, and
-  conventions. If an agent needs `AGENTS.md` to know a tool exists, that is a
-  finding about the server's descriptions.
+- **The target's own descriptions are the primary surface.** For CLI targets,
+  this means command names, `--help`, examples, output formats, and errors. For
+  MCP targets, the agent receives each tool's name, description, and schema from
+  the server via `tools/list`. Fixture guidance can describe scenario context,
+  sequencing, and repo-specific conventions, but duplicating call syntax hides
+  whether the target itself is discoverable. If an agent needs AGENTS.md to know
+  a tool exists, that is a finding about the target surface.
 - **Prefer read-only or fixture-backed servers; be careful with mutating remote
   targets.** Each run gets a fresh fixture directory, but ax-eval cannot roll
   back side effects an MCP tool causes *outside* that directory. A stdio server
@@ -500,8 +503,8 @@ Each scenario references a `template_folder` containing the initial workspace st
 
 ```
 ax-eval-fixtures/task_manager_organize/
-├── AGENTS.md              # Guidance for the LLM — tool docs, patterns, examples
 ├── README.md              # Project context the LLM should read
+├── AGENTS.md              # Optional fixture guidance or guidance variant
 ├── scripts/               # Custom scripts for gates and evaluators (optional)
 │   ├── check-priorities.sh
 │   ├── check-completion.sh
@@ -509,16 +512,20 @@ ax-eval-fixtures/task_manager_organize/
 └── project-brief.md       # Any other files the LLM should see
 ```
 
-### AGENTS.md
+### Fixture Guidance
 
-**This is the most important file in the fixture.** It is the primary documentation the LLM receives about the target tool. For guidance/skills authors, this IS the thing being tested.
+AGENTS.md is optional fixture guidance. Use it when the scenario needs
+repo-local setup, fixture-specific constraints, or when the experiment is
+explicitly comparing agent instructions. It should not be the default home for
+basic command syntax; the tool's own help, errors, structured output, MCP tool
+descriptions, and schemas should carry that.
 
-The AGENTS.md should contain:
-- Available commands with usage examples
-- Common workflows and patterns
-- Output format documentation
-- Error handling guidance
-- Any constraints or conventions
+When you include AGENTS.md, prefer:
+
+- Fixture-specific setup and data locations.
+- Constraints or conventions that are not part of the product surface.
+- Links to `mytool --help` or other self-documenting entry points.
+- Workflow detail only when guidance quality is the variable under test.
 
 Example for the task manager scenario:
 
@@ -664,7 +671,7 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
     "total_commands": 6,
     "unique_commands": 5,
     "error_count": 0,
-    "retry_count": 1,
+    "tool_reuse_count": 1,
     "help_invocations": 1,
     "first_try_success_rate": 1.0,
     "iteration_ratio": 0.83,
@@ -727,8 +734,8 @@ Compare `metrics.json` across variants. The primary signal is **interaction metr
 | Metric | What it tells you |
 |--------|-------------------|
 | **Error rate** | Lower with better docs. High error rate means the LLM is guessing wrong. |
-| **Retry rate** | Lower with better docs. High retry means error messages aren't helping recovery. |
-| **Help-seeking** | Lower with better docs. High help-seeking means the AGENTS.md lacks upfront information. |
+| **Tool reuse count** | Lower with better docs when the task should be direct. High reuse can mean legitimate repeated use, polling, verification, or inefficient loops. |
+| **Help-seeking** | Lower with better self-documenting surfaces. High help-seeking means the agent could not find enough information up front. |
 | **First-try success** | Higher with better docs. Measures how often the LLM gets commands right the first time. |
 | **Command count** | Lower with better docs (for the same outcome). Measures efficiency. |
 | **Gate outcome** | Guardrail only. It should be identical across variants if the task is achievable. Differences here indicate the task itself may be miscalibrated, not that one interaction was automatically better. |

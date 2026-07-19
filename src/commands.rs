@@ -393,8 +393,9 @@ target:
 #   tools: [query, index]
 #
 # MCP authoring tips (see docs/scenarios.md, "Authoring MCP scenarios"):
-#   - AGENTS.md describes when/why to use each tool, not call syntax — the
-#     agent gets tool descriptions from the server itself.
+#   - Prefer self-documenting tool names, descriptions, schemas, help output,
+#     and errors. Fixture guidance is optional context, not a substitute for the
+#     target's own usage surface.
 #   - Declare only the tools the task needs; the list bounds what is measured.
 #   - Prefer read-only or fixture-backed servers; ax-eval cannot undo writes a
 #     remote server makes outside the fixture.
@@ -406,7 +407,7 @@ interaction:
 task:
   prompt: |
     Use `mytool` to create a project named "Example" and export a summary.
-    Read AGENTS.md first, then inspect `mytool --help` only if needed.
+    Discover the workflow from `mytool --help` and the tool's own output.
 
 setup:
   commands:

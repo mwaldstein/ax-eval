@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed the interaction efficiency metric `retry_count` to
+  `tool_reuse_count` in `metrics.json`, `results.jsonl`, reports, and CLI
+  summaries. The formula is unchanged (`total_commands - unique_commands`), but
+  the old name incorrectly implied failed-call retry behavior. This is a
+  breaking metrics schema change.
+- Rebalanced scenario templates and guidance docs toward self-documenting tool
+  surfaces. CLI help, errors, structured output, MCP descriptions, and schemas
+  are now framed as the default places to improve discoverability; AGENTS.md is
+  positioned as optional fixture context or an explicit guidance-test variable.
+
 ## [0.4.0-beta.2] - 2026-07-18
 
 ### Added

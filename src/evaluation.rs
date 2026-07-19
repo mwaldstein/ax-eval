@@ -100,10 +100,10 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
             target_command_policy: scenario.interaction.target_commands,
         })?;
     debug!(
-        "interaction profile: {} commands, {} errors, {} retries, evidence={:?}",
+        "interaction profile: {} commands, {} errors, {} tool reuses, evidence={:?}",
         interaction_profile.metrics.total_commands,
         interaction_profile.metrics.error_count,
-        interaction_profile.metrics.retry_count,
+        interaction_profile.metrics.tool_reuse_count,
         interaction_profile.evidence_source,
     );
 
@@ -214,7 +214,7 @@ mod tests {
                 total_commands: 1,
                 unique_commands: 1,
                 error_count: 0,
-                retry_count: 0,
+                tool_reuse_count: 0,
                 help_invocations: 0,
                 first_try_success_rate: 1.0,
                 iteration_ratio: 1.0,

@@ -94,36 +94,21 @@ esac
 chmod +x ax-eval-fixtures/todo_tutorial/todo
 ```
 
-## Step 3: Write AGENTS.md
+## Step 3: Add Fixture Context
 
-The AGENTS.md file is the primary documentation the agent receives about your tool. This is what you are testing.
+The target tool should explain its basic usage through `todo --help`, output,
+and errors. Fixture files provide scenario context: the user goal, initial data,
+and any local constraints that are not part of the product surface.
 
-Create `ax-eval-fixtures/todo_tutorial/AGENTS.md`:
+Create `ax-eval-fixtures/todo_tutorial/README.md`:
 
 ```markdown
-# Todo CLI (todo)
+# Todo Tutorial Fixture
 
-A minimal task manager. Tasks are stored in `.todo-store` in the current directory.
+This workspace contains a small `todo` CLI for managing launch tasks.
 
-## Commands
-
-```
-todo add <title>    Create a new task. Prints the task ID.
-todo list           List all tasks.
-todo done <id>      Mark a task as done.
-todo help           Show available commands.
-```
-
-## Workflow
-
-1. Create tasks: `todo add "Buy groceries"`
-2. List tasks: `todo list`
-3. Complete a task: `todo done <id>` (use the ID printed when created)
-
-## Notes
-
-- Capture the ID when you create a task — you need it for `todo done`.
-- Tasks are stored in `.todo-store` as plain text.
+Use the CLI's own `todo help` output to learn commands and workflows.
+Tasks are stored in `.todo-store` in the current directory.
 ```
 
 ## Step 4: Write the Scenario
@@ -151,7 +136,7 @@ task:
     4. Mark "Write launch announcement" as done
     5. List all tasks to verify
 
-    Read AGENTS.md first. Use `todo help` if you need to see available commands.
+    Use `todo help` to discover the available commands.
 
 interaction:
   target_commands: required
@@ -233,7 +218,7 @@ ax-eval run --scenario ax-eval-fixtures/todo_tutorial.yaml --tool opencode
 ```
 
 The agent will:
-1. Read AGENTS.md
+1. Inspect `todo help`
 2. Learn the `todo` CLI
 3. Create three tasks, mark one done, and list them
 4. Exit
@@ -252,7 +237,7 @@ cat ax-eval-results/*/todo_tutorial/evaluation.md
 
 This shows:
 - **Run status** — whether the agent completed and guardrails passed
-- **Interaction metrics** — command count, errors, retries, help invocations, first-try success rate
+- **Interaction metrics** — command count, errors, tool reuse, help invocations, first-try success rate
 - **Gate results** — which outcome assertions passed or failed
 - **Judge score** — if enabled, a qualitative assessment with rationale
 
@@ -271,7 +256,7 @@ Use this for programmatic comparison between runs. Key fields:
     "total_commands": 6,
     "unique_commands": 5,
     "error_count": 0,
-    "retry_count": 1,
+    "tool_reuse_count": 1,
     "help_invocations": 0,
     "first_try_success_rate": 0.83,
     "iteration_ratio": 0.83,
@@ -293,7 +278,7 @@ Read this to understand exactly what the agent did, where it hesitated, and what
 
 Now you have a baseline. Make a change and run again:
 
-**Example: improve AGENTS.md** — add a "Common workflows" section:
+**Example: improve the tool surface** — add a clearer `todo help` workflow section:
 
 ```markdown
 ## Common Workflows
@@ -316,7 +301,7 @@ ax-eval run --scenario ax-eval-fixtures/todo_tutorial.yaml --tool opencode
 
 Compare the two `metrics.json` files. Did the richer guidance reduce:
 - Error count?
-- Retry count?
+- Tool reuse count?
 - Help invocations?
 - Total commands?
 

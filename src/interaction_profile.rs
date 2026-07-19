@@ -46,7 +46,7 @@ pub(crate) fn reduce_target_actions(actions: &[TargetAction]) -> EfficiencyMetri
         .iter()
         .map(|action| action.action.clone())
         .collect::<std::collections::HashSet<_>>();
-    let retry_count = total_commands.saturating_sub(unique_commands.len());
+    let tool_reuse_count = total_commands.saturating_sub(unique_commands.len());
 
     let mut seen_first: HashMap<String, bool> = HashMap::new();
     let mut first_try_success_count: usize = 0;
@@ -77,7 +77,7 @@ pub(crate) fn reduce_target_actions(actions: &[TargetAction]) -> EfficiencyMetri
         total_commands,
         unique_commands: unique_commands.len(),
         error_count,
-        retry_count,
+        tool_reuse_count,
         help_invocations,
         first_try_success_rate,
         iteration_ratio,
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(profile.metrics.total_commands, 4);
         assert_eq!(profile.metrics.unique_commands, 3);
         assert_eq!(profile.metrics.error_count, 1);
-        assert_eq!(profile.metrics.retry_count, 1);
+        assert_eq!(profile.metrics.tool_reuse_count, 1);
         assert_eq!(profile.metrics.help_invocations, 1);
         assert_eq!(profile.metrics.first_try_success_rate, 0.5);
     }
@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(profile.metrics.total_commands, 3);
         assert_eq!(profile.metrics.unique_commands, 2);
         assert_eq!(profile.metrics.error_count, 1);
-        assert_eq!(profile.metrics.retry_count, 1);
+        assert_eq!(profile.metrics.tool_reuse_count, 1);
         assert_eq!(profile.metrics.first_try_success_rate, 1.0 / 3.0);
     }
 

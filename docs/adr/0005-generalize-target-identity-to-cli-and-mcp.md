@@ -25,7 +25,7 @@ Interaction evidence generalizes additively rather than by forking the profile.
 `McpToolCallEvent { server, tool, arguments, is_error }` carries MCP tool calls
 without flattening away the structured arguments the judge needs. The metric
 engine is refactored onto a small `(action, outcome)` projection so error rate,
-retry, first-try success, and command count mean the same thing across target
+tool reuse, first-try success, and command count mean the same thing across target
 kinds and stay comparable across models and harnesses. MCP outcome maps
 `is_error` to failure — MCP has no exit codes.
 

@@ -15,7 +15,7 @@ const TOPICS: &[GuidanceTopic] = &[
             "workflow-commands",
             "structured-output",
             "typed-errors",
-            "agent-instructions",
+            "help-output",
             "mcp-server-design",
             "test-usage",
             "scenario-authoring",
@@ -27,7 +27,7 @@ Use this as the first page when authoring or evaluating a tool for LLM agents.
 - `workflow-commands`: design task-level commands that match real user goals.
 - `structured-output`: expose JSON for state, search, status, and export.
 - `typed-errors`: make failures recoverable with stable codes, retryability, and next actions.
-- `agent-instructions`: put the happy path, constraints, and recovery table in AGENTS.md or CLAUDE.md.
+- `help-output`: make the tool explain its workflows, examples, output formats, and recovery paths without external agent instructions.
 - `mcp-server-design`: if the tool is an MCP server, design tools, descriptions, and errors for agents.
 - `test-usage`: give agents realistic goals and measure whether they infer the tool's role and use it well.
 - `scenario-authoring`: evaluate outcomes, then use interaction metrics to improve tool ergonomics.
@@ -188,22 +188,21 @@ Sources:
     GuidanceTopic {
         slug: "agent-instructions",
         title: "Agent Instructions",
-        summary: "Author AGENTS.md/CLAUDE.md as operational guidance, not marketing copy.",
+        summary: "Use AGENTS.md/CLAUDE.md for repo-specific context, not as a substitute for a self-documenting tool.",
         related: &["workflow-commands", "recovery-guidance", "capability-discovery"],
         body: r#"# Agent Instructions
 
-Agent instruction files such as `AGENTS.md` and `CLAUDE.md` should tell the agent how to succeed with the tool inside this repo. Keep them concrete, command-oriented, and easy to skim.
+Agent instruction files such as `AGENTS.md` and `CLAUDE.md` are useful for repo-specific constraints, local setup, and experiments that intentionally compare guidance variants. They should not be the only place an agent can learn basic command syntax or tool capability; put that in `--help`, errors, structured output, MCP tool descriptions, and schemas.
 
 Include:
 
-- Required first command, such as initialization or health checks.
-- The happy-path workflow for common tasks.
-- Command examples with placeholders clearly marked.
-- Constraints that are easy to violate, such as ID capture or ordering rules.
-- Known failure messages and the exact recovery action.
-- Where generated state is stored and how to inspect it.
+- Repository-specific setup or fixture state.
+- Constraints that do not belong in the product surface.
+- Scenario conventions that are part of the experiment.
+- Links to the tool's self-documenting surfaces, such as `mytool --help`.
+- Only enough workflow detail to represent the documentation variant being evaluated.
 
-Avoid vague instructions like "use the CLI as needed." A useful file lets the agent complete the task without exploratory trial and error.
+Avoid duplicating a complete command manual in AGENTS.md by default. If removing AGENTS.md makes basic use impossible, treat that as a finding about the tool's own discoverability.
 
 Sources:
 - Effect Solutions agent-guided setup pattern: https://github.com/kitlangton/effect-solutions
@@ -438,7 +437,7 @@ Do:
 - Distinguish user-recoverable errors (bad argument, missing precondition) from transient ones, and say which are worth retrying.
 - Keep error content bounded and free of secrets. Evaluation artifacts may capture it.
 
-ax-eval maps `isError` to a failed action in the interaction profile, so honest error signaling is what makes error-rate and retry metrics meaningful for an MCP target.
+ax-eval maps `isError` to a failed action in the interaction profile, so honest error signaling is what makes error-rate and future recovery-retry metrics meaningful for an MCP target.
 
 Sources:
 - Model Context Protocol introduction: https://modelcontextprotocol.io/docs/getting-started/intro
@@ -505,10 +504,10 @@ Good scenarios:
 - Use script gates for domain-specific assertions that generic gates cannot express.
 - Configure `target.command_pattern` when transcript fallback needs help identifying target-tool commands.
 - Keep the task prompt goal-based and avoid embedding every command in the prompt.
-- Add rich fixture guidance when the experiment is about tool capability rather than documentation discovery.
-- Compare minimal vs rich guidance when the experiment is about documentation quality.
+- Keep fixture guidance minimal when the experiment is about the target's own discoverability.
+- Compare minimal vs rich guidance only when the experiment is about documentation quality.
 
-For MCP targets, a few instincts change: fixture guidance describes when and why to use each tool rather than call syntax (the server advertises its own descriptions); declare only the tools the task needs; verify server state with a script gate and probe since it is usually not workspace files; and prefer read-only or fixture-backed servers, because ax-eval cannot undo writes a remote server makes outside the fixture. For a protected server, declare `target.auth` (see `mcp-auth`) and reference credentials by environment-variable name, never as literals. See docs/scenarios.md, "Authoring MCP scenarios".
+For MCP targets, a few instincts change: the server's tool names, descriptions, and schemas are the primary documentation. Fixture guidance should describe scenario context or workflow intent, not call syntax; declare only the tools the task needs; verify server state with a script gate and probe since it is usually not workspace files; and prefer read-only or fixture-backed servers, because ax-eval cannot undo writes a remote server makes outside the fixture. For a protected server, declare `target.auth` (see `mcp-auth`) and reference credentials by environment-variable name, never as literals. See docs/scenarios.md, "Authoring MCP scenarios".
 
 Use gates for catastrophic failures. Use the interaction profile to understand whether the tool's role, workflow, and state model were legible to the agent.
 
@@ -550,11 +549,11 @@ Good usage tests ask:
 
 - Did the agent infer the tool's role from the goal, docs, and CLI surface?
 - Did it find an appropriate workflow without excessive help-seeking?
-- Did examples and AGENTS.md guidance reduce wrong turns?
+- Did the tool's own help, errors, schemas, and descriptions reduce wrong turns?
 - Did error messages help the agent recover?
 - Did structured output let the agent inspect state without parsing prose?
 - Did the agent complete the task with a reasonable number of commands?
-- Did richer guidance improve the interaction profile across repeated runs?
+- Did richer fixture guidance improve the interaction profile when guidance quality is the explicit variable?
 
 Use gates as fail-fast guardrails for catastrophic correctness failures. Use interaction metrics, transcripts, evaluator scripts, and judge rubrics to understand usage quality and discoverability.
 
@@ -582,8 +581,8 @@ The evaluation profile is a feedback loop for tool authors.
 
 Common interpretations:
 
-- High help-seeking: put the workflow in AGENTS.md and top-level help.
-- High retry count: improve typed errors, recovery guidance, and idempotency.
+- High help-seeking: improve top-level help, examples, command discovery, and MCP descriptions before adding fixture guidance.
+- High tool reuse with errors: improve typed errors, recovery guidance, and idempotency.
 - High error count: validate inputs earlier and show corrective examples.
 - Low first-try success: the command surface or docs are misleading.
 - High command count with passing gates: the workflow may need a task-level command.

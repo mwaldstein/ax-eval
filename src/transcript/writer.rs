@@ -330,8 +330,8 @@ impl TranscriptWriter {
             report.efficiency.error_count
         ));
         content.push_str(&format!(
-            "- **Retry Count**: {}\n",
-            report.efficiency.retry_count
+            "- **Tool Reuse Count**: {}\n",
+            report.efficiency.tool_reuse_count
         ));
         content.push_str(&format!(
             "- **Help Invocations**: {}\n",
@@ -408,8 +408,8 @@ impl TranscriptWriter {
             evaluation.efficiency.error_count
         ));
         content.push_str(&format!(
-            "- **Retry Count**: {}\n",
-            evaluation.efficiency.retry_count
+            "- **Tool Reuse Count**: {}\n",
+            evaluation.efficiency.tool_reuse_count
         ));
         content.push_str(&format!(
             "- **Help Invocations**: {}\n",

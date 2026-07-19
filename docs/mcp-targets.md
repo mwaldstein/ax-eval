@@ -285,8 +285,8 @@ same contract ADR-0002 applies to CLI runs.
 
 ### Unified metrics via `(action, outcome)`
 
-The metric engine is refactored onto a small projection so error rate, retry,
-first-try success, iteration ratio, and command count mean the same thing
+The metric engine is refactored onto a small projection so error rate, tool
+reuse, first-try success, iteration ratio, and command count mean the same thing
 across kinds:
 
 ```rust
@@ -359,13 +359,11 @@ unchanged.
 
 ## Fixture and Guidance
 
-The fixture stays the unit of guidance. For MCP, `AGENTS.md` no longer
-documents CLI syntax — the agent discovers tools via `tools/list` — and instead
-documents **when and why to use each tool**: workflow sequencing, tool
-semantics, error-recovery guidance, and conventions. This slots directly into
-the existing guidance-testing workflow (`docs/scenarios.md`, Guidance Testing
-Workflow). The fixture commonly ships a probe script the agent and the gates
-use to inspect server state.
+The MCP server's advertised tool metadata is the primary guidance surface. The
+agent discovers tools via `tools/list`, so fixture guidance should not duplicate
+call syntax. Use AGENTS.md only for scenario context, workflow intent, local
+conventions, or explicit guidance-variant experiments. The fixture commonly
+ships a probe script the agent and the gates use to inspect server state.
 
 ---
 
@@ -387,8 +385,8 @@ CLI's self-description is emergent (help text, error messages, conventions).
 An MCP server's self-description is **protocol-mandated and author-written**:
 tool names, descriptions, input schemas, annotations, and the server's
 `instructions` — injected into the agent's context by the host automatically.
-Those descriptions are the server author's AGENTS.md-equivalent, the primary
-authored artifact that determines agent success. So MCP discovery measures
+Those descriptions are the primary authored artifact that determines agent
+success. So MCP discovery measures
 **description sufficiency**: are the declared name/description/schema enough
 for correct, efficient first use — and what did the agent have to learn by
 trial that the declarations should have said?

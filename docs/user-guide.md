@@ -53,7 +53,7 @@ Hand these to your agent as its first moves:
 ### Prompt Variants
 
 - **Author scenarios yourself**: skip `discover`, scaffold from `ax-eval template scenario`, and run with `ax-eval run --scenario <name>`. Use this when you know the exact workflows to evaluate.
-- **Improve guidance only**: point the agent at `ax-eval guidance test-usage` and your `AGENTS.md`, then compare the built-in `example_guidance_minimal` and `example_guidance_rich` scenarios to see how guidance quality changes the metrics.
+- **Improve guidance only**: point the agent at `ax-eval guidance test-usage` and compare the built-in `example_guidance_minimal` and `example_guidance_rich` scenarios when AGENTS.md quality is the explicit variable.
 - **Compare models or tools**: ask the agent to run the same scenarios across `--tool` and `--model` values and summarize the `metrics.json` deltas.
 
 ### Operating Notes
@@ -284,8 +284,8 @@ your fixture. See the [CLI reference](reference/cli-commands.md) for all availab
 
 ## Guidance Topics
 
-Use `guidance` when you want help authoring a CLI and fixture guidance that LLM
-agents can use reliably:
+Use `guidance` when you want help authoring a self-documenting CLI/MCP target
+and, when relevant, fixture guidance that LLM agents can use reliably:
 
 ```bash
 ax-eval guidance list
@@ -396,9 +396,9 @@ Structured-capable adapters must not use the fallback. If you see `transcript_re
 Use `metrics.json` for programmatic comparison between runs. Common questions:
 
 - Did the new model reduce token usage?
-- Did richer AGENTS.md guidance lower the error rate?
+- Did better help text or MCP descriptions lower the error rate?
 - Did a help-text change improve first-try success?
-- Does one adapter complete the same workflow with fewer retries?
+- Does one adapter complete the same workflow with less tool reuse?
 
 ### Run-Level Metadata
 
@@ -447,9 +447,9 @@ Run all examples with Claude Code:
 ax-eval run --all --tags examples --tier 1 --tool claude-code
 ```
 
-The guidance examples compare minimal and rich AGENTS.md instructions:
+The guidance examples intentionally compare minimal and rich AGENTS.md instructions:
 
 - `example_guidance_minimal`: bare-bones guidance, requiring more discovery
 - `example_guidance_rich`: detailed workflows, examples, and error handling
 
-Compare their `metrics.json` files to see whether richer guidance reduced command count, retries, error rate, token usage, or cost.
+Compare their `metrics.json` files to see whether richer guidance reduced command count, tool reuse, error rate, token usage, or cost.

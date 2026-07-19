@@ -118,8 +118,8 @@ pub struct EfficiencyMetricsRecord {
     pub unique_commands: usize,
     /// Number of commands that resulted in errors
     pub error_count: usize,
-    /// Number of command retries
-    pub retry_count: usize,
+    /// Number of target-tool calls beyond the first call for each action name.
+    pub tool_reuse_count: usize,
     /// Number of help invocations
     pub help_invocations: usize,
     /// Rate of commands succeeding on first attempt (0.0-1.0)
@@ -183,7 +183,7 @@ impl From<crate::transcript::EfficiencyMetrics> for EfficiencyMetricsRecord {
             total_commands: value.total_commands,
             unique_commands: value.unique_commands,
             error_count: value.error_count,
-            retry_count: value.retry_count,
+            tool_reuse_count: value.tool_reuse_count,
             help_invocations: value.help_invocations,
             first_try_success_rate: value.first_try_success_rate,
             iteration_ratio: value.iteration_ratio,

@@ -16,7 +16,7 @@ This is an **evaluation framework**, not a testing tool. The distinction matters
 The primary output is not a Pass/Fail stamp. It is an **evaluation profile**: a set of quantitative and qualitative measurements positioned along continuous scales. These measurements enable comparisons:
 
 - Does model B use fewer tokens than model A for the same task?
-- Did the updated AGENTS.md reduce the error rate?
+- Did updated help text, error output, MCP descriptions, or fixture guidance reduce the error rate?
 - Does claude-code achieve higher first-try success than opencode?
 - Has a tool version change degraded the interaction profile?
 
@@ -29,8 +29,8 @@ That said, binary gates are a perfectly valid use of the framework in CI/CD cont
 The framework measures quality along two axes:
 
 **Quantitative** — directly measurable from the transcript and metadata:
-- Token usage, command count, error rate, first-try success rate, cost, duration, retry rate, help-seeking frequency
-- These answer questions like _"Does a new model increase token usage?"_ and _"Did the richer docs reduce retries?"_
+- Token usage, command count, error rate, first-try success rate, cost, duration, tool reuse, help-seeking frequency
+- These answer questions like _"Does a new model increase token usage?"_ and _"Did the richer docs reduce repeated tool use?"_
 
 **Qualitative** — requiring intrinsic knowledge of how the tool is intended to be used:
 - Did the agent follow the documented workflow, or find a circuitous workaround?
@@ -104,9 +104,9 @@ commands, error rate, etc.) are available.
 | Metric | Definition | Signal |
 |--------|-----------|--------|
 | **Error rate** | Proportion of target-tool commands that failed | Tool usability; unclear error messages |
-| **Retry rate** | Commands repeated after failure (total - unique) / total | Error message quality; recovery difficulty |
+| **Tool reuse count** | Target-tool calls beyond the first call for each action name (`total_commands - unique_commands`) | Tool diversity and repetition; high values require context |
 | **Help-seeking** | Count of `--help` invocations | Documentation clarity |
-| **First-try success rate** | Commands that succeeded on first attempt / total commands | Combined doc + UX quality |
+| **First-try success rate** | First observed action names that succeeded / total commands | Combined doc + UX quality; denominator will change in a future action-fingerprint schema |
 | **Iteration ratio** | unique commands / total commands | Efficiency; high = less repetition |
 | **Completion** | Did the agent complete the task vs give up or time out | Basic run-status signal |
 | **Command count** | Total target-tool commands executed | Efficiency (fewer is better, given completion) |
@@ -133,6 +133,11 @@ Both structured evidence kinds feed the same metric engine through an
 | CLI | Subcommand after the matched `target.binary` token | Success when `exit_code == 0`; failure when non-zero; unknown when no exit code is available. |
 | MCP | `(server, tool)`, displayed by tool name for a singular scenario target | Success when `is_error == false`; failure when `is_error == true`. |
 
+`tool_reuse_count` is deliberately not named retry count. It does not inspect
+arguments or require a preceding failure. Future recovery-retry metrics should
+use structured invocation fingerprints; see
+[ADR-0007](adr/0007-separate-tool-reuse-from-retry-recovery.md).
+
 ### Completion
 
 The `completed` metric is determined as follows:
@@ -145,8 +150,8 @@ The `completed` metric is determined as follows:
 These metrics are most valuable to guidance/skills authors who want to know whether their documentation is working:
 
 - **Low error rate + low help-seeking**: The docs are clear and the tool's CLI is intuitive.
-- **High retry rate**: The tool's error messages aren't helping the LLM recover. The LLM is repeating the same command or trying slight variations.
-- **High help-seeking**: The AGENTS.md or tool documentation doesn't provide enough information up front. The LLM is falling back to `--help` to figure out syntax.
+- **High tool reuse count**: The agent reused the same action name multiple times. This can be legitimate repeated retrieval, polling, verification, or a sign of inefficient loops; inspect errors and the transcript before treating it as recovery friction.
+- **High help-seeking**: The target's help, descriptions, or fixture context do not provide enough information up front. Improve the tool's own discoverability before adding more fixture guidance.
 - **Low first-try success rate**: Combined signal that something is off — either the docs are misleading or the CLI surface is confusing.
 - **High command count with completion**: The LLM got there, but took a circuitous path. May indicate missing examples or unclear workflows.
 
@@ -427,7 +432,7 @@ replacement for the dimensional evaluation data.
 
 ## Evaluation for Guidance Authors
 
-The secondary audience for ax-eval is guidance/skills authors who are testing whether their AGENTS.md or skill definitions help LLMs use a tool effectively.
+The secondary audience for ax-eval is guidance/skills authors who are testing whether agent instructions or skill definitions help LLMs use a tool effectively. For product usability evaluations, prefer improving the tool's own help, errors, schemas, and examples first.
 
 ### Primary Signal: Quantitative Interaction Metrics
 
@@ -442,7 +447,7 @@ there.
 
 ### Comparing Guidance Versions — The Core Workflow
 
-The key workflow: run the same scenario with different AGENTS.md files and compare quantitative metrics.
+The key guidance workflow: run the same scenario with different AGENTS.md files and compare quantitative metrics. Keep this distinct from product-surface evaluation, where the expected fix is usually `--help`, errors, schemas, examples, or workflow commands.
 
 ```
 Scenario: create_and_link
@@ -473,8 +478,8 @@ criteria:
 |---------|-------------|
 | High error rate, low help-seeking | LLM thinks it knows the syntax but doesn't. Docs may have incorrect examples. |
 | High error rate, high help-seeking | `--help` output isn't sufficient. Missing examples or unclear argument descriptions. |
-| Low error rate, high help-seeking | Docs don't include enough up front, but `--help` is good. Add more examples to AGENTS.md. |
-| High retry rate on specific commands | That command's error messages don't help the LLM correct its approach. |
+| Low error rate, high help-seeking | The agent eventually found usable docs, but not soon enough. Improve top-level help, examples, and discovery paths before adding fixture guidance. |
+| High tool reuse on specific commands | The workflow may require repeated use, or the agent may be looping. Inspect errors and transcript context before attributing it to poor recovery guidance. |
 | High command count, task completed | Docs describe the commands but not the workflow. Add a "common workflows" section. |
 
 ---

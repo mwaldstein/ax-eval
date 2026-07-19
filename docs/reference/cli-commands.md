@@ -8,7 +8,7 @@ Run `scripts/generate-cli-reference.sh` to regenerate.
 ```
 ax-eval runs coding agents against reproducible scenarios — targeting a CLI tool or an MCP server — and writes evaluation profiles.
 
-Use it to improve CLI help, MCP tool descriptions, docs, and AGENTS.md guidance by seeing whether agents complete the task, how many wrong turns they take, what they spend, and which artifacts changed.
+Use it to improve self-documenting tool surfaces: CLI help, errors, structured output, MCP tool descriptions, schemas, and fixture guidance when that is the explicit variable under test.
 
 Common commands:
   ax-eval scenarios

@@ -100,7 +100,7 @@ pub fn print_matrix_summary(results: &[(ToolModelConfig, anyhow::Result<ResultRe
     println!("\n--- Evaluation Profile Summary ---");
     println!(
         "{:<14} | {:<16} | {:<18} | {:<18} | {:>8} | {:>6} | {:>7} | {:<12} | Status",
-        "Tool", "Model", "Judge", "Composite", "FirstTry", "Errors", "Retries", "Guardrails"
+        "Tool", "Model", "Judge", "Composite", "FirstTry", "Errors", "Reuse", "Guardrails"
     );
     println!("{}", "-".repeat(128));
 
@@ -115,7 +115,7 @@ pub fn print_matrix_summary(results: &[(ToolModelConfig, anyhow::Result<ResultRe
                     format_score(record.metrics.composite_score),
                     record.metrics.efficiency.first_try_success_rate * 100.0,
                     record.metrics.efficiency.error_count,
-                    record.metrics.efficiency.retry_count,
+                    record.metrics.efficiency.tool_reuse_count,
                     format_guardrails(record),
                     format_run_status(record)
                 );
@@ -157,12 +157,12 @@ pub fn print_result_summary(record: &ResultRecord) {
         format_evaluators(&record.metrics.evaluator_results)
     );
     println!(
-        "Interaction: {} commands ({} unique, {} errors, {} help, {} retries)",
+        "Interaction: {} commands ({} unique, {} errors, {} help, {} reuses)",
         record.metrics.efficiency.total_commands,
         record.metrics.efficiency.unique_commands,
         record.metrics.efficiency.error_count,
         record.metrics.efficiency.help_invocations,
-        record.metrics.efficiency.retry_count
+        record.metrics.efficiency.tool_reuse_count
     );
     println!(
         "First-try success: {:.0}%, iteration ratio: {:.2}",

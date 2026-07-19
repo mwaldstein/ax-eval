@@ -64,4 +64,4 @@ evaluation:
 
     # Note: no_transcript_errors is intentionally omitted for guidance
     # scenarios. Discovery errors are expected and measured via interaction
-    # metrics (error rate, retry rate, first-try success).
+    # metrics (error rate, tool reuse, first-try success).

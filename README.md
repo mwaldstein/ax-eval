@@ -4,7 +4,7 @@
 
 Even capable agents benefit from tools designed with their needs in mind. Without intentional design, agents may encounter execution loops, hallucinated command structures, excessive token usage, or complete failure to achieve goals. 
 
-Replace ad-hoc developer exploration with structured, measured, and judged evaluations. `ax-eval` runs coding agents against your tool in reproducible scenarios to generate quantitative metrics and qualitative scores. Stop guessing if your tool's ergonomics or `AGENTS.md` are actually effective. Run apples-to-apples comparisons before and after changes to guarantee your updates reduce friction, eliminate loops, and save tokens.
+Replace ad-hoc developer exploration with structured, measured, and judged evaluations. `ax-eval` runs coding agents against your tool in reproducible scenarios to generate quantitative metrics and qualitative scores. Stop guessing if your CLI help, error messages, MCP tool descriptions, or agent guidance are actually effective. Run apples-to-apples comparisons before and after changes to guarantee your updates reduce friction, eliminate loops, and save tokens.
 
 Your tool can be a **CLI binary** or an **MCP server** (stdio or Streamable HTTP, including authenticated servers). Both are evaluated through the same profile, so you can even compare the two ways of exposing the same capability.
 
@@ -23,7 +23,7 @@ Get an immediate, dimensional evaluation profile of the agent's execution:
   "efficiency": {
     "total_commands": 6,
     "error_count": 0,
-    "retry_count": 1,
+    "tool_reuse_count": 1,
     "first_try_success_rate": 1.0
   },
   "costs": {
@@ -50,13 +50,13 @@ It evaluates two kinds of target:
 - **CLI tools** — identified by a binary name; evidence comes from the agent's shell commands.
 - **MCP servers** — `stdio` or Streamable HTTP (`http`); evidence comes from structured `tools/call` events. The harness provisions the server into the agent host's native MCP config; authenticated servers are supported via a static token from the environment or a pre-established host session. ax-eval does not run OAuth itself — the agent's host is the OAuth client. See [MCP targets](docs/mcp-targets.md) and [MCP authentication](docs/mcp-auth.md).
 
-Built primarily for CLI and MCP-server authors, technical writers iterating on `AGENTS.md` and tool descriptions, and agent developers comparing models on a specific workflow.
+Built primarily for CLI and MCP-server authors, technical writers improving tool-facing documentation, and agent developers comparing models on a specific workflow.
 
 ## How It Works
 
 1. **Execute** a baseline scenario — `ax-eval` runs the configured agent CLI against your prompt and records every command, error, and token.
 2. **Analyze** the metrics, transcript, and Judge score to see exactly where the agent stalled or wasted effort.
-3. **Modify** the friction points — a CLI's error messages, parameter handling, and `--help` text; an MCP server's tool names, descriptions, and input schemas; or the `AGENTS.md` guidance for either.
+3. **Modify** the friction points — a CLI's error messages, parameter handling, and `--help` text; an MCP server's tool names, descriptions, and input schemas; or fixture guidance when guidance quality is the variable under test.
 4. **Repeat** to run an apples-to-apples comparison and verify your changes actually reduced friction.
 
 If you do not have scenarios yet and your target is a CLI, start with `discover`:
@@ -69,7 +69,7 @@ scenarios from `ax-eval template scenario`.)
 
 ax-eval is self-documenting for agents. Point your AI coding tool at it instead of learning the CLI by hand, and let the agent run the evaluate-modify-repeat loop. Paste it a prompt like:
 
-> Evaluate how well AI coding agents can use my CLI tool `mytool`. Learn `ax-eval` from itself: run `ax-eval guidance start`, then read `ax-eval --help`, `ax-eval discover --help`, and `ax-eval template --help`. Run `AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode` to auto-generate and judge goal-oriented scenarios, or author scenarios from `ax-eval template scenario`. Read the profile under `ax-eval-results/` (`evaluation.md`, `metrics.json`) and propose changes to my CLI's help text, error messages, and `AGENTS.md`. Re-run to confirm the improvement.
+> Evaluate how well AI coding agents can use my CLI tool `mytool`. Learn `ax-eval` from itself: run `ax-eval guidance start`, then read `ax-eval --help`, `ax-eval discover --help`, and `ax-eval template --help`. Run `AX_EVAL_ENABLED=1 ax-eval discover mytool --tool opencode` to auto-generate and judge goal-oriented scenarios, or author scenarios from `ax-eval template scenario`. Read the profile under `ax-eval-results/` (`evaluation.md`, `metrics.json`) and propose changes to my CLI's help text, error messages, command structure, and structured output. Treat AGENTS.md changes as an explicit guidance experiment, not the default fix. Re-run to confirm the improvement.
 
 See the [user guide](docs/user-guide.md#agent-driven-workflow) for self-discovery entry points and prompt variants.
 
@@ -154,7 +154,7 @@ You need an installed and authenticated agent CLI (`claude-code`, `opencode`, or
 
 Every run produces a dimensional profile:
 
-1. **Interaction quality**: how many commands, retries, errors, help invocations, and first-try successes occurred.
+1. **Interaction quality**: how many commands, tool reuses, errors, help invocations, and first-try successes occurred.
 2. **Qualitative quality**: optional judge and human review signals about whether the agent used the tool well.
 3. **Guardrail outcome**: whether deterministic gates caught a catastrophic task failure.
 4. **Cost and runtime**: duration, token usage, and cost when adapters report them.
@@ -187,7 +187,7 @@ Each run appends a record to `ax-eval-results/results.jsonl` and generates a run
     "total_commands": 6,
     "unique_commands": 5,
     "error_count": 0,
-    "retry_count": 1,
+    "tool_reuse_count": 1,
     "help_invocations": 1,
     "first_try_success_rate": 1.0,
     "iteration_ratio": 0.83,

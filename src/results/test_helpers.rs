@@ -52,7 +52,7 @@ pub fn create_test_record_with_tool(id: &str, scenario_id: &str, tool: &str) -> 
                 total_commands: 3,
                 unique_commands: 2,
                 error_count: 0,
-                retry_count: 1,
+                tool_reuse_count: 1,
                 help_invocations: 0,
                 first_try_success_rate: 1.0,
                 iteration_ratio: 1.5,
