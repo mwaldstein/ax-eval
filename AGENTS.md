@@ -113,6 +113,13 @@ Add a body when the reason or tradeoff is not obvious from the diff.
 Reference issues at the end of the body when relevant, e.g. `Refs #123`.
 Capitalize the first word unless using an optional prefix.
 
+## Changelog
+
+Update `CHANGELOG.md` under `Unreleased` for user-visible additions, fixes,
+removals, behavioral changes, schema changes, and changes to reported evaluation
+results. Skip internal refactors, tests, and documentation-only changes unless
+they materially affect users.
+
 ## Versioning
 
 Use strict semver for all version strings and git tags: `MAJOR.MINOR.PATCH` with
