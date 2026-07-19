@@ -12,6 +12,10 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
 - [x] Stage 5 — parameterise judge prompt by target kind (`JudgeTargetView`); include structured args for MCP
 - [x] Stage 6 — update `docs/scenarios.md`, `docs/evaluation.md`, `src/adapter/README.md`, `CONTEXT.md`, `SCENARIO_TEMPLATE`; add example MCP fixture; flip spec to Stable
 - [ ] Stage 7 — `discover` for MCP targets: `--target` invocation, MCP inspect prompt (declared-vs-learned framing), target-block stamping into authored scenarios, summary attribution for description/schema problems. Agent-mediated; needs only Stages 1–2. Design: `docs/mcp-targets.md` (Discovery for MCP). Harness-side MCP client + declared-vs-understood delta report stay deferred.
+- [ ] Persist advertised MCP surface — run `tools/list` before evaluation and save the full response, including descriptions, input schemas, and annotations, as a results artifact. Extend gates so scenarios can assert metadata fields such as `readOnlyHint` and `openWorldHint`.
+- [ ] Auto-validate `target.tools` against the server's actual `tools/list` during preflight. Unknown or stale declarations should fail early with an actionable diagnostic instead of producing post-run warnings.
+- [ ] Separate target-server environment from agent environment. Stdio MCP child processes need private env vars such as repository roots and service config, while evaluated agents should receive only an explicit allowlist so fixtures cannot be bypassed by reading target internals directly.
+- [ ] Harden Codex judge-result parsing by tolerating real Codex output shapes around the expected `<judge_result>` envelope, and add recorded-output regression fixtures so Codex can be used reliably as a judge.
 
 ## Authenticated MCP targets
 

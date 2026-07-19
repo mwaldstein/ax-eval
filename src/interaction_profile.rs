@@ -102,13 +102,15 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
 
     metrics.completed = input.completed;
 
+    let mut warnings = extracted.target_actions.warnings;
     if input.completed
         && structured_evidence
         && metrics.total_commands == 0
         && input.target_command_policy == TargetCommandPolicy::Required
     {
-        anyhow::bail!(
+        warnings.push(
             "Adapter supports structured tool calls but returned no usable structured target-tool events"
+                .to_string(),
         );
     }
 
@@ -122,7 +124,7 @@ pub fn build_interaction_profile(input: InteractionProfileInput<'_>) -> Result<I
     Ok(InteractionProfile {
         metrics,
         evidence_source: extracted.source,
-        warnings: extracted.target_actions.warnings,
+        warnings,
     })
 }
 
@@ -230,14 +232,14 @@ mod tests {
     }
 
     #[test]
-    fn completed_structured_run_requires_target_tool_events() {
+    fn completed_required_structured_run_without_target_tool_events_builds_zero_call_profile() {
         let events = vec![CommandEvent {
             command: "ls -la".to_string(),
             exit_code: Some(0),
         }];
         let target = target();
 
-        let error = build_interaction_profile(InteractionProfileInput {
+        let profile = build_interaction_profile(InteractionProfileInput {
             target: &target,
             interaction_input: &InteractionInput::StructuredToolCalls(events),
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
@@ -245,9 +247,14 @@ mod tests {
             completed: true,
             target_command_policy: TargetCommandPolicy::Required,
         })
-        .unwrap_err();
+        .expect("profile");
 
-        assert!(error.to_string().contains("no usable structured"));
+        assert_eq!(profile.metrics.total_commands, 0);
+        assert!(profile.metrics.completed);
+        assert!(profile
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("no usable structured")));
     }
 
     #[test]
@@ -506,7 +513,7 @@ mod tests {
             duration_ms: None,
         }];
 
-        let error = build_interaction_profile(InteractionProfileInput {
+        let profile = build_interaction_profile(InteractionProfileInput {
             target: &target,
             interaction_input: &InteractionInput::StructuredMcpToolCalls(events),
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
@@ -514,16 +521,20 @@ mod tests {
             completed: true,
             target_command_policy: TargetCommandPolicy::Required,
         })
-        .unwrap_err();
+        .expect("profile");
 
-        assert!(error.to_string().contains("no usable structured"));
+        assert_eq!(profile.metrics.total_commands, 0);
+        assert!(profile
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("no usable structured")));
     }
 
     #[test]
-    fn completed_structured_mcp_run_requires_target_tool_events() {
+    fn completed_required_structured_mcp_run_without_target_tool_events_builds_zero_call_profile() {
         let target = TargetInteractionSpec::mcp("todo", vec!["add".to_string()]);
 
-        let error = build_interaction_profile(InteractionProfileInput {
+        let profile = build_interaction_profile(InteractionProfileInput {
             target: &target,
             interaction_input: &InteractionInput::StructuredMcpToolCalls(vec![]),
             adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
@@ -531,8 +542,13 @@ mod tests {
             completed: true,
             target_command_policy: TargetCommandPolicy::Required,
         })
-        .unwrap_err();
+        .expect("profile");
 
-        assert!(error.to_string().contains("no usable structured"));
+        assert_eq!(profile.metrics.total_commands, 0);
+        assert!(profile.metrics.completed);
+        assert!(profile
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("no usable structured")));
     }
 }

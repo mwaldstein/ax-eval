@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are now framed as the default places to improve discoverability; AGENTS.md is
   positioned as optional fixture context or an explicit guidance-test variable.
 
+### Fixed
+
+- Completed structured runs with `interaction.target_commands: required` and
+  zero observed target-tool calls now produce a normal evaluation profile with a
+  failed `target_commands_required` guardrail instead of aborting before
+  artifacts and metrics are written.
+- Codex transcript normalization now preserves assistant messages and MCP
+  tool-call/result summaries in mixed shell/MCP JSONL output. Structured MCP
+  evidence was already captured; the human transcript no longer drops those
+  meaningful events.
+
 ## [0.4.0-beta.2] - 2026-07-18
 
 ### Added

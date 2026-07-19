@@ -184,6 +184,102 @@ fn extract_mcp_events(output: &str) -> Vec<McpToolCallEvent> {
     events
 }
 
+fn text_fragments(value: &Value, fragments: &mut Vec<String>) {
+    match value {
+        Value::String(text) => {
+            if !text.trim().is_empty() {
+                fragments.push(text.to_string());
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                text_fragments(value, fragments);
+            }
+        }
+        Value::Object(object) => {
+            if let Some(text) = object.get("text").and_then(Value::as_str) {
+                if !text.trim().is_empty() {
+                    fragments.push(text.to_string());
+                    return;
+                }
+            }
+            if let Some(text) = object.get("content").and_then(Value::as_str) {
+                if !text.trim().is_empty() {
+                    fragments.push(text.to_string());
+                    return;
+                }
+            }
+            for key in ["content", "parts"] {
+                if let Some(value) = object.get(key) {
+                    text_fragments(value, fragments);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn text_from_value(value: &Value) -> Option<String> {
+    let mut fragments = Vec::new();
+    text_fragments(value, &mut fragments);
+    if fragments.is_empty() {
+        None
+    } else {
+        Some(fragments.join("\n"))
+    }
+}
+
+fn assistant_text_from_event(event: &Value) -> Option<String> {
+    match event.get("type").and_then(Value::as_str)? {
+        "agent_message" | "assistant_message" | "message" => text_from_value(event),
+        "item.completed" | "item.updated" => {
+            let item = event.get("item")?;
+            match item_type(item)? {
+                "message" | "assistant_message" => text_from_value(item),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn compact_json(value: &Value) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| value.to_string())
+}
+
+fn append_mcp_transcript_item(transcript: &mut String, item: &Value) -> bool {
+    let Some(event) = mcp_event_from_item(item) else {
+        return false;
+    };
+
+    transcript.push_str("[mcp ");
+    transcript.push_str(&event.server);
+    transcript.push('.');
+    transcript.push_str(&event.tool);
+    transcript.push_str("]\n");
+    if !event.arguments.is_null() {
+        transcript.push_str("arguments: ");
+        transcript.push_str(&compact_json(&event.arguments));
+        transcript.push('\n');
+    }
+    if let Some(result) = item.get("result") {
+        transcript.push_str("result: ");
+        transcript.push_str(&compact_json(result));
+        transcript.push('\n');
+    }
+    if let Some(error) = item.get("error").filter(|error| !error.is_null()) {
+        transcript.push_str("error: ");
+        transcript.push_str(&compact_json(error));
+        transcript.push('\n');
+    }
+    transcript.push_str(if event.is_error {
+        "status: error\n\n"
+    } else {
+        "status: success\n\n"
+    });
+    true
+}
+
 fn synthesize_transcript(output: &str) -> String {
     let mut transcript = String::new();
 
@@ -191,6 +287,20 @@ fn synthesize_transcript(output: &str) -> String {
         let Ok(event) = serde_json::from_str::<Value>(line) else {
             continue;
         };
+
+        if let Some(text) = assistant_text_from_event(&event) {
+            if !text.is_empty() {
+                transcript.push_str(&text);
+                transcript.push_str("\n\n");
+            }
+            continue;
+        }
+
+        if let Some(item) = mcp_item(&event) {
+            append_mcp_transcript_item(&mut transcript, item);
+            continue;
+        }
+
         let Some(item) = command_item(&event) else {
             continue;
         };
@@ -413,6 +523,43 @@ mod tests {
                 .tool,
             "add"
         );
+        assert!(output.transcript.contains("$ bash -lc 'notes list'"));
+        assert!(output.transcript.contains("[mcp todo.add]"));
+        assert!(output.transcript.contains(r#"arguments: {"text":"hello"}"#));
+    }
+
+    #[test]
+    fn codex_transcript_includes_assistant_messages_and_mcp_results() {
+        let jsonl_output = format!(
+            "{}\n{}\n",
+            serde_json::json!({
+                "type": "item.completed",
+                "item": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "I will add the note."}]
+                }
+            }),
+            serde_json::json!({
+                "type": "item.completed",
+                "item": {
+                    "id": "i2",
+                    "type": "mcp_tool_call",
+                    "server": "todo",
+                    "tool": "add",
+                    "arguments": {"text": "hello"},
+                    "result": {"content": [{"type": "text", "text": "created note n1"}]},
+                    "success": true
+                }
+            })
+        );
+
+        let output = normalize(jsonl_output, 0);
+
+        assert!(output.transcript.contains("I will add the note."));
+        assert!(output.transcript.contains("[mcp todo.add]"));
+        assert!(output.transcript.contains("created note n1"));
     }
 
     #[test]

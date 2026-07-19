@@ -114,7 +114,19 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         interaction_profile: &interaction_profile,
     };
 
-    let (details, gate_status) = evaluate_gates(&scenario.evaluation.gates, &ctx);
+    let (mut details, mut gate_status) = evaluate_gates(&scenario.evaluation.gates, &ctx);
+    if input.completed
+        && scenario.interaction.target_commands == crate::scenario::TargetCommandPolicy::Required
+        && interaction_profile.metrics.total_commands == 0
+    {
+        details.push(GateResult {
+            gate_type: "TargetCommandsRequired".to_string(),
+            identifier: "target_commands_required".to_string(),
+            passed: false,
+            message: "Required target-tool interaction was not observed".to_string(),
+        });
+        gate_status = GateStatus::Failed;
+    }
     debug!("gate status: {:?}", gate_status);
     let judge_result = maybe_run_judge(
         scenario,
@@ -204,6 +216,37 @@ mod tests {
         assert_eq!(metrics.gate_status, GateStatus::NotConfigured);
         assert_eq!(metrics.efficiency.total_commands, 1);
         assert!(metrics.efficiency.completed);
+    }
+
+    #[test]
+    fn required_target_commands_fail_gate_without_aborting_evaluation() {
+        let scenario = scenario();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let interaction_input = InteractionInput::StructuredToolCalls(vec![CommandEvent {
+            command: "ls -la".to_string(),
+            exit_code: Some(0),
+        }]);
+
+        let metrics = evaluate(EvaluationInput {
+            scenario: &scenario,
+            env_root: dir.path(),
+            scenario_path: dir.path(),
+            no_judge: true,
+            script_runner: None,
+            judge_model: None,
+            judge_tool: None,
+            interaction_input: &interaction_input,
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: dir.path().join("unused-transcript.raw.txt"),
+            completed: true,
+            target_env: &TargetEnvironment::default(),
+        })
+        .expect("evaluate");
+
+        assert_eq!(metrics.gate_status, GateStatus::Failed);
+        assert_eq!(metrics.efficiency.total_commands, 0);
+        assert!(metrics.efficiency.completed);
+        assert_eq!(metrics.details[0].identifier, "target_commands_required");
     }
 
     #[test]
