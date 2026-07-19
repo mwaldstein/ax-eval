@@ -6,9 +6,11 @@ Even capable agents benefit from tools designed with their needs in mind. Withou
 
 Replace ad-hoc developer exploration with structured, measured, and judged evaluations. `ax-eval` runs coding agents against your tool in reproducible scenarios to generate quantitative metrics and qualitative scores. Stop guessing if your tool's ergonomics or `AGENTS.md` are actually effective. Run apples-to-apples comparisons before and after changes to guarantee your updates reduce friction, eliminate loops, and save tokens.
 
+Your tool can be a **CLI binary** or an **MCP server** (stdio or Streamable HTTP, including authenticated servers). Both are evaluated through the same profile, so you can even compare the two ways of exposing the same capability.
+
 ### See it in action
 
-Run a reproducible scenario against your CLI:
+Run a reproducible scenario against your CLI or MCP server:
 
 ```bash
 ax-eval run --scenario create_project --tool claude-code
@@ -40,22 +42,28 @@ Get an immediate, dimensional evaluation profile of the agent's execution:
 
 ---
 
-## Supported Agents
-`ax-eval` currently supports `claude-code`, `opencode`, and `codex` on macOS, Linux, and Windows.
+## Supported Agents and Targets
+`ax-eval` currently drives the `claude-code`, `opencode`, and `codex` agent CLIs on macOS, Linux, and Windows.
 
-Built primarily for CLI authors, technical writers iterating on `AGENTS.md`, and agent developers comparing models on a specific workflow.
+It evaluates two kinds of target:
+
+- **CLI tools** — identified by a binary name; evidence comes from the agent's shell commands.
+- **MCP servers** — `stdio` or Streamable HTTP (`http`); evidence comes from structured `tools/call` events. The harness provisions the server into the agent host's native MCP config; authenticated servers are supported via a static token from the environment or a pre-established host session. ax-eval does not run OAuth itself — the agent's host is the OAuth client. See [MCP targets](docs/mcp-targets.md) and [MCP authentication](docs/mcp-auth.md).
+
+Built primarily for CLI and MCP-server authors, technical writers iterating on `AGENTS.md` and tool descriptions, and agent developers comparing models on a specific workflow.
 
 ## How It Works
 
 1. **Execute** a baseline scenario — `ax-eval` runs the configured agent CLI against your prompt and records every command, error, and token.
 2. **Analyze** the metrics, transcript, and Judge score to see exactly where the agent stalled or wasted effort.
-3. **Modify** your CLI's error messages, parameter handling, `--help` text, or `AGENTS.md` instructions.
+3. **Modify** the friction points — a CLI's error messages, parameter handling, and `--help` text; an MCP server's tool names, descriptions, and input schemas; or the `AGENTS.md` guidance for either.
 4. **Repeat** to run an apples-to-apples comparison and verify your changes actually reduced friction.
 
-If you do not have scenarios yet, start with `discover`: it asks an agent to
-inspect your executable, write an understanding document, author five
-goal-oriented scenarios, run them, and summarize what the results reveal about
-your CLI's LLM usability.
+If you do not have scenarios yet and your target is a CLI, start with `discover`:
+it asks an agent to inspect your executable, write an understanding document,
+author five goal-oriented scenarios, run them, and summarize what the results
+reveal about your CLI's LLM usability. (Discovery is CLI-only today; author MCP
+scenarios from `ax-eval template scenario`.)
 
 ## Agent-Driven Evaluation
 
@@ -160,7 +168,8 @@ Each run appends a record to `ax-eval-results/results.jsonl` and generates a run
 - `artifacts/transcript.raw.txt`: The full agent transcript for debugging.
 - `artifacts/events.jsonl`: Structured event log of the entire interaction.
 - `artifacts/tool-output.raw.txt`: Raw adapter output when available.
-- `artifacts/command-events.json`: Normalized command events when available.
+- `artifacts/command-events.json`: Normalized CLI command events when available.
+- `artifacts/mcp-events.json`: Structured MCP tool-call events for MCP targets when available.
 
 ### Metrics Example
 ```json
@@ -220,7 +229,23 @@ evaluation:
       substring: "Project"
 ```
 
-See the [scenario reference](docs/scenarios.md) for setup hooks, custom evaluators, and the full field reference. Use `ax-eval template scenario` for a copyable starting point.
+An MCP target swaps the `target` block for a server declaration; the rest of the scenario (task, gates, judge) is identical:
+
+```yaml
+target:
+  kind: mcp
+  name: notes
+  transport:
+    type: stdio
+    command: "python3"
+    args: ["${AX_EVAL_FIXTURE_DIR}/notes_mcp_server.py"]
+  tools: [add_note, list_notes]
+  # Authenticated HTTP server:
+  # transport: { type: http, url: "https://mcp.example.com/mcp" }
+  # auth: { type: bearer_env, env: MY_MCP_TOKEN }
+```
+
+See the [scenario reference](docs/scenarios.md) for setup hooks, custom evaluators, and the full field reference, and [MCP targets](docs/mcp-targets.md) for the transport and provisioning details. Use `ax-eval template scenario` for a copyable starting point.
 
 ## Documentation
 
@@ -228,5 +253,7 @@ See the [scenario reference](docs/scenarios.md) for setup hooks, custom evaluato
 - [CLI reference](docs/reference/cli-commands.md): All commands, flags, and examples.
 - [User guide](docs/user-guide.md): Workflows, scenario authoring, results, and troubleshooting.
 - [Scenario reference](docs/scenarios.md): Complete YAML format.
+- [MCP targets](docs/mcp-targets.md): Evaluating MCP servers — transports, provisioning, evidence.
+- [MCP authentication](docs/mcp-auth.md): Credentials for protected MCP servers.
 - [Evaluation reference](docs/evaluation.md): Scoring and metrics design.
 - [Scripts reference](docs/scripts.md): Custom evaluators and post-scripts.

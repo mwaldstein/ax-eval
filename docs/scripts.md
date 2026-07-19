@@ -297,6 +297,16 @@ Script gates do not replace built-in gates. Built-in gates (`command_succeeds`, 
 
 A rule of thumb: if the check fits in a `command_succeeds` one-liner, use that. If it needs a script, use a script gate.
 
+### MCP targets
+
+Scripts are the primary verification path for MCP scenarios. An MCP server's
+state is usually not visible as workspace files, so file gates rarely apply.
+Ship a probe script in the fixture and drive it from a `health_check`, a
+`script` gate, and/or a custom evaluator — the probe queries the server's
+backing store or a read-only surface to confirm the outcome. See
+[docs/scenarios.md](scenarios.md) ("Authoring MCP scenarios") and
+[docs/mcp-targets.md](mcp-targets.md).
+
 ---
 
 ## Not In Scope

@@ -328,4 +328,5 @@ That is the core loop: **modify → run → compare → refine**.
 - **Add custom evaluators** — write a script that scores task quality beyond pass/fail gates.
 - **Run a matrix** — compare opencode vs claude-code on the same scenario using `tool_matrix` or a config profile.
 - **Discover your CLI** — if you do not have scenarios yet, run `ax-eval discover <your-tool> --tool opencode` to have an agent author them for you.
+- **Evaluate an MCP server** — the target can be an MCP server instead of a CLI binary; the task, gates, and judge work the same way. See [MCP targets](mcp-targets.md) and [MCP authentication](mcp-auth.md).
 - **Read the full references** — [scenario reference](scenarios.md), [evaluation reference](evaluation.md), [scripts reference](scripts.md).
