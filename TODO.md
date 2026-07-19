@@ -34,6 +34,73 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
   setup/health timeouts, agent timeouts, and non-judge post-run evaluation
   errors.
 
+## Evaluation depth
+
+Deepen the Evaluation Profile so it answers three questions independently:
+
+- **Ability** — Did the agent achieve the task and use the Target correctly?
+- **Efficiency** — How much effort, recovery, time, and cost did successful use
+  require?
+- **Agent-facing structure** — How well do the Target's help, descriptions,
+  schemas, errors, and workflows support agent discovery and correct use?
+
+Keep Gates as fail-fast guardrails. Do not collapse these dimensions into a
+single required score. See `docs/evaluation.md` and ADR-0007.
+
+### Evidence foundation
+
+- [ ] Replace the lossy `(action, outcome)` projection with an ordered canonical
+  interaction trace that retains tool identity, invocation fingerprints,
+  arguments or normalized argv, outcome, duration, ordering, and evidence
+  source.
+- [ ] Preserve equivalent structured evidence for CLI and MCP Targets so
+  Interaction Metrics and the Judge do not receive asymmetric views.
+- [ ] Implement ADR-0007 recovery metrics: distinct actions, exact repeats,
+  recovery retries, exact recovery retries, and adjusted recovery retries.
+- [ ] Add target latency and total workflow effort signals. Connect target calls
+  with existing run-level token, duration, and cost measurements without
+  automatically treating repeated calls as waste.
+
+### Evaluation lifecycle
+
+- [ ] Assemble Scenario intent, the canonical interaction trace, Interaction
+  Metrics, Gate results, evaluator findings, and run metadata before qualitative
+  evaluation. Give the Judge and reports the same evidence.
+- [ ] Run custom evaluators early enough for their authoritative outcome evidence
+  to inform the Judge.
+- [ ] Separate Judge cost policy from evaluation semantics. Support diagnosing a
+  failed-Gate run instead of always suppressing its qualitative evaluation.
+
+### Judge calibration
+
+- [ ] Centralize rubric loading and semantic validation. Remove duplicated
+  weight validation.
+- [ ] Validate Judge responses against the rubric: criterion coverage, unknown
+  criteria, numeric ranges, required fields, and confidence range.
+- [ ] Compute weighted scores deterministically from validated criterion scores
+  instead of trusting the model-provided aggregate.
+- [ ] Support criterion-specific scoring anchors and evidence requirements for
+  ability, efficiency, and agent-facing structure.
+- [ ] Ground Judge findings in specific trace events or outcome evidence so
+  issues and highlights remain auditable.
+
+### Tool experience experiments
+
+- [ ] Update Discovery scenarios to include authoritative outcome evidence where
+  feasible. Do not require `gates: []` when a Gate or evaluator can verify the
+  requested result.
+- [ ] Add explicit Discovery assessment of discoverability, workflow clarity,
+  schema and argument clarity, error recovery, state observability, and
+  composability.
+- [ ] Persist a measured-system fingerprint covering Target version, agent CLI,
+  model, Adapter, environment, Scenario, fixtures, and guidance variant.
+- [ ] Add repeated-run aggregation with sample count and spread before drawing
+  conclusions about Target structure. Record an ADR before changing the current
+  independent-run scope.
+- [ ] Add matched comparison output for Target and guidance variants. Report the
+  three evaluation dimensions separately and avoid declaring a winner when run
+  variance overwhelms the observed delta.
+
 ## Authenticated MCP targets
 
 Evaluate agent use of protected MCP servers. Design: `docs/mcp-auth.md`, decision: `docs/adr/0006-authenticated-mcp-targets.md`. ax-eval renders credential config; the harness is the OAuth client.

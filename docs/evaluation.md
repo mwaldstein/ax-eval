@@ -492,6 +492,36 @@ criteria:
 
 ---
 
+## Evaluation Depth Roadmap
+
+The Evaluation Profile should eventually separate three related questions:
+
+| Dimension | Question | Primary Evidence |
+|-----------|----------|------------------|
+| **Ability** | Did the agent achieve the task and use the Target correctly? | Outcome Gates, custom evaluators, completion evidence, and rubric-based usage assessment |
+| **Efficiency** | How much effort and recovery did successful use require? | Ordered Tool Call Events, invocation identity, outcomes, latency, tokens, duration, and cost |
+| **Agent-facing structure** | How well does the Target help an agent discover and execute the right workflow? | Help and discovery paths, MCP descriptions and schemas, error recovery, matched Scenario variants, and Discovery findings |
+
+Current runs do not fully separate these dimensions. Interaction profiling
+reduces rich Tool Call Events to coarse action and outcome pairs. The Judge uses
+a generic rubric and does not receive every authoritative outcome signal.
+Discovery produces useful qualitative findings, but a single run cannot
+attribute friction confidently among the agent, Target, fixture guidance,
+Scenario, and model variance.
+
+Planned work will preserve a richer canonical interaction trace, calibrate and
+validate Judge scoring, share evidence across evaluators, and support matched
+repeated-run comparisons. These changes must preserve the distinction between
+Gates and dimensional evaluation. See the
+[evaluation-depth roadmap](../TODO.md#evaluation-depth) and
+[ADR-0007 recovery design](adr/0007-separate-tool-reuse-from-retry-recovery.md).
+
+Repeated-run aggregation and spread reporting require an explicit scope
+decision before implementation. Formal statistical significance testing remains
+outside this specification.
+
+---
+
 ## Not In Scope
 
 - **Domain-specific quality metrics** (title length, tags per note, links per note, orphan detection) — these belong in scenario-specific gates and rubrics, not in the framework. The existing `QualityMetrics` / `StoreAnalyzer` module should be removed or moved to an example scenario.
