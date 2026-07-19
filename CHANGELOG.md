@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.4] - 2026-07-19
+
 ### Added
 
 - Failed judge executions and malformed judge responses now retain the
@@ -249,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_prime_output` from fixture utilities
 - `SPLIT_PLAN.md` (superseded by completed implementation)
 
-[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.3...HEAD
+[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.4...HEAD
+[0.4.0-beta.4]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.3...v0.4.0-beta.4
 [0.4.0-beta.3]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.2...v0.4.0-beta.3
 [0.4.0-beta.2]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.1...v0.4.0-beta.2
 [0.4.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.4...v0.4.0-beta.1
