@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.2] - 2026-07-18
+
 ### Added
 
 - MCP auth for protected HTTP MCP targets. Scenarios can declare optional HTTP-only `target.auth` blocks for `none`, static `bearer_env`, static `headers`, and `host_session` pass-through; adapters render host-native config for opencode, claude-code, and codex. Static secrets are read from environment variables at preflight/provision time and scrubbed from retained results artifacts; codex stores only the env-var name. `host_session` renders no credential and is not preflighted yet, so missing host logins may fail at first tool call.
+- `${env:NAME}` expansion in `target.env`, MCP transport, and MCP `auth` values, resolved from the parent process environment. An unset variable fails at provision time instead of expanding to empty. Bare `${NAME}` is left literal; only the `env:` form is expanded.
+- MCP coverage across the README, tutorial, scripts reference, and the in-system `guidance` library (new `mcp-server-design`, `mcp-tool-descriptions`, `mcp-errors`, and `mcp-auth` topics).
+
+### Fixed
+
+- codex MCP normalizer no longer reads a `null` `error` field on a completed tool call as a failure, which had scored fully successful MCP runs as 0% first-try success. Covered by a regression test built from a real captured transcript.
 
 ## [0.4.0-beta.1] - 2026-07-18
 
@@ -176,7 +184,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_prime_output` from fixture utilities
 - `SPLIT_PLAN.md` (superseded by completed implementation)
 
-[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.1...HEAD
+[Unreleased]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.2...HEAD
+[0.4.0-beta.2]: https://github.com/mwaldstein/ax-eval/compare/v0.4.0-beta.1...v0.4.0-beta.2
 [0.4.0-beta.1]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.4...v0.4.0-beta.1
 [0.3.0-beta.4]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.3...v0.3.0-beta.4
 [0.3.0-beta.3]: https://github.com/mwaldstein/ax-eval/compare/v0.3.0-beta.2...v0.3.0-beta.3
