@@ -28,6 +28,9 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
 - [x] Canonicalize OpenCode workspaces before applying both process `cwd` and
   `--dir`, and retain completed profiles with an explicit `judge_error` when
   judge execution or response parsing fails.
+- [x] Serialize Codex MCP access to shared `~/.codex/config.toml` across ax-eval
+  processes. Hold the lock from snapshot through restoration so overlapping
+  runs cannot create duplicate MCP server tables or restore stale snapshots.
 - [ ] Route every retained artifact through one redaction-aware sink, including raw transcripts, events, run metadata, and judge feedback.
 - [ ] Replace decorative agent-CLI authentication checks with host-specific status probes where available.
 - [ ] Finalize a failed or cancelled result with partial evidence for
@@ -127,6 +130,13 @@ Evaluate agent use of protected MCP servers. Design: `docs/mcp-auth.md`, decisio
 
 - [ ] Harness materialization — implement the deferred `agent_guidance` and `skills` design in `docs/harness-materialization.md` for 0.5.0.
 - [ ] `ax-eval compare` — Diff two runs or show trend across a series.
+- [ ] Replace global Codex config mutation with a per-run Codex configuration
+  root after defining how API credentials and `host_session` OAuth state are
+  projected without leaking secrets. Keep the global lock as compatibility
+  protection for hosts that cannot be isolated.
+- [ ] Add cross-process locking for `results.jsonl` appends before parallel
+  Scenario execution. Codex config locking protects the host config only; it
+  does not make the results database safe for concurrent writers.
 - [ ] Statistical significance testing across runs
 - [ ] Automatic regression detection — results database supports trend analysis; automated alerting not yet implemented.
 - [ ] Homebrew tap and formula

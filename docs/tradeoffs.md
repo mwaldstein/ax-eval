@@ -35,7 +35,9 @@ network authority.
 - **Codex MCP provisioning touches global config.** MCP target runs for Codex
   must write `~/.codex/config.toml` because Codex discovers MCP servers there,
   not from a workspace-local file. ax-eval snapshots the prior file content and
-  restores it after the agent exits.
+  restores it after the agent exits. A cross-process sidecar lock serializes
+  Codex MCP runs from snapshot through restoration. The lock coordinates
+  ax-eval processes; unrelated programs that edit the file do not participate.
 - **Execution scope is the caller's.** Network access is unrestricted and the
   agent can run arbitrary commands with the caller's privileges.
 
@@ -49,4 +51,6 @@ is a targeted mitigation, not a complete boundary.
 **Direction.** Harness materialization is deferred to 0.5.0 and will make
 workspace guidance artifacts explicit. A future opt-in sandboxed runner
 (containerized or privilege-separated) could provide strict filesystem and
-network isolation without removing the lighter default.
+network isolation without removing the lighter default. Per-run Codex config
+isolation could remove the serialization requirement once credential and
+`host_session` state can be projected safely.

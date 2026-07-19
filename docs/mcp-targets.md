@@ -249,7 +249,9 @@ configs are workspace-local, but codex reads `~/.codex/config.toml` — global
 state. The codex adapter must write the `[mcp_servers.<name>]` entry before
 the run and remove it after (restore-on-exit), and this touch-the-user's-config
 behavior belongs in `docs/tradeoffs.md` alongside the existing
-fixture-isolation entry.
+fixture-isolation entry. A cross-process lock must cover the complete
+snapshot, provision, agent execution, and restoration interval. Atomic writes
+alone do not protect the snapshot-and-restore transaction.
 
 ### Trait hook
 

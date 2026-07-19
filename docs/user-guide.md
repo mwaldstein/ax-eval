@@ -218,7 +218,10 @@ Before the agent starts, the selected adapter renders this target into the
 host's MCP configuration. opencode and claude-code use workspace-local config
 files. Codex reads `~/.codex/config.toml`, so the codex adapter writes the MCP
 server entry before the run and restores the prior file content after the agent
-exits. This is an accepted isolation tradeoff; see [docs/tradeoffs.md](tradeoffs.md).
+exits. ax-eval holds a cross-process lock for that full interval, so concurrent
+Codex MCP runs sharing a home directory wait rather than modifying the file at
+the same time. This is an accepted isolation tradeoff; see the
+[fixture isolation tradeoffs](tradeoffs.md).
 
 Before provisioning the agent host, ax-eval connects directly to stdio and
 Streamable HTTP MCP targets, performs `tools/list`, writes the full response to

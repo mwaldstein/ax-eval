@@ -7,7 +7,9 @@ use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
 use crate::target_env::{AgentEnvironment, TargetEnvironment};
+use anyhow::Context;
 use std::collections::BTreeMap;
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 
 #[derive(Default)]
@@ -155,6 +157,33 @@ fn results_dir_for_workspace(workspace: &Path) -> &Path {
     workspace.parent().unwrap_or(workspace)
 }
 
+fn codex_config_lock_path(config_path: &Path) -> anyhow::Result<PathBuf> {
+    let file_name = config_path.file_name().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Codex config path has no file name: {}",
+            config_path.display()
+        )
+    })?;
+    let mut lock_name = file_name.to_os_string();
+    lock_name.push(".ax-eval.lock");
+    Ok(config_path.with_file_name(lock_name))
+}
+
+fn lock_codex_config(config_path: &Path) -> anyhow::Result<std::fs::File> {
+    let lock_path = codex_config_lock_path(config_path)?;
+    let lock_file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .with_context(|| format!("Failed to open Codex config lock {}", lock_path.display()))?;
+    lock_file
+        .lock()
+        .with_context(|| format!("Failed to lock Codex config {}", config_path.display()))?;
+    Ok(lock_file)
+}
+
 fn provision_mcp_target(
     target: &McpTarget,
     workspace: &Path,
@@ -172,15 +201,15 @@ fn provision_mcp_target(
     } else {
         target_env
     };
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let config_lock = lock_codex_config(config_path)?;
     let previous = match std::fs::read(config_path) {
         Ok(content) => Some(content),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.into()),
     };
-
-    if let Some(parent) = config_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
 
     let rendered = render_mcp_target(
         target,
@@ -202,6 +231,9 @@ fn provision_mcp_target(
         } else if config_path.exists() {
             std::fs::remove_file(config_path)?;
         }
+        config_lock
+            .unlock()
+            .context("Failed to unlock Codex config after restoration")?;
 
         Ok(())
     }))
@@ -554,5 +586,80 @@ http_headers = {{ X-API-Key = "token-{fixture}" }}
         assert!(!content.contains("http_headers"));
 
         provision.cleanup().expect("cleanup");
+    }
+
+    #[test]
+    fn serializes_overlapping_global_config_provisions() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let workspace = dir.path().join("results").join("fixture");
+        let config_path = dir.path().join("home").join(".codex").join("config.toml");
+        std::fs::create_dir_all(&workspace).expect("workspace");
+        std::fs::create_dir_all(config_path.parent().expect("config parent"))
+            .expect("config parent");
+        let existing = "# existing config\nmodel = \"gpt-5-codex\"\n";
+        std::fs::write(&config_path, existing).expect("existing config");
+        let target = TargetConfig::Mcp(McpTarget {
+            name: "knowledge-engine".to_string(),
+            transport: McpTransport::Http {
+                url: "https://mcp.example.com/mcp".to_string(),
+                headers: None,
+            },
+            auth: None,
+            tools: vec!["search".to_string()],
+            env: None,
+            health_check: None,
+        });
+
+        let first = CodexAdapter::with_config_path(config_path.clone())
+            .provision_target(&target, &workspace, &TargetEnvironment::default())
+            .expect("first provision");
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let second_config_path = config_path.clone();
+        let second_workspace = workspace.clone();
+        let second_target = target.clone();
+        let second_thread = std::thread::spawn(move || {
+            let provision = CodexAdapter::with_config_path(second_config_path).provision_target(
+                &second_target,
+                &second_workspace,
+                &TargetEnvironment::default(),
+            );
+            sender.send(provision).expect("send second provision");
+        });
+
+        assert!(matches!(
+            receiver.recv_timeout(std::time::Duration::from_millis(100)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ));
+        let first_content = std::fs::read_to_string(&config_path).expect("first config");
+        toml::from_str::<toml::Value>(&first_content).expect("first provision leaves valid TOML");
+        assert_eq!(
+            first_content
+                .matches("[mcp_servers.knowledge-engine]")
+                .count(),
+            1
+        );
+
+        first.cleanup().expect("first cleanup");
+        let second = receiver
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("second provision should acquire released lock")
+            .expect("second provision");
+        second_thread.join().expect("second provision thread");
+
+        let second_content = std::fs::read_to_string(&config_path).expect("second config");
+        toml::from_str::<toml::Value>(&second_content).expect("second provision leaves valid TOML");
+        assert_eq!(
+            second_content
+                .matches("[mcp_servers.knowledge-engine]")
+                .count(),
+            1
+        );
+
+        second.cleanup().expect("second cleanup");
+        assert_eq!(
+            std::fs::read_to_string(&config_path).expect("restored config"),
+            existing
+        );
     }
 }

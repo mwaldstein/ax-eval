@@ -74,6 +74,9 @@ expanded target-private environment.
 - If provisioning touches global state, the adapter must restore the previous
   state during cleanup. Codex is the current example because it reads
   `~/.codex/config.toml`.
+- Protect a shared global config with a cross-process lock held across
+  provisioning, agent execution, and cleanup. Locking only individual writes is
+  insufficient for snapshot-and-restore workflows.
 
 ## MCP Normalization Shapes
 

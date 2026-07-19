@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Concurrent Codex MCP runs now hold a cross-process lock from global config
+  provisioning through restoration, preventing overlapping snapshot/append/
+  restore cycles from creating duplicate `mcp_servers` tables.
 - OpenCode runs canonicalize the fixture workspace once before using it as both
   the process working directory and `--dir`, preventing relative judge paths
   from being resolved twice.
