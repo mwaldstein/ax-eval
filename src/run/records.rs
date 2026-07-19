@@ -48,6 +48,7 @@ impl SetupFailureRecordInput<'_> {
                 details: vec![],
                 judge_passed: None,
                 judge_threshold: None,
+                judge_error: None,
                 efficiency: EfficiencyMetricsRecord {
                     total_commands: 0,
                     unique_commands: 0,
@@ -124,6 +125,7 @@ pub fn handle_dry_run(
             details: vec![],
             judge_passed: None,
             judge_threshold: None,
+            judge_error: None,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 0,
                 unique_commands: 0,
@@ -218,6 +220,7 @@ mod tests {
             judge_response: None,
             judge_passed: Some(true),
             judge_threshold: Some(0.7),
+            judge_error: None,
             efficiency: EfficiencyMetrics {
                 total_commands: 1,
                 unique_commands: 1,

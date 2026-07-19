@@ -17,14 +17,22 @@ Evaluate agent use of MCP servers alongside CLI targets. Design: `docs/mcp-targe
 - [ ] Add MCP metadata gates so scenarios can assert advertised fields such as `readOnlyHint` and `openWorldHint` against `mcp-tools-list.json`.
 - [x] Separate target-server environment from agent environment. Stdio MCP `target.env` is private to the child configuration; evaluated agents receive an adapter baseline plus the explicit top-level `agent_env` allowlist.
 - [x] Harden Codex judge-result parsing around the expected `<judge_result>` envelope and cover normalized and raw recorded-output shapes.
+- [ ] Model MCP resource operations as structured evidence distinct from
+  `tools/call`, with resource-specific counts and judge context. Codex resource
+  wrappers are excluded from tool declaration validation in the interim.
 
 ## 0.4.0 stabilization
 
 - [x] Correct `first_try_success_rate` to divide first-occurrence successes by unique actions, and preserve unknown command outcomes when adapters omit exit codes.
 - [x] Stop agent execution after the first setup command that exits nonzero while retaining setup artifacts and a failed result record.
+- [x] Canonicalize OpenCode workspaces before applying both process `cwd` and
+  `--dir`, and retain completed profiles with an explicit `judge_error` when
+  judge execution or response parsing fails.
 - [ ] Route every retained artifact through one redaction-aware sink, including raw transcripts, events, run metadata, and judge feedback.
 - [ ] Replace decorative agent-CLI authentication checks with host-specific status probes where available.
-- [ ] Finalize a failed or cancelled result with partial evidence for setup/health timeouts, agent timeouts, and post-run evaluation errors.
+- [ ] Finalize a failed or cancelled result with partial evidence for
+  setup/health timeouts, agent timeouts, and non-judge post-run evaluation
+  errors.
 
 ## Authenticated MCP targets
 

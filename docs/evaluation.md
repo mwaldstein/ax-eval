@@ -295,6 +295,11 @@ Supported judge tools are `opencode`, `codex`, `claude`, and `claude-code`.
 
 The judge is executed via a supported local CLI. This avoids a separate API dependency while keeping judge execution observable through the same command runner.
 
+If judge execution or response parsing fails after the agent run, ax-eval still
+finalizes the evaluation profile. Interaction metrics and gate results are
+retained, `judge_score` remains absent, and `judge_error` records the failure in
+`metrics.json`, `results.jsonl`, and the human-readable reports.
+
 Execution flow:
 1. Build a judge prompt containing the **tool name** (from `target.binary`), task description, transcript file reference, and rubric criteria. The tool name is parameterized so the judge can evaluate how effectively the agent used *that specific tool*.
 2. Invoke the configured CLI tool via `SessionRunner`.
@@ -387,6 +392,7 @@ what needs attention:
 
 - `completed; judge threshold met`
 - `completed; judge not run`
+- `completed; judge error`
 - `guardrail failed: file_exists(summary.md), file_contains(summary.md)`
 - `judge threshold attention`
 - `agent did not complete`
@@ -406,6 +412,7 @@ pub struct EvaluationMetrics {
     pub judge_response: Option<JudgeResponse>,
     pub judge_passed: Option<bool>,
     pub judge_threshold: Option<f64>,
+    pub judge_error: Option<String>,
     pub efficiency: EfficiencyMetrics,
     pub interaction_evidence_source: InteractionEvidenceSource,
     pub composite_score: Option<f64>,
@@ -417,13 +424,14 @@ pub struct RunStatus {
     pub failed_guardrails: Vec<String>,
     pub judge_passed: Option<bool>,
     pub judge_score: Option<f64>,
+    pub judge_error: Option<String>,
 }
 ```
 
 `RunStatus` is derived from `EvaluationMetrics` and projects a triage outcome:
 `"completed"`, `"guardrail failed: <names>"`, or
-`"judge score X.XX below threshold"`. Human-facing status labels are produced
-separately by `format_run_status` in the output module.
+`"judge score X.XX below threshold"`, or `"judge error"`. Human-facing status
+labels are produced separately by `format_run_status` in the output module.
 
 Human review is a workflow concern layered on top of the profile, not a
 replacement for the dimensional evaluation data.

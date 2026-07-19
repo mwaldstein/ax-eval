@@ -12,12 +12,16 @@ fn report_status(
     gate_status: GateStatus,
     failed_guardrails: &[String],
     judge_passed: Option<bool>,
+    judge_error: Option<&str>,
 ) -> String {
     if !completed {
         return "agent did not complete".to_string();
     }
     if gate_status == GateStatus::Failed {
         return format!("guardrail failed: {}", failed_guardrails.join(", "));
+    }
+    if judge_error.is_some() {
+        return "completed; judge error".to_string();
     }
     if let Some(false) = judge_passed {
         return "judge threshold attention".to_string();
@@ -267,7 +271,8 @@ impl TranscriptWriter {
                 report.efficiency.completed,
                 report.gate_status,
                 &failed_guardrails(&report.gate_details),
-                report.judge_passed
+                report.judge_passed,
+                report.judge_error.as_deref()
             )
         ));
     }
@@ -278,6 +283,9 @@ impl TranscriptWriter {
             "- **Judge Score**: {}\n",
             judge_score_text(report.judge_score, report.judge_threshold)
         ));
+        if let Some(error) = &report.judge_error {
+            content.push_str(&format!("- **Judge Error**: {}\n", redact_sensitive(error)));
+        }
         if let Some(score) = report.composite_score {
             content.push_str(&format!("- **Composite Score**: {:.2}\n", score));
         } else {
@@ -289,7 +297,8 @@ impl TranscriptWriter {
                 report.efficiency.completed,
                 report.gate_status,
                 &failed_guardrails(&report.gate_details),
-                report.judge_passed
+                report.judge_passed,
+                report.judge_error.as_deref()
             )
         ));
         content.push('\n');
@@ -374,7 +383,8 @@ impl TranscriptWriter {
                 evaluation.efficiency.completed,
                 evaluation.gate_status,
                 &failed_guardrails(&evaluation.gate_details),
-                evaluation.judge_passed
+                evaluation.judge_passed,
+                evaluation.judge_error.as_deref()
             )
         ));
 
@@ -388,6 +398,9 @@ impl TranscriptWriter {
             "- **Judge Score**: {}\n",
             judge_score_text(evaluation.judge_score, evaluation.judge_threshold)
         ));
+        if let Some(error) = &evaluation.judge_error {
+            content.push_str(&format!("- **Judge Error**: {}\n", redact_sensitive(error)));
+        }
         content.push_str(&format!(
             "- **Custom Evaluators**: {}\n",
             evaluation.evaluator_results.len()

@@ -56,6 +56,7 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
             judge_score: metrics.judge_score,
             judge_passed: metrics.judge_passed,
             judge_threshold: metrics.judge_threshold,
+            judge_error: metrics.judge_error.clone(),
             composite_score: metrics.composite_score,
             gate_details: metrics
                 .details
@@ -135,6 +136,7 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
         judge_score: metrics.judge_score,
         judge_passed: metrics.judge_passed,
         judge_threshold: metrics.judge_threshold,
+        judge_error: metrics.judge_error.clone(),
         gate_status: metrics.gate_status,
         gate_details: metrics
             .details

@@ -14,6 +14,9 @@ fn format_score(score: Option<f64>) -> String {
 }
 
 fn format_judge(record: &ResultRecord) -> String {
+    if record.metrics.judge_error.is_some() {
+        return "error".to_string();
+    }
     match (record.judge_score, record.metrics.judge_threshold) {
         (Some(score), Some(threshold)) => {
             format!("{:.2} ({:.2}) {:+.2}", score, threshold, score - threshold)
@@ -87,6 +90,9 @@ fn format_run_status(record: &ResultRecord) -> String {
             failed_guardrails(record).join(", ")
         );
     }
+    if record.metrics.judge_error.is_some() {
+        return "completed; judge error".to_string();
+    }
     if let Some(false) = record.metrics.judge_passed {
         return "judge threshold attention".to_string();
     }
@@ -142,6 +148,9 @@ pub fn print_result_summary(record: &ResultRecord) {
     }
     if let Some(true) = record.metrics.judge_passed {
         println!("Judge threshold: met");
+    }
+    if let Some(error) = &record.metrics.judge_error {
+        println!("Judge Error: {error}");
     }
     if let Some(composite_score) = record.metrics.composite_score {
         println!(

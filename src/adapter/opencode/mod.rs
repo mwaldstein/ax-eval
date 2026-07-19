@@ -6,10 +6,16 @@ use crate::scenario::{McpTarget, McpTransport, Scenario, TargetConfig};
 use crate::session::SessionRunner;
 use crate::target_env::expand_target_env_value;
 use crate::target_env::{AgentEnvironment, TargetEnvironment};
+use anyhow::Context;
 use serde_json::{Map, Value};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct OpenCodeAdapter;
+
+fn workspace_for_run(cwd: &Path) -> anyhow::Result<PathBuf> {
+    cwd.canonicalize()
+        .with_context(|| format!("Failed to resolve workspace {}", cwd.display()))
+}
 
 impl ToolAdapter for OpenCodeAdapter {
     fn required_agent_env(&self) -> &'static [&'static str] {
@@ -98,6 +104,7 @@ impl ToolAdapter for OpenCodeAdapter {
         agent_env: &AgentEnvironment,
     ) -> anyhow::Result<ToolRunOutput> {
         let runner = SessionRunner::new();
+        let cwd = workspace_for_run(cwd)?;
 
         let mut args: Vec<String> = vec![
             "run".to_string(),
@@ -112,10 +119,7 @@ impl ToolAdapter for OpenCodeAdapter {
         }
         args.push(scenario.task.prompt.clone());
 
-        let xdg_config_dir = cwd
-            .canonicalize()
-            .unwrap_or_else(|_| cwd.to_path_buf())
-            .join(".opencode_config");
+        let xdg_config_dir = cwd.join(".opencode_config");
         std::fs::create_dir_all(&xdg_config_dir).ok();
         let mut env_vars = agent_env.to_session_env();
         env_vars.push((
@@ -127,7 +131,7 @@ impl ToolAdapter for OpenCodeAdapter {
         let result = runner.run_command_result_with_projected_env(
             "opencode",
             &arg_refs,
-            cwd,
+            &cwd,
             timeout_secs,
             &env_vars,
         )?;
@@ -497,5 +501,25 @@ mod tests {
         let content = std::fs::read_to_string(opencode_config_path(&workspace)).expect("config");
         assert!(!content.contains("Authorization"));
         assert!(!content.contains(r#""oauth""#));
+    }
+
+    #[test]
+    fn resolves_relative_workspace_once_for_cwd_and_dir_argument() {
+        let workspace = tempfile::Builder::new()
+            .prefix("opencode-workspace-")
+            .tempdir_in(".")
+            .expect("workspace");
+        let relative = workspace
+            .path()
+            .strip_prefix(std::env::current_dir().expect("current dir"))
+            .expect("workspace under current dir");
+
+        let resolved = workspace_for_run(relative).expect("resolve workspace");
+
+        assert!(resolved.is_absolute());
+        assert_eq!(
+            resolved,
+            workspace.path().canonicalize().expect("canonical path")
+        );
     }
 }

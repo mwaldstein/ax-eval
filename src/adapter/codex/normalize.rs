@@ -144,6 +144,13 @@ fn mcp_event_from_item(item: &Value) -> Option<McpToolCallEvent> {
     })
 }
 
+fn is_resource_operation(item: &Value) -> bool {
+    matches!(
+        item.get("tool").and_then(Value::as_str),
+        Some("read_mcp_resource" | "list_mcp_resources" | "list_mcp_resource_templates")
+    )
+}
+
 fn extract_command_events(output: &str) -> Vec<CommandEvent> {
     let mut events = Vec::new();
 
@@ -177,6 +184,9 @@ fn extract_mcp_events(output: &str) -> Vec<McpToolCallEvent> {
         let Some(item) = mcp_item(&event) else {
             continue;
         };
+        if is_resource_operation(item) {
+            continue;
+        }
         if let Some(event) = mcp_event_from_item(item) {
             events.push(event);
         }
@@ -619,6 +629,30 @@ mod tests {
 
         let output = normalize(jsonl_output, 0);
         assert!(output.mcp_tool_call_events().unwrap().is_empty());
+    }
+
+    #[test]
+    fn excludes_resource_reads_from_mcp_tool_call_evidence() {
+        let jsonl_output = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "id": "i1",
+                "type": "mcp_tool_call",
+                "server": "yardos",
+                "tool": "read_mcp_resource",
+                "arguments": {
+                    "server": "yardos",
+                    "uri": "yardos://ships/1"
+                },
+                "success": true
+            }
+        })
+        .to_string();
+
+        let output = normalize(jsonl_output, 0);
+
+        assert!(output.mcp_tool_call_events().unwrap().is_empty());
+        assert!(output.transcript.contains("read_mcp_resource"));
     }
 
     #[test]

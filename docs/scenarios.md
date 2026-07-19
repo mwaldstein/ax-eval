@@ -716,6 +716,10 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
 }
 ```
 
+When judge execution or response parsing fails, the profile omits
+`judge_score` and includes a `judge_error` string while retaining the remaining
+metrics.
+
 ### `fixture/`
 
 The working directory is preserved inside the results directory after the run completes. It contains the original template files plus any files created or modified by the LLM agent during the scenario. Gates run against this directory, and it serves as the complete post-run state for manual inspection — no separate snapshot mechanism is needed.

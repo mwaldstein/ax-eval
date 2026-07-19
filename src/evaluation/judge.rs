@@ -6,7 +6,7 @@ use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
 use crate::target_env::{AgentEnvironment, TargetEnvironment};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Debug, Clone)]
 pub struct JudgeEvaluationResult {
@@ -14,6 +14,7 @@ pub struct JudgeEvaluationResult {
     pub response: Option<JudgeResponse>,
     pub passed: Option<bool>,
     pub threshold: Option<f64>,
+    pub error: Option<String>,
 }
 
 impl JudgeEvaluationResult {
@@ -23,6 +24,7 @@ impl JudgeEvaluationResult {
             response: None,
             passed: None,
             threshold: None,
+            error: None,
         }
     }
 
@@ -73,7 +75,7 @@ pub fn maybe_run_judge(
                     judge_config.pass_threshold,
                 ));
             }
-            let execution = run_judge_evaluation(
+            let execution = match run_judge_evaluation(
                 judge_config,
                 judge_model,
                 judge_tool,
@@ -81,7 +83,20 @@ pub fn maybe_run_judge(
                 env_root,
                 scenario_path,
                 interaction_input,
-            )?;
+            ) {
+                Ok(execution) => execution,
+                Err(error) => {
+                    let error = format!("{error:#}");
+                    warn!("judge evaluation failed: {error}");
+                    return Ok(JudgeEvaluationResult {
+                        score: None,
+                        response: None,
+                        passed: None,
+                        threshold: Some(judge_config.pass_threshold),
+                        error: Some(error),
+                    });
+                }
+            };
             let passed = execution.score.map(|s| s >= judge_config.pass_threshold);
             if let Some(s) = execution.score {
                 if s >= judge_config.pass_threshold {
@@ -101,6 +116,7 @@ pub fn maybe_run_judge(
                 response: execution.response,
                 passed,
                 threshold: Some(judge_config.pass_threshold),
+                error: None,
             });
         }
     }

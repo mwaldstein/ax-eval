@@ -72,6 +72,8 @@ pub struct EvaluationMetrics {
     pub judge_response: Option<JudgeResponse>,
     pub judge_passed: Option<bool>,
     pub judge_threshold: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub judge_error: Option<String>,
     pub efficiency: crate::transcript::EfficiencyMetrics,
     pub interaction_evidence_source: crate::interaction_profile::InteractionEvidenceSource,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

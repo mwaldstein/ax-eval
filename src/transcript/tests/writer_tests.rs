@@ -20,6 +20,7 @@ fn test_write_report_basic() {
         judge_score: Some(0.8),
         judge_passed: Some(true),
         judge_threshold: Some(0.7),
+        judge_error: None,
         composite_score: Some(0.82),
         gate_details: vec![],
         efficiency: EfficiencyReport {
@@ -65,6 +66,7 @@ fn test_write_evaluation_basic() {
         judge_score: Some(0.8),
         judge_passed: Some(true),
         judge_threshold: Some(0.7),
+        judge_error: None,
         gate_status: GateStatus::Failed,
         gate_details: vec![GateDetail {
             gate_type: "FileExists".to_string(),
@@ -130,6 +132,47 @@ fn test_write_evaluation_basic() {
 }
 
 #[test]
+fn evaluation_report_includes_judge_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let writer = TranscriptWriter::new(dir.path().to_path_buf(), dir.path().to_path_buf()).unwrap();
+    let evaluation = EvaluationReport {
+        scenario_id: "test_scenario".to_string(),
+        tool: "opencode".to_string(),
+        model: "gpt-4o".to_string(),
+        judge_score: None,
+        judge_passed: None,
+        judge_threshold: Some(0.7),
+        judge_error: Some("judge exited with code 1".to_string()),
+        gate_status: GateStatus::Passed,
+        gate_details: vec![],
+        duration_secs: 30.0,
+        cost_usd: None,
+        composite_score: None,
+        efficiency: EfficiencyReport {
+            total_commands: 2,
+            unique_commands: 2,
+            error_count: 0,
+            tool_reuse_count: 0,
+            help_invocations: 0,
+            first_try_success_rate: 1.0,
+            iteration_ratio: 1.0,
+            completed: true,
+        },
+        interaction_evidence_source:
+            crate::interaction_profile::InteractionEvidenceSource::StructuredToolCalls,
+        judge_feedback: vec![],
+        evaluator_results: vec![],
+    };
+
+    writer.write_evaluation(&evaluation).unwrap();
+
+    let content = fs::read_to_string(dir.path().join("evaluation.md")).unwrap();
+    assert!(content.contains("Judge Error"));
+    assert!(content.contains("judge exited with code 1"));
+    assert!(content.contains("completed; judge error"));
+}
+
+#[test]
 fn test_write_evaluation_without_judge_score() {
     let dir = tempfile::tempdir().unwrap();
     let writer = TranscriptWriter::new(dir.path().to_path_buf(), dir.path().to_path_buf()).unwrap();
@@ -141,6 +184,7 @@ fn test_write_evaluation_without_judge_score() {
         judge_score: None,
         judge_passed: None,
         judge_threshold: Some(0.7),
+        judge_error: None,
         gate_status: GateStatus::Passed,
         gate_details: vec![],
         duration_secs: 20.0,

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Failed judge executions and malformed judge responses now retain the
+  completed run's gates and interaction profile, with the failure recorded as
+  `judge_error` in machine-readable metrics and human-readable reports.
+
+### Fixed
+
+- OpenCode runs canonicalize the fixture workspace once before using it as both
+  the process working directory and `--dir`, preventing relative judge paths
+  from being resolved twice.
+- Codex MCP resource wrappers such as `read_mcp_resource` are no longer counted
+  as advertised server tools or warned about as undeclared tool calls. They
+  remain visible in the normalized transcript.
+
 ## [0.4.0-beta.3] - 2026-07-19
 
 ### Added

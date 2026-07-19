@@ -167,6 +167,7 @@ fn test_result_record_json_round_trip() {
             }],
             judge_passed: Some(true),
             judge_threshold: Some(0.8),
+            judge_error: None,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 3,
                 unique_commands: 2,
@@ -233,6 +234,7 @@ fn test_result_record_json_skip_none_cache_key() {
             details: vec![],
             judge_passed: None,
             judge_threshold: None,
+            judge_error: None,
             efficiency: EfficiencyMetricsRecord {
                 total_commands: 3,
                 unique_commands: 2,
@@ -318,6 +320,7 @@ fn evaluation_metrics_record_preserves_full_evaluation_profile() {
         judge_response: None,
         judge_passed: Some(false),
         judge_threshold: Some(0.7),
+        judge_error: Some("judge response was invalid".to_string()),
         efficiency: crate::transcript::EfficiencyMetrics {
             total_commands: 4,
             unique_commands: 3,
@@ -349,6 +352,10 @@ fn evaluation_metrics_record_preserves_full_evaluation_profile() {
     assert_eq!(record.details[0].message, "missing expected text");
     assert_eq!(record.judge_passed, Some(false));
     assert_eq!(record.judge_threshold, Some(0.7));
+    assert_eq!(
+        record.judge_error.as_deref(),
+        Some("judge response was invalid")
+    );
     assert_eq!(record.efficiency.total_commands, 4);
     assert_eq!(record.efficiency.help_invocations, 1);
     assert_eq!(

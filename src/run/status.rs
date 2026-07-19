@@ -7,6 +7,7 @@ pub struct RunStatus {
     pub failed_guardrails: Vec<String>,
     pub judge_passed: Option<bool>,
     pub judge_score: Option<f64>,
+    pub judge_error: Option<String>,
 }
 
 impl RunStatus {
@@ -16,6 +17,7 @@ impl RunStatus {
             failed_guardrails: failed_gate_identifiers(&metrics.details),
             judge_passed: metrics.judge_passed,
             judge_score: metrics.judge_score,
+            judge_error: metrics.judge_error.clone(),
         }
     }
 
@@ -27,6 +29,8 @@ impl RunStatus {
                 "judge score {:.2} below threshold",
                 self.judge_score.unwrap_or(0.0)
             )
+        } else if self.judge_error.is_some() {
+            "judge error".to_string()
         } else {
             "completed".to_string()
         }
@@ -71,6 +75,7 @@ mod tests {
             judge_response: None,
             judge_passed,
             judge_threshold: judge_passed.map(|_| 0.7),
+            judge_error: None,
             efficiency: EfficiencyMetrics {
                 total_commands: 0,
                 unique_commands: 0,
@@ -117,6 +122,14 @@ mod tests {
         let status = RunStatus::from_metrics(&metrics);
 
         assert_eq!(status.outcome(), "judge score 0.42 below threshold");
+    }
+
+    #[test]
+    fn status_projects_judge_execution_error() {
+        let mut metrics = metrics(GateStatus::Passed, vec![], None, None);
+        metrics.judge_error = Some("invalid judge response".to_string());
+
+        assert_eq!(determine_outcome(&metrics), "judge error");
     }
 
     #[test]

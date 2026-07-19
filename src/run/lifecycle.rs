@@ -152,6 +152,7 @@ impl<'a> ScenarioRunLifecycle<'a> {
             judge_score: None,
             judge_passed: None,
             judge_threshold: None,
+            judge_error: None,
             composite_score: None,
             gate_details: vec![],
             efficiency: EfficiencyReport {

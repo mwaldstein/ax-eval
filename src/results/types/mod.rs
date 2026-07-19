@@ -74,6 +74,9 @@ pub struct EvaluationMetricsRecord {
     /// Judge pass threshold used for this scenario (None if judge was not configured)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub judge_threshold: Option<f64>,
+    /// Judge execution or response-parsing error, if judging did not complete.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub judge_error: Option<String>,
     /// Efficiency metrics
     pub efficiency: EfficiencyMetricsRecord,
     /// Source used to build interaction metrics
@@ -211,6 +214,7 @@ impl From<crate::evaluation::EvaluationMetrics> for EvaluationMetricsRecord {
             details: value.details.into_iter().map(Into::into).collect(),
             judge_passed: value.judge_passed,
             judge_threshold: value.judge_threshold,
+            judge_error: value.judge_error,
             efficiency: value.efficiency.into(),
             interaction_evidence_source: Some(value.interaction_evidence_source),
             warnings: value.warnings,

@@ -29,6 +29,7 @@ struct MetricsBuildInput<'a> {
     judge_response: Option<JudgeResponse>,
     judge_passed: Option<bool>,
     judge_threshold: Option<f64>,
+    judge_error: Option<String>,
     interaction_profile: InteractionProfile,
 }
 
@@ -55,6 +56,7 @@ fn build_metrics(input: MetricsBuildInput<'_>) -> EvaluationMetrics {
         judge_response: input.judge_response,
         judge_passed: input.judge_passed,
         judge_threshold: input.judge_threshold,
+        judge_error: input.judge_error,
         efficiency,
         interaction_evidence_source: evidence_source,
         warnings,
@@ -149,6 +151,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
         judge_response: judge_result.response,
         judge_passed: judge_result.passed,
         judge_threshold: judge_result.threshold,
+        judge_error: judge_result.error,
         interaction_profile,
     });
 
@@ -162,7 +165,7 @@ pub fn evaluate(input: EvaluationInput<'_>) -> Result<EvaluationMetrics> {
 mod tests {
     use super::*;
     use crate::interaction_evidence::{CommandEvent, InteractionInput};
-    use crate::scenario::{Evaluation, Scenario, TargetConfig, Task};
+    use crate::scenario::{Evaluation, JudgeConfig, Scenario, TargetConfig, Task};
 
     fn scenario() -> Scenario {
         Scenario {
@@ -251,6 +254,45 @@ mod tests {
     }
 
     #[test]
+    fn judge_failure_is_recorded_without_discarding_metrics() {
+        let mut scenario = scenario();
+        scenario.evaluation.judge = Some(JudgeConfig {
+            enabled: true,
+            tool: Some("missing-judge-adapter".to_string()),
+            rubric: None,
+            criteria: vec![],
+            pass_threshold: 0.7,
+        });
+        let dir = tempfile::tempdir().expect("tempdir");
+        let interaction_input = InteractionInput::StructuredToolCalls(vec![CommandEvent {
+            command: "target status".to_string(),
+            exit_code: Some(0),
+        }]);
+
+        let metrics = evaluate(EvaluationInput {
+            scenario: &scenario,
+            env_root: dir.path(),
+            scenario_path: dir.path(),
+            no_judge: false,
+            script_runner: None,
+            judge_model: None,
+            judge_tool: None,
+            interaction_input: &interaction_input,
+            adapter_capability: AdapterEvidenceCapability::StructuredToolCalls,
+            transcript_path: dir.path().join("unused-transcript.raw.txt"),
+            completed: true,
+            target_env: &TargetEnvironment::default(),
+        })
+        .expect("judge failure should not abort evaluation");
+
+        assert_eq!(metrics.efficiency.total_commands, 1);
+        assert!(metrics
+            .judge_error
+            .as_deref()
+            .is_some_and(|error| error.contains("missing-judge-adapter")));
+    }
+
+    #[test]
     fn metrics_build_input_builds_metrics_record() {
         let scenario = scenario();
         let interaction_profile = InteractionProfile {
@@ -277,6 +319,7 @@ mod tests {
             judge_response: None,
             judge_passed: None,
             judge_threshold: None,
+            judge_error: None,
             interaction_profile,
         });
 
