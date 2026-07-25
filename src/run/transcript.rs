@@ -105,6 +105,20 @@ pub fn write_transcript_files(input: TranscriptFilesInput<'_>) -> anyhow::Result
                 response.highlights.join("\n")
             ));
         }
+        if let Some(ref prescriptiveness) = response.prescriptiveness {
+            let mut line = format!(
+                "**Guidance prescriptiveness:** level {} of {}",
+                prescriptiveness.level,
+                crate::judge::Prescriptiveness::MAX_LEVEL
+            );
+            if let Some(adjusted) = response.adjusted_score {
+                line.push_str(&format!(" (difficulty-adjusted score: {:.2})", adjusted));
+            }
+            if !prescriptiveness.rationale.is_empty() {
+                line.push_str(&format!("\n{}", prescriptiveness.rationale));
+            }
+            feedback.push(line);
+        }
         if !response.scores.is_empty() {
             let scores_text: Vec<String> = response
                 .scores

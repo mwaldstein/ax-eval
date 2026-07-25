@@ -75,6 +75,7 @@ mod tests {
                     rubric: Some("rubrics/generated_goal.yaml".to_string()),
                     criteria: vec![],
                     pass_threshold: 0.7,
+                    prescriptiveness_discount: 0.5,
                 }),
                 composite: None,
             },

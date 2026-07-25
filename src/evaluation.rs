@@ -262,6 +262,7 @@ mod tests {
             rubric: None,
             criteria: vec![],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         });
         let dir = tempfile::tempdir().expect("tempdir");
         let interaction_input = InteractionInput::StructuredToolCalls(vec![CommandEvent {

@@ -139,9 +139,11 @@ fn run_judge_evaluation(
     );
     let rubric = resolve_judge_rubric(judge_config, env_root, scenario_path)?;
     let transcript_path = env_root.join("transcript.raw.txt");
+    let agent_guidance = read_agent_guidance(env_root);
     let prompt = crate::judge::build_judge_prompt_for_target(
         &crate::judge::JudgeTargetView::from_target(&scenario.target),
         &scenario.task.prompt,
+        &agent_guidance,
         &transcript_path.display().to_string(),
         &rubric,
         mcp_tool_call_events(interaction_input),
@@ -150,7 +152,69 @@ fn run_judge_evaluation(
     let mut adapter_registry = crate::adapter::registry::AdapterRegistry::new();
     let adapter = adapter_registry.resolve_checked(tool)?;
     let judge_scenario = judge_scenario(scenario, prompt);
-    run_judge_evaluation_with_adapter(adapter.adapter(), judge_model, &judge_scenario, env_root)
+    let mut execution = run_judge_evaluation_with_adapter(
+        adapter.adapter(),
+        judge_model,
+        &judge_scenario,
+        env_root,
+    )?;
+    apply_prescriptiveness_adjustment(&mut execution, judge_config.prescriptiveness_discount);
+    Ok(execution)
+}
+
+/// Agent guidance files copied into the workspace from the scenario fixture,
+/// in the order they are shown to the judge.
+const AGENT_GUIDANCE_FILES: [&str; 2] = ["AGENTS.md", "CLAUDE.md"];
+
+/// Upper bound on the guidance excerpt handed to the judge, keeping prompts
+/// predictable even when a fixture ships an unusually large guidance file.
+const AGENT_GUIDANCE_EXCERPT_LIMIT: usize = 8_000;
+
+/// Read the agent guidance the scenario provided to the agent under test.
+///
+/// The fixture template is copied verbatim into `env_root`, so any AGENTS.md /
+/// CLAUDE.md the scenario supplied lives at the workspace root. Returns the
+/// concatenated, header-labeled contents (bounded), or an empty string when the
+/// scenario provided no guidance.
+fn read_agent_guidance(env_root: &Path) -> String {
+    let mut sections = Vec::new();
+    for name in AGENT_GUIDANCE_FILES {
+        if let Ok(content) = std::fs::read_to_string(env_root.join(name)) {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                sections.push(format!("### {name}\n{trimmed}"));
+            }
+        }
+    }
+
+    let joined = sections.join("\n\n");
+    if joined.chars().count() > AGENT_GUIDANCE_EXCERPT_LIMIT {
+        let mut truncated: String = joined.chars().take(AGENT_GUIDANCE_EXCERPT_LIMIT).collect();
+        truncated.push_str("\n… [guidance truncated]");
+        truncated
+    } else {
+        joined
+    }
+}
+
+/// Populate the difficulty-adjusted score on the parsed judge response and log
+/// the assessed prescriptiveness. The adjustment is informational: it does not
+/// change `execution.score`, which drives pass/fail and the composite.
+fn apply_prescriptiveness_adjustment(execution: &mut JudgeExecutionResult, discount: f64) {
+    let Some(response) = execution.response.as_mut() else {
+        return;
+    };
+    response.adjusted_score = response.compute_adjusted_score(discount);
+    if let (Some(prescriptiveness), Some(adjusted)) =
+        (response.prescriptiveness.as_ref(), response.adjusted_score)
+    {
+        println!(
+            "Guidance prescriptiveness: level {} of {} (difficulty-adjusted score: {:.2})",
+            prescriptiveness.level,
+            crate::judge::Prescriptiveness::MAX_LEVEL,
+            adjusted
+        );
+    }
 }
 
 fn mcp_tool_call_events(input: &InteractionInput) -> &[McpToolCallEvent] {
@@ -518,6 +582,7 @@ mod tests {
             rubric: Some("rubrics/test.yaml".to_string()),
             criteria: vec![],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         };
 
         assert_eq!(
@@ -548,6 +613,8 @@ mod tests {
             issues: vec![],
             highlights: vec!["clear".to_string()],
             scores: std::collections::HashMap::new(),
+            prescriptiveness: None,
+            adjusted_score: None,
         };
 
         let result = JudgeExecutionResult::from_response(response);
@@ -562,6 +629,87 @@ mod tests {
         );
     }
 
+    fn judge_response_with_prescriptiveness(weighted_score: f64, level: u8) -> JudgeResponse {
+        JudgeResponse {
+            weighted_score,
+            confidence: 0.9,
+            rationale: String::new(),
+            issues: vec![],
+            highlights: vec![],
+            scores: std::collections::HashMap::new(),
+            prescriptiveness: Some(crate::judge::Prescriptiveness {
+                level,
+                rationale: "assessed".to_string(),
+            }),
+            adjusted_score: None,
+        }
+    }
+
+    #[test]
+    fn adjusted_score_discounts_credit_as_prescriptiveness_rises() {
+        // Goal-only guidance leaves a perfect score untouched.
+        assert_eq!(
+            judge_response_with_prescriptiveness(1.0, 0).compute_adjusted_score(0.5),
+            Some(1.0)
+        );
+        // Step-by-step guidance removes the full configured discount.
+        assert_eq!(
+            judge_response_with_prescriptiveness(1.0, 3).compute_adjusted_score(0.5),
+            Some(0.5)
+        );
+        // Partial recipe removes a proportional share (level 2 of 3).
+        let partial = judge_response_with_prescriptiveness(0.9, 2)
+            .compute_adjusted_score(0.5)
+            .expect("adjusted score");
+        assert!((partial - 0.9 * (1.0 - (2.0 / 3.0) * 0.5)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn adjusted_score_is_none_without_prescriptiveness() {
+        let mut response = judge_response_with_prescriptiveness(0.8, 3);
+        response.prescriptiveness = None;
+        assert_eq!(response.compute_adjusted_score(0.5), None);
+    }
+
+    #[test]
+    fn apply_prescriptiveness_adjustment_populates_adjusted_score() {
+        let mut execution = JudgeExecutionResult {
+            score: Some(1.0),
+            response: Some(judge_response_with_prescriptiveness(1.0, 3)),
+        };
+
+        apply_prescriptiveness_adjustment(&mut execution, 0.5);
+
+        // The informational adjusted score is populated without touching the
+        // pass/fail-driving score.
+        assert_eq!(execution.score, Some(1.0));
+        assert_eq!(
+            execution
+                .response
+                .and_then(|response| response.adjusted_score),
+            Some(0.5)
+        );
+    }
+
+    #[test]
+    fn read_agent_guidance_concatenates_present_files_and_ignores_missing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("AGENTS.md"), "Use notes add.\n").expect("write AGENTS.md");
+        // CLAUDE.md intentionally absent.
+
+        let guidance = read_agent_guidance(dir.path());
+
+        assert!(guidance.contains("### AGENTS.md"));
+        assert!(guidance.contains("Use notes add."));
+        assert!(!guidance.contains("### CLAUDE.md"));
+    }
+
+    #[test]
+    fn read_agent_guidance_is_empty_when_no_guidance_files_exist() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        assert_eq!(read_agent_guidance(dir.path()), "");
+    }
+
     #[test]
     fn judge_rubric_defaults_to_goal_oriented_criteria() {
         let judge_config = JudgeConfig {
@@ -570,6 +718,7 @@ mod tests {
             rubric: None,
             criteria: vec![],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         };
 
         let rubric = resolve_judge_rubric(
@@ -606,6 +755,7 @@ mod tests {
                 },
             ],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         };
 
         let rubric = resolve_judge_rubric(
@@ -673,6 +823,7 @@ output:
             rubric: Some("rubrics/scenario_rubric.yaml".to_string()),
             criteria: vec![],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         };
         let rubric = resolve_judge_rubric(&judge_config, &workspace, &scenario_path)
             .expect("scenario-relative rubric");
@@ -685,6 +836,7 @@ output:
             rubric: Some("rubrics/workspace_rubric.yaml".to_string()),
             criteria: vec![],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         };
         let rubric = resolve_judge_rubric(&judge_config, &workspace, &scenario_path)
             .expect("workspace rubric");
@@ -699,6 +851,7 @@ output:
             rubric: Some("nonexistent_rubric.yaml".to_string()),
             criteria: vec![],
             pass_threshold: 0.7,
+            prescriptiveness_discount: 0.5,
         };
         let result = resolve_judge_rubric(&judge_config, &empty_workspace, &scenario_path);
         assert!(result.is_err());

@@ -36,6 +36,7 @@ fn test_build_judge_prompt_cli_wording_is_unchanged() {
     let target_aware_prompt = build_judge_prompt_for_target(
         &JudgeTargetView::from_target(&TargetConfig::cli_target("my-tool")),
         "Do the task",
+        "",
         "/path/to/transcript.txt",
         &rubric,
         &[],
@@ -48,6 +49,9 @@ Read the transcript at @/path/to/transcript.txt, then score the interaction agai
 ## Task the agent was given
 Do the task
 
+## Agent guidance the agent was given
+None provided — the agent received only the task prompt above.
+
 ## Evaluation Criteria
 - test_criterion: Test description (weight: 1.00)
 
@@ -59,6 +63,14 @@ Do the task
 - `highlights`: specific good practices observed (e.g., "Used `my-tool search` to verify data before proceeding").
 - `rationale`: 2–4 sentence explanation of the overall assessment — why the scores are what they are, what the agent did well, and where it struggled.
 
+## Guidance prescriptiveness
+Separately from the criteria above, rate how prescriptive the scenario's guidance was — the task prompt plus any agent guidance — taken as a whole. This rates the inputs the agent was handed, not its performance, so do NOT fold it into `weighted_score`; achieving a goal that was spelled out step by step is less impressive than deciding the approach unaided. Use this scale:
+- 0 (goal-only): states an outcome or goal and names no tools or steps; the agent must decide everything.
+- 1 (light hints): mentions relevant tools or capabilities but not how or when to use them.
+- 2 (partial recipe): spells out specific commands or steps for part of the task; the agent fills the gaps.
+- 3 (step-by-step): the prompt and/or guidance dictate the exact sequence of tool calls, so success is mostly obedience.
+Report the integer `level` and a one-sentence `rationale` under `prescriptiveness`.
+
 Return one valid JSON object with this exact structure:
 {
   "scores": {
@@ -69,7 +81,8 @@ Return one valid JSON object with this exact structure:
   "confidence": <confidence_0_to_1>,
   "issues": ["issue1", "issue2", ...],
   "highlights": ["good_practice1", "good_practice2", ...],
-  "rationale": "<2-4 sentence explanation of the overall assessment>"
+  "rationale": "<2-4 sentence explanation of the overall assessment>",
+  "prescriptiveness": { "level": <0_to_3>, "rationale": "<one sentence>" }
 }
 
 Wrap only that JSON object in a single <judge_result> tag:
@@ -132,6 +145,35 @@ fn test_build_judge_prompt_multiple_criteria() {
 }
 
 #[test]
+fn test_build_judge_prompt_includes_agent_guidance_when_provided() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt_for_target(
+        &JudgeTargetView::from_target(&TargetConfig::cli_target("notes")),
+        "Do the task",
+        "# Notes CLI\nRun `notes add` to create a note.",
+        "/t.txt",
+        &rubric,
+        &[],
+    );
+
+    assert!(prompt.contains("## Agent guidance the agent was given"));
+    assert!(prompt.contains("Run `notes add` to create a note."));
+    assert!(!prompt.contains("None provided —"));
+}
+
+#[test]
+fn test_build_judge_prompt_requests_prescriptiveness_rating() {
+    let rubric = single_criterion_rubric();
+    let prompt = build_judge_prompt("notes", "task", "/t.txt", &rubric);
+
+    assert!(prompt.contains("## Guidance prescriptiveness"));
+    assert!(prompt.contains("0 (goal-only)"));
+    assert!(prompt.contains("3 (step-by-step)"));
+    assert!(prompt
+        .contains(r#""prescriptiveness": { "level": <0_to_3>, "rationale": "<one sentence>" }"#));
+}
+
+#[test]
 fn test_build_judge_prompt_requests_rationale() {
     let rubric = single_criterion_rubric();
     let prompt = build_judge_prompt("notes", "task", "/t.txt", &rubric);
@@ -187,6 +229,7 @@ fn test_build_judge_prompt_for_mcp_includes_target_summary_and_structured_argume
     let prompt = build_judge_prompt_for_target(
         &JudgeTargetView::from_target(&target),
         "Create a todo",
+        "",
         "/tmp/transcript.txt",
         &rubric,
         &events,
@@ -224,6 +267,7 @@ fn test_build_judge_prompt_for_mcp_bounds_structured_excerpt() {
     let prompt = build_judge_prompt_for_target(
         &JudgeTargetView::from_target(&target),
         "Create todos",
+        "",
         "/tmp/transcript.txt",
         &rubric,
         &events,

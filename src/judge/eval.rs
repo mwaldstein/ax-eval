@@ -57,13 +57,19 @@ impl JudgeTargetView {
 
 /// Build the judge prompt for target-aware evaluation.
 ///
-/// Constructs a prompt containing the target summary, task description,
-/// transcript file reference, rubric criteria, optional MCP evidence excerpt,
-/// and required judge result format. This prompt is passed to a supported
-/// judge CLI tool.
+/// Constructs a prompt containing the target summary, task description, the
+/// agent guidance the agent was given, transcript file reference, rubric
+/// criteria, a guidance-prescriptiveness rating request, optional MCP evidence
+/// excerpt, and required judge result format. This prompt is passed to a
+/// supported judge CLI tool.
+///
+/// `agent_guidance` is the concatenated content of any AGENTS.md / CLAUDE.md the
+/// scenario provided to the agent under test; pass an empty string when the
+/// scenario supplied none.
 pub fn build_judge_prompt_for_target(
     target: &JudgeTargetView,
     task_description: &str,
+    agent_guidance: &str,
     transcript_path: &str,
     rubric: &Rubric,
     mcp_tool_call_events: &[McpToolCallEvent],
@@ -71,6 +77,7 @@ pub fn build_judge_prompt_for_target(
     build_judge_prompt_inner(
         target,
         task_description,
+        agent_guidance,
         transcript_path,
         rubric,
         &mcp_evidence_excerpt(target, mcp_tool_call_events),
@@ -90,12 +97,16 @@ pub fn build_judge_prompt(
     rubric: &Rubric,
 ) -> String {
     let target = JudgeTargetView::cli(tool_name);
-    build_judge_prompt_inner(&target, task_description, transcript_path, rubric, "")
+    build_judge_prompt_inner(&target, task_description, "", transcript_path, rubric, "")
 }
+
+/// Rendered when a scenario provided no agent guidance files.
+const NO_AGENT_GUIDANCE: &str = "None provided — the agent received only the task prompt above.";
 
 fn build_judge_prompt_inner(
     target: &JudgeTargetView,
     task_description: &str,
+    agent_guidance: &str,
     transcript_path: &str,
     rubric: &Rubric,
     evidence_excerpt: &str,
@@ -107,6 +118,12 @@ fn build_judge_prompt_inner(
         .collect::<Vec<_>>()
         .join("\n");
 
+    let guidance_block = if agent_guidance.trim().is_empty() {
+        NO_AGENT_GUIDANCE
+    } else {
+        agent_guidance.trim()
+    };
+
     format!(
         r#"You are evaluating how effectively an LLM agent used {target_summary}.
 
@@ -114,6 +131,9 @@ Read the transcript at @{transcript_path}, then score the interaction against th
 
 ## Task the agent was given
 {task_description}
+
+## Agent guidance the agent was given
+{guidance_block}
 
 ## Evaluation Criteria
 {criteria_text}
@@ -126,6 +146,14 @@ Read the transcript at @{transcript_path}, then score the interaction against th
 - `highlights`: specific good practices observed (e.g., "Used `{target_name} search` to verify data before proceeding").
 - `rationale`: 2–4 sentence explanation of the overall assessment — why the scores are what they are, what the agent did well, and where it struggled.
 
+## Guidance prescriptiveness
+Separately from the criteria above, rate how prescriptive the scenario's guidance was — the task prompt plus any agent guidance — taken as a whole. This rates the inputs the agent was handed, not its performance, so do NOT fold it into `weighted_score`; achieving a goal that was spelled out step by step is less impressive than deciding the approach unaided. Use this scale:
+- 0 (goal-only): states an outcome or goal and names no tools or steps; the agent must decide everything.
+- 1 (light hints): mentions relevant tools or capabilities but not how or when to use them.
+- 2 (partial recipe): spells out specific commands or steps for part of the task; the agent fills the gaps.
+- 3 (step-by-step): the prompt and/or guidance dictate the exact sequence of tool calls, so success is mostly obedience.
+Report the integer `level` and a one-sentence `rationale` under `prescriptiveness`.
+
 Return one valid JSON object with this exact structure:
 {{
   "scores": {{
@@ -136,7 +164,8 @@ Return one valid JSON object with this exact structure:
   "confidence": <confidence_0_to_1>,
   "issues": ["issue1", "issue2", ...],
   "highlights": ["good_practice1", "good_practice2", ...],
-  "rationale": "<2-4 sentence explanation of the overall assessment>"
+  "rationale": "<2-4 sentence explanation of the overall assessment>",
+  "prescriptiveness": {{ "level": <0_to_3>, "rationale": "<one sentence>" }}
 }}
 
 Wrap only that JSON object in a single <judge_result> tag:
@@ -148,6 +177,7 @@ Do not put prose, markdown, or code fences inside <judge_result>. If you need to
         target_summary = target.summary,
         target_name = target.name,
         task_description = task_description,
+        guidance_block = guidance_block,
         transcript_path = transcript_path,
         criteria_text = criteria_text,
         evidence_excerpt = evidence_excerpt,

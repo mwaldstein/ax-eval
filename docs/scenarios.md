@@ -291,6 +291,9 @@ evaluation:
         weight: float            # weights must sum to 1.0
         description: string
     pass_threshold: float        # 0.0-1.0
+    prescriptiveness_discount: float  # optional, 0.0-1.0 (default 0.5); max judge credit
+                                 # discounted at the most prescriptive guidance level when
+                                 # computing the informational adjusted_score. See docs/evaluation.md.
 
 tool_matrix:                     # optional
   - tool: string                 # LLM agent tool name (e.g., "opencode", "claude-code")

@@ -587,6 +587,7 @@ Common interpretations:
 - Low first-try success: the command surface or docs are misleading.
 - High command count with passing gates: the workflow may need a task-level command.
 - No target commands in a completed run: the scenario may not identify the target tool, or the task/guidance let the agent bypass it.
+- High judge score under high guidance prescriptiveness: the scenario mostly measured obedience. Compare `adjusted_score` against the raw `weighted_score`, and loosen the prompt or fixture guidance to test the agent's own judgment.
 
 Treat gates as safety checks. Treat metrics as authoring feedback.
 

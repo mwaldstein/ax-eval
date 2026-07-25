@@ -311,6 +311,18 @@ pub struct JudgeConfig {
     pub criteria: Vec<Criterion>,
     /// Minimum score threshold to pass (0.0-1.0)
     pub pass_threshold: f64,
+    /// Maximum fraction of judge credit discounted at the most prescriptive
+    /// guidance level (3) when computing the difficulty-adjusted score:
+    /// `weighted_score * (1 - (level / 3) * this)`. Informational only — it
+    /// never affects pass/fail or the composite score. Defaults to 0.5.
+    #[serde(default = "default_prescriptiveness_discount")]
+    pub prescriptiveness_discount: f64,
+}
+
+/// Default discount applied to judge credit at the most prescriptive guidance
+/// level when computing the difficulty-adjusted score.
+pub fn default_prescriptiveness_discount() -> f64 {
+    0.5
 }
 
 /// Configuration for composite scoring weights.

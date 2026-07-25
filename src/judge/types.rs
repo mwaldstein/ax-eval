@@ -57,4 +57,54 @@ pub struct JudgeResponse {
     /// Rationale explaining the overall assessment
     #[serde(default)]
     pub rationale: String,
+    /// Whole-scenario prescriptiveness of the guidance the agent was given,
+    /// assessed by the judge from the task prompt and agent guidance files.
+    /// This rates the scenario's inputs, not the agent's performance, so it sits
+    /// outside the weighted criteria. `None` when the judge did not assess it.
+    #[serde(default)]
+    pub prescriptiveness: Option<Prescriptiveness>,
+    /// Difficulty-adjusted view of `weighted_score` that discounts credit as
+    /// prescriptiveness rises. Computed by ax-eval (not the judge) via
+    /// [`JudgeResponse::compute_adjusted_score`]; it never affects pass/fail or
+    /// the composite score. `None` when prescriptiveness was not assessed.
+    #[serde(default)]
+    pub adjusted_score: Option<f64>,
+}
+
+impl JudgeResponse {
+    /// Compute the difficulty-adjusted score from the assessed prescriptiveness
+    /// level and a discount factor.
+    ///
+    /// `discount` is the maximum fraction of judge credit removed at the most
+    /// prescriptive level (3): `weighted_score * (1 - (level / 3) * discount)`.
+    /// A goal-only scenario (level 0) is unchanged. Returns `None` when
+    /// prescriptiveness was not assessed.
+    pub fn compute_adjusted_score(&self, discount: f64) -> Option<f64> {
+        self.prescriptiveness.as_ref().map(|prescriptiveness| {
+            let level = f64::from(prescriptiveness.level.min(Prescriptiveness::MAX_LEVEL));
+            let factor = 1.0 - (level / f64::from(Prescriptiveness::MAX_LEVEL)) * discount;
+            (self.weighted_score * factor).clamp(0.0, 1.0)
+        })
+    }
+}
+
+/// How prescriptive the scenario's guidance was, rated over the whole scenario
+/// (task prompt plus any agent guidance files) on a 0–3 scale.
+///
+/// - `0` (goal-only): states an outcome; names no tools or steps.
+/// - `1` (light hints): mentions relevant tools but not how or when to use them.
+/// - `2` (partial recipe): spells out steps for part of the task.
+/// - `3` (step-by-step): dictates the exact sequence of tool calls.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Prescriptiveness {
+    /// Prescriptiveness level on a 0–3 scale (see type docs).
+    pub level: u8,
+    /// One-sentence explanation for the assigned level.
+    #[serde(default)]
+    pub rationale: String,
+}
+
+impl Prescriptiveness {
+    /// The most prescriptive level on the scale (step-by-step).
+    pub const MAX_LEVEL: u8 = 3;
 }

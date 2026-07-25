@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0-beta.4] - 2026-07-19
+### Added
+
+- The judge now rates **guidance prescriptiveness** for each scenario on a 0–3
+  scale (goal-only → step-by-step), reported as its own `prescriptiveness` axis
+  (level + rationale) outside the weighted criteria. The judge prompt now
+  includes the agent guidance (`AGENTS.md` / `CLAUDE.md`) the agent was given so
+  it can assess how much the scenario spelled out.
+- A derived, informational `adjusted_score` discounts judge credit as
+  prescriptiveness rises: `weighted_score * (1 - (level / 3) * discount)`. The
+  discount is configurable via `evaluation.judge.prescriptiveness_discount`
+  (default `0.5`). It never affects the judge pass/fail threshold or the
+  composite score, which continue to use the raw `weighted_score`. Both fields
+  are recorded in machine-readable metrics and human-readable reports.
 
 ### Added
 

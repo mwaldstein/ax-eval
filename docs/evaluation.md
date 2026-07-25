@@ -301,7 +301,7 @@ retained, `judge_score` remains absent, and `judge_error` records the failure in
 `metrics.json`, `results.jsonl`, and the human-readable reports.
 
 Execution flow:
-1. Build a judge prompt containing the **tool name** (from `target.binary`), task description, transcript file reference, and rubric criteria. The tool name is parameterized so the judge can evaluate how effectively the agent used *that specific tool*.
+1. Build a judge prompt containing the **tool name** (from `target.binary`), task description, the **agent guidance** the agent was given (any `AGENTS.md` / `CLAUDE.md` the scenario fixture supplied, or "None provided"), transcript file reference, and rubric criteria. The tool name is parameterized so the judge can evaluate how effectively the agent used *that specific tool*.
 2. Invoke the configured CLI tool via `SessionRunner`.
 3. Parse stdout as JSON into `JudgeResponse`.
 
@@ -321,11 +321,45 @@ The judge must return JSON matching the `JudgeResponse` schema:
   "confidence": 0.80,
   "issues": ["Retried 'create' command 3 times with same args"],
   "highlights": ["Good use of search to verify data was captured"],
-  "rationale": "The agent completed the task successfully but took a circuitous path, retrying the create command multiple times before correcting its syntax. It used search appropriately to verify intermediate results."
+  "rationale": "The agent completed the task successfully but took a circuitous path, retrying the create command multiple times before correcting its syntax. It used search appropriately to verify intermediate results.",
+  "prescriptiveness": { "level": 1, "rationale": "The guidance names the relevant commands but not the order or when to use them." }
 }
 ```
 
 The `rationale` field is required — a 2–4 sentence explanation of the overall assessment that gives the evaluation consumer context for interpreting the scores.
+
+### Guidance Prescriptiveness
+
+Perfect tool use is not equally impressive across scenarios: doing exactly what an
+`AGENTS.md` spelled out step by step measures obedience, while achieving a bare goal
+unaided measures judgment. To keep those apart, the judge rates **how prescriptive the
+scenario's guidance was** — the task prompt plus any agent guidance, taken as a whole —
+on a 0–3 scale:
+
+| Level | Name | Meaning |
+|-------|------|---------|
+| 0 | Goal-only | States an outcome; names no tools or steps. The agent decides everything. |
+| 1 | Light hints | Mentions relevant tools or capabilities but not how or when to use them. |
+| 2 | Partial recipe | Spells out specific commands or steps for part of the task; the agent fills the gaps. |
+| 3 | Step-by-step | The prompt and/or guidance dictate the exact tool-call sequence; success is mostly obedience. |
+
+Prescriptiveness is a property of the scenario's **inputs**, not the agent's performance,
+so it lives **outside** the weighted criteria and never enters `weighted_score`. It is
+reported as its own axis (`prescriptiveness.level` + `rationale`).
+
+From it, ax-eval derives a difficulty-adjusted view, `adjusted_score`, computed by the
+harness (not the judge):
+
+```
+adjusted_score = weighted_score * (1 - (level / 3) * prescriptiveness_discount)
+```
+
+`prescriptiveness_discount` (scenario `evaluation.judge.prescriptiveness_discount`,
+default `0.5`) is the maximum fraction of judge credit removed at level 3. With the
+default, a perfect `1.0` on a step-by-step scenario surfaces as an adjusted `0.5`, while a
+goal-only scenario (level 0) is unchanged. `adjusted_score` is **informational**: it does
+not affect the judge pass/fail threshold or the composite score, both of which continue to
+use the raw `weighted_score`.
 
 ### Pass Threshold
 
@@ -350,6 +384,9 @@ evaluation:
     enabled: true
     tool: opencode
     pass_threshold: 0.70
+    # Optional. Max fraction of judge credit discounted at the most prescriptive
+    # guidance level (3) when computing the informational adjusted_score. Default 0.5.
+    prescriptiveness_discount: 0.5
 ```
 
 To define custom criteria in a reusable rubric file, run `ax-eval template rubric`
