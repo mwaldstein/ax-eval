@@ -40,11 +40,11 @@ Options:
       --cache
           Enable result caching (skip re-runs for unchanged scenario/tool/model)
 
-  -v, --verbose
-          Enable verbose output (or set RUST_LOG for fine-grained control)
-
       --judge-model <JUDGE_MODEL>
           Judge model for LLM-as-judge evaluation
+
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
 
       --judge-tool <JUDGE_TOOL>
           Tool to use for LLM-as-judge evaluation (defaults to judge config or opencode)

@@ -3,6 +3,7 @@
 //! Evaluates LLM tools against test scenarios with automatic judging.
 
 mod adapter;
+mod calibration;
 mod cli;
 mod command_execution;
 mod commands;
@@ -274,6 +275,27 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Template { kind } => {
             commands::handle_template_command(*kind);
+        }
+        Commands::Calibrate {
+            suite,
+            judge_tool,
+            judge_model,
+        } => {
+            // The judge spends LLM credits, so require the same explicit consent
+            // as a real run.
+            if std::env::var("AX_EVAL_ENABLED").as_deref() != Ok("1") {
+                anyhow::bail!(
+                    "Judge calibration runs the real LLM-as-judge and requires AX_EVAL_ENABLED=1 as an explicit safety consent.\n\
+                     \n\
+                     To run calibration, set:\n\
+                     export AX_EVAL_ENABLED=1"
+                );
+            }
+            commands::handle_calibrate_command(
+                suite.as_deref(),
+                judge_tool.as_deref(),
+                judge_model.as_deref(),
+            )?;
         }
         Commands::Validate { scenario, all } => {
             commands::handle_validate_command(scenario, *all)?;

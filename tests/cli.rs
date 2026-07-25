@@ -1538,3 +1538,18 @@ fn snapshot_help_guidance() {
 fn snapshot_help_template() {
     assert_help_snapshot(Some("template"), "template");
 }
+
+#[test]
+fn snapshot_help_calibrate() {
+    assert_help_snapshot(Some("calibrate"), "calibrate");
+}
+
+#[test]
+fn test_calibrate_requires_safety_env_var() {
+    ax_eval()
+        .args(["calibrate"])
+        .env_remove("AX_EVAL_ENABLED")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("AX_EVAL_ENABLED=1"));
+}

@@ -1,0 +1,18 @@
+$ ./taskmgr help
+taskmgr — a tiny task manager
+Commands:
+  add "<title>"   add a task
+  list            list tasks
+  done <id>       mark a task done
+$ ./taskmgr add "buy milk"
+Added task #1: buy milk
+$ ./taskmgr add "call dentist"
+Added task #2: call dentist
+$ ./taskmgr add "submit report"
+Added task #3: submit report
+$ ./taskmgr done 1
+Marked task #1 done: buy milk
+$ ./taskmgr list
+[x] #1 buy milk
+[ ] #2 call dentist
+[ ] #3 submit report

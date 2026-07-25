@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `ax-eval calibrate` command measures judge leniency against a **calibration
+  suite** — frozen agent transcripts each paired with a known target score band,
+  spanning a flawless run down to an outright failure. It scores every transcript
+  through the production judge path and reports a per-case signed error plus an
+  aggregate leniency index, exiting non-zero when any case lands out of band (a
+  regression guard for judge-prompt and rubric changes). A bundled suite ships at
+  `ax-eval-fixtures/calibration/calibration.yaml`. Requires `AX_EVAL_ENABLED=1`.
 - The judge now rates **guidance prescriptiveness** for each scenario on a 0–3
   scale (goal-only → step-by-step), reported as its own `prescriptiveness` axis
   (level + rationale) outside the weighted criteria. The judge prompt now

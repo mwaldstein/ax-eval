@@ -5,7 +5,7 @@ mod profile;
 
 use self::evaluators::run_evaluators;
 use self::gates::{evaluate_gates, GateEvaluationContext};
-use self::judge::maybe_run_judge;
+pub use self::judge::maybe_run_judge;
 pub use self::profile::{
     failed_gate_identifiers, EvaluationMetrics, EvaluatorResult, GateResult, GateStatus, ScoreTier,
 };

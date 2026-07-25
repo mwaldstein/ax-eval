@@ -1,0 +1,57 @@
+# Judge calibration suite.
+#
+# Each case is a frozen agent transcript with a KNOWN target score band. Running
+# the suite (`ax-eval calibrate`) feeds each transcript to the real LLM-as-judge
+# under the shared task + rubric below and checks whether the judge's score lands
+# in band. The spread of cases — from a flawless run down to an outright failure —
+# makes judge leniency measurable: a lenient judge inflates the low cases
+# (`sloppy_success`, `partial`, `failed`) above their bands.
+#
+# Bands encode the INTENDED score for each run. They are the yardstick a prompt
+# change is validated against; keep them stable unless the scoring intent itself
+# changes.
+
+target:
+  binary: taskmgr
+
+task:
+  prompt: |
+    Using the `taskmgr` CLI, add three tasks — "buy milk", "call dentist", and
+    "submit report" — then mark the "buy milk" task done. Confirm the final list
+    shows all three tasks with only "buy milk" completed.
+
+# Uses the default judge rubric (task_completion 0.50 / tool_usage_correctness
+# 0.30 / efficiency 0.20) — the rubric most scenarios inherit, and the one we
+# most want to keep honest. Set `rubric:` or inline `criteria:` to calibrate a
+# different one.
+
+cases:
+  - name: flawless
+    label: Correct, efficient, verified in one clean pass
+    transcript: transcripts/flawless.txt
+    expected: { min: 0.88, max: 1.00 }
+
+  # Bands account for the default rubric's weighting: task_completion carries
+  # 0.50, so a fully COMPLETED run floors high and a single-dimension dock only
+  # moves the weighted score ~0.05. `recovered` and `sloppy_success` both reach
+  # the correct end state, so their bands sit higher than a holistic gut-read
+  # would suggest.
+  - name: recovered
+    label: One recoverable stumble, then a clean correct run
+    transcript: transcripts/recovered.txt
+    expected: { min: 0.82, max: 0.93 }
+
+  - name: sloppy_success
+    label: Correct final state reached via a messy, error-strewn path
+    transcript: transcripts/sloppy_success.txt
+    expected: { min: 0.50, max: 0.70 }
+
+  - name: partial
+    label: Only part of the task done; a required task never added
+    transcript: transcripts/partial.txt
+    expected: { min: 0.25, max: 0.42 }
+
+  - name: failed
+    label: Goal not achieved through the tool at all
+    transcript: transcripts/failed.txt
+    expected: { min: 0.00, max: 0.20 }

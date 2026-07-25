@@ -1,0 +1,27 @@
+$ ./taskmgr add buy milk
+error: too many arguments; wrap the title in quotes: taskmgr add "<title>"
+$ ./taskmgr add "buy milk"
+Added task #1: buy milk
+$ ./taskmgr list
+[ ] #1 buy milk
+$ ./taskmgr add "call dentist"
+Added task #2: call dentist
+$ ./taskmgr list
+[ ] #1 buy milk
+[ ] #2 call dentist
+$ ./taskmgr add "submit report"
+Added task #3: submit report
+$ ./taskmgr complete 1
+error: unknown command `complete`. Did you mean `done`?
+$ ./taskmgr done one
+error: task id must be a number, got `one`
+$ ./taskmgr done 1
+Marked task #1 done: buy milk
+$ ./taskmgr list
+[x] #1 buy milk
+[ ] #2 call dentist
+[ ] #3 submit report
+$ ./taskmgr list
+[x] #1 buy milk
+[ ] #2 call dentist
+[ ] #3 submit report

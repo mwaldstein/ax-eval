@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
@@ -173,6 +174,24 @@ pub enum Commands {
         /// Template to print
         #[arg(value_enum)]
         kind: TemplateKind,
+    },
+    /// Measure judge leniency against frozen transcripts with known target scores
+    #[command(
+        long_about = "Run the judge against a calibration suite: frozen agent transcripts each paired with a known target score band.\n\nEach transcript is scored by the real LLM-as-judge through the production evaluation path, and its score is checked against the case's band. Because the cases span a flawless run down to an outright failure, the aggregate signed error is a direct measure of judge leniency — a lenient judge inflates the low cases. Use this to validate judge-prompt changes.\n\nRequires AX_EVAL_ENABLED=1 (it spends LLM credits). Exits non-zero if any case scores out of band.",
+        after_help = "Examples:\n  AX_EVAL_ENABLED=1 ax-eval calibrate\n  AX_EVAL_ENABLED=1 ax-eval calibrate --judge-tool codex --judge-model o4-mini\n  AX_EVAL_ENABLED=1 ax-eval calibrate --suite my-suite/calibration.yaml"
+    )]
+    Calibrate {
+        /// Path to the calibration suite YAML (default: bundled suite)
+        #[arg(long)]
+        suite: Option<PathBuf>,
+
+        /// Judge CLI tool override (opencode, codex, claude, claude-code)
+        #[arg(long)]
+        judge_tool: Option<String>,
+
+        /// Judge model override
+        #[arg(long)]
+        judge_model: Option<String>,
     },
 }
 

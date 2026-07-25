@@ -1,0 +1,9 @@
+$ ./taskmgr add "buy milk"
+Added task #1: buy milk
+$ ./taskmgr add "call dentist"
+Added task #2: call dentist
+$ ./taskmgr done 1
+Marked task #1 done: buy milk
+$ ./taskmgr list
+[x] #1 buy milk
+[ ] #2 call dentist

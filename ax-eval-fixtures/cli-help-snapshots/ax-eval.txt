@@ -25,6 +25,7 @@ Commands:
   guidance   Show guidance for building LLM-usable tools and docs
   validate   Validate scenario YAML without running
   template   Print copyable scenario, config, rubric, and script templates
+  calibrate  Measure judge leniency against frozen transcripts with known target scores
   help       Print this message or the help of the given subcommand(s)
 
 Options:

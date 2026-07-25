@@ -1,0 +1,7 @@
+$ ls
+README.md  taskmgr
+$ echo "buy milk, call dentist, submit report" > tasks.txt
+$ cat tasks.txt
+buy milk, call dentist, submit report
+$ ./taskmgr list
+(no tasks)

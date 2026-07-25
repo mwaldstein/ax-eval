@@ -392,6 +392,57 @@ evaluation:
 To define custom criteria in a reusable rubric file, run `ax-eval template rubric`
 for a copyable starting point and reference it via `evaluation.judge.rubric`.
 
+### Judge Calibration
+
+An LLM-as-judge can drift — most commonly toward **leniency**, inflating mediocre
+runs because "it eventually worked." Calibration makes that measurable instead of
+a matter of vibes, and it is the guard rail for any change to the judge prompt or
+rubric.
+
+A calibration **suite** is a set of frozen agent transcripts, each paired with a
+known target score **band**. The bundled suite lives at
+`ax-eval-fixtures/calibration/calibration.yaml` and spans one task executed at
+five quality levels:
+
+| Case | What the transcript shows | Target band |
+|------|---------------------------|-------------|
+| `flawless` | Correct, efficient, verified in one clean pass | 0.88–1.00 |
+| `recovered` | One recoverable stumble, then a clean correct run | 0.82–0.93 |
+| `sloppy_success` | Correct final state reached via a messy, error-strewn path | 0.50–0.70 |
+| `partial` | Only part of the task done; a required step never taken | 0.25–0.42 |
+| `failed` | Goal not achieved through the tool at all | 0.00–0.20 |
+
+The bands account for the default rubric's weighting: because `task_completion`
+carries 0.50, a *completed* run floors higher than a holistic read suggests, and a
+single-dimension dock only moves the weighted score by roughly 0.05. If the intent
+is that messy or partially-correct runs should score lower, the lever is the rubric
+*weights* (shift weight onto `tool_usage_correctness` / `efficiency`), not just the
+judge prompt.
+
+`ax-eval calibrate` feeds each transcript to the real judge **through the
+production evaluation path** (the same `maybe_run_judge` a scenario uses), then
+checks whether the judge's score lands in band. Each case reports a **signed
+error** against the band midpoint, and the suite reports a **leniency index** —
+the mean signed error across cases. A positive index means the judge scores above
+target overall; the low cases (`sloppy_success`, `partial`, `failed`) are where a
+lenient judge betrays itself.
+
+```
+AX_EVAL_ENABLED=1 ax-eval calibrate
+AX_EVAL_ENABLED=1 ax-eval calibrate --judge-tool codex --judge-model o4-mini
+AX_EVAL_ENABLED=1 ax-eval calibrate --suite path/to/calibration.yaml
+```
+
+The command needs a live judge adapter (it spends LLM credits), so it requires
+`AX_EVAL_ENABLED=1` and **exits non-zero if any case scores out of band** — making
+it usable as a regression check. The target bands encode the *intended* score for
+each run; treat them as the fixed yardstick and change them only when the scoring
+intent itself changes, not to accommodate a judge that has drifted.
+
+To calibrate against a different rubric, set `rubric:` or inline `criteria:` in the
+suite file; by default the suite uses the same default rubric most scenarios
+inherit.
+
 ---
 
 ## Composite Scoring

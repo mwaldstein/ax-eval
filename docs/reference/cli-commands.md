@@ -33,6 +33,7 @@ Commands:
   guidance   Show guidance for building LLM-usable tools and docs
   validate   Validate scenario YAML without running
   template   Print copyable scenario, config, rubric, and script templates
+  calibrate  Measure judge leniency against frozen transcripts with known target scores
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -101,11 +102,11 @@ Options:
       --cache
           Enable result caching (skip re-runs for unchanged scenario/tool/model)
 
-  -v, --verbose
-          Enable verbose output (or set RUST_LOG for fine-grained control)
-
       --judge-model <JUDGE_MODEL>
           Judge model for LLM-as-judge evaluation
+
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
 
       --judge-tool <JUDGE_TOOL>
           Tool to use for LLM-as-judge evaluation (defaults to judge config or opencode)
@@ -296,5 +297,38 @@ Options:
 
   -h, --help
           Print help (see a summary with '-h')
+```
+
+## ax-eval calibrate
+
+```
+Run the judge against a calibration suite: frozen agent transcripts each paired with a known target score band.
+
+Each transcript is scored by the real LLM-as-judge through the production evaluation path, and its score is checked against the case's band. Because the cases span a flawless run down to an outright failure, the aggregate signed error is a direct measure of judge leniency — a lenient judge inflates the low cases. Use this to validate judge-prompt changes.
+
+Requires AX_EVAL_ENABLED=1 (it spends LLM credits). Exits non-zero if any case scores out of band.
+
+Usage: ax-eval calibrate [OPTIONS]
+
+Options:
+      --suite <SUITE>
+          Path to the calibration suite YAML (default: bundled suite)
+
+      --judge-tool <JUDGE_TOOL>
+          Judge CLI tool override (opencode, codex, claude, claude-code)
+
+      --judge-model <JUDGE_MODEL>
+          Judge model override
+
+  -v, --verbose
+          Enable verbose output (or set RUST_LOG for fine-grained control)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  AX_EVAL_ENABLED=1 ax-eval calibrate
+  AX_EVAL_ENABLED=1 ax-eval calibrate --judge-tool codex --judge-model o4-mini
+  AX_EVAL_ENABLED=1 ax-eval calibrate --suite my-suite/calibration.yaml
 ```
 

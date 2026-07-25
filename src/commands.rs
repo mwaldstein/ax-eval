@@ -650,6 +650,44 @@ pub fn handle_validate_command(scenario: &Option<String>, all: bool) -> anyhow::
     }
 }
 
+/// Run the judge calibration suite and report leniency.
+///
+/// Loads the suite (bundled default unless `suite` overrides it), judges every
+/// frozen case, prints the report, and fails when any case scores out of band.
+pub fn handle_calibrate_command(
+    suite: Option<&Path>,
+    judge_tool: Option<&str>,
+    judge_model: Option<&str>,
+) -> anyhow::Result<()> {
+    let suite_path = match suite {
+        Some(path) => path.to_path_buf(),
+        None => crate::utils::resolve_fixtures_path("calibration/calibration.yaml"),
+    };
+
+    let report = crate::calibration::run_suite(
+        &suite_path,
+        &crate::calibration::CalibrationRun {
+            judge_tool,
+            judge_model,
+        },
+    )?;
+
+    println!();
+    print!("{}", report.render());
+
+    let out_of_band = report.out_of_band().len();
+    if out_of_band > 0 {
+        anyhow::bail!(
+            "Judge calibration: {out_of_band} of {} scored case(s) out of band",
+            report.scored_count()
+        );
+    }
+    if report.scored_count() == 0 {
+        anyhow::bail!("Judge calibration: no cases produced a score");
+    }
+    Ok(())
+}
+
 fn green_check() -> &'static str {
     if supports_color() {
         "\x1b[32m\u{2713}\x1b[0m"
