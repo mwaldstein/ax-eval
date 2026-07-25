@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Recalibrated the judge scoring guidance to reduce leniency. The judge prompt now
+  requires enumerating an ideal run and each observed deviation **before** scoring,
+  scores each criterion against explicit quality bands, and applies hard caps
+  (incomplete work or a wrong final state caps `weighted_score` at 0.40; listed
+  material issues bar the top bands). Against the bundled calibration suite this
+  cut the leniency index from +0.177 to +0.017. This changes reported judge scores
+  for imperfect runs — expect messy and partially-complete runs to score lower.
+
 ### Added
 
 - New `ax-eval calibrate` command measures judge leniency against a **calibration

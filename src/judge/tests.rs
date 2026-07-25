@@ -55,10 +55,27 @@ None provided — the agent received only the task prompt above.
 ## Evaluation Criteria
 - test_criterion: Test description (weight: 1.00)
 
-## Scoring Guidelines
-- Score each criterion 0.0–1.0. 0.0 = complete failure, 0.5 = partial, 1.0 = excellent.
-- Compute `weighted_score` as the weighted average across all criteria.
-- `confidence` reflects how certain you are in your scores (0.0–1.0). Lower confidence if the transcript is ambiguous or incomplete.
+## How to score
+Do the analysis before you assign any number. Be a demanding reviewer: the top band is for genuinely flawless, expert-level work, and most real runs are not flawless. Do not inflate a score to balance out the highlights.
+
+First, in prose OUTSIDE the <judge_result> tag, write two or three sentences covering:
+1. What an ideal run of this task looks like — the essential steps and the correct end state.
+2. Every deviation you see in the transcript: invalid or wrong commands, retries, dead ends, missed verification, redundant steps, and — most important — any required part of the task left undone or any incorrect final state.
+
+Then score each criterion 0.0–1.0, and make the scores reflect that list. Use these bands for every criterion:
+- 0.90–1.00 — Flawless on this dimension: no material shortcoming.
+- 0.70–0.85 — Strong: one minor, recoverable shortcoming.
+- 0.50–0.65 — Mixed: repeated problems, though the dimension's goal was ultimately met.
+- 0.30–0.45 — Weak: the dimension's goal was only partly met.
+- 0.10–0.25 — Poor: the dimension's goal was largely not met.
+- 0.00 — Absent: not met at all.
+
+Hard caps — apply these after scoring, overriding the bands above:
+- If any required part of the task is left undone or the final state is wrong, that is the dominant fact about the run: score task completion at 0.40 or below AND cap the overall `weighted_score` at 0.40 or below, even if every command was valid and efficient. Incomplete work is not a B.
+- A run for which you listed several material issues cannot land in the top two bands (0.70+). If your score and your `issues` disagree, lower the score.
+
+Then compute `weighted_score` as the weighted average across all criteria (subject to the caps above), and fill in:
+- `confidence`: how certain you are in your scores (0.0–1.0). Lower it if the transcript is ambiguous or incomplete.
 - `issues`: specific problems observed (e.g., "Retried `my-tool create` 3 times with same args").
 - `highlights`: specific good practices observed (e.g., "Used `my-tool search` to verify data before proceeding").
 - `rationale`: 2–4 sentence explanation of the overall assessment — why the scores are what they are, what the agent did well, and where it struggled.
