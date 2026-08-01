@@ -223,12 +223,10 @@ Codex MCP runs sharing a home directory wait rather than modifying the file at
 the same time. This is an accepted isolation tradeoff; see the
 [fixture isolation tradeoffs](tradeoffs.md).
 
-Before provisioning the agent host, ax-eval connects directly to stdio and
-Streamable HTTP MCP targets, performs `tools/list`, writes the full response to
-`artifacts/mcp-tools-list.json`, and verifies every declared `target.tools`
-name. Stale declarations therefore fail before agent execution. Targets using
-`host_session` skip this step because their credentials exist only inside the
-agent host; they retain first-call validation behavior.
+ax-eval does not connect to the MCP target itself. It passes the rendered
+configuration to the selected agent host, which owns protocol negotiation and
+tool discovery. Connection and discovery failures remain part of the agent run
+transcript so gates and the judge can evaluate the failure in context.
 
 #### Authenticating to protected MCP servers
 

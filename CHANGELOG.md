@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed ax-eval's direct MCP `initialize` / `tools/list` preflight and the
+  `artifacts/mcp-tools-list.json` artifact. The selected agent host now owns all
+  MCP protocol negotiation and discovery; connection failures flow through the
+  normal transcript and evaluation path instead of aborting before the run.
+
 ### Changed
 
 - Recalibrated the judge scoring guidance to reduce leniency. The judge prompt now

@@ -71,18 +71,16 @@ Three changes, each additive:
    the MCP variant carries an agent-agnostic transport.
 2. **Adapter-owned provisioning.** A new `ToolAdapter::provision_target` hook
    writes the host's native MCP config into the workspace before `run()`.
-3. **Harness inspection.** Before provisioning the agent host, ax-eval captures
-   `tools/list` and validates the declared allow-list.
-4. **Additive evidence + unified metrics.** A new `McpToolCallEvent` variant
+3. **Additive evidence + unified metrics.** A new `McpToolCallEvent` variant
    carries structured MCP calls; the metric engine is refactored onto an
    `(action, outcome)` projection shared by both kinds.
 
 ```text
-fixture copy → inspect tools/list → provision_target (--tool) → adapter.run()
+fixture copy → provision_target (--tool) → adapter.run()
 ```
 
-`provision_target` runs after inspection and before the adapter, so MCP config
-lands in the same workspace the agent reads.
+`provision_target` runs before the adapter, so MCP config lands in the same
+workspace the agent reads.
 
 ---
 
@@ -174,13 +172,11 @@ surface is not obvious from its name; declaring it lets the harness validate
 observed calls against the intended surface and gives the judge a bounded tool
 list.
 
-Before a real agent run, ax-eval performs the MCP initialization handshake and
-`tools/list` directly against stdio and Streamable HTTP targets. It retains the
-complete response as `artifacts/mcp-tools-list.json` and fails before agent
-execution when a declared tool is absent. This captures the exact names,
-descriptions, input schemas, and annotations available from the server. HTTP
-targets using `host_session` are excluded because those credentials are held by
-the agent host and are not available to ax-eval's inspection client.
+ax-eval does not connect to the MCP server directly. The selected agent host
+owns MCP initialization, version negotiation, authentication, and `tools/list`.
+Connection and discovery failures are retained in the harness transcript and
+evaluated with the rest of the run. The scenario's declared `tools` list remains
+the bounded target surface used for evidence matching and judge context.
 
 ---
 
@@ -372,8 +368,7 @@ unchanged.
 
 - **Health:** v1 keeps `health_check` as an optional shell command. MCP
   scenarios typically ship a probe script in the fixture (e.g. a small CLI the
-  server exposes, or a script that reads the backing store). A first-class
-  `mcp_ping` health/gate is a follow-up built on the inspection client.
+  server exposes, or a script that reads the backing store).
 - **Gates:** unchanged. MCP scenarios lean on `script` gates and `evaluators`
   (`docs/scripts.md`) because server state is usually not filesystem-visible.
   No new gate type is required for v1; an `mcp_tool_succeeds` gate is a natural
@@ -423,9 +418,9 @@ inspect stage provisions the server into a scratch workspace via the same
 exercise tools through its host — exactly as CLI discovery probes `--help`.
 This measures the *experienced* self-description surface (what the metadata
 communicates through a real harness), which is truer to the framework's
-philosophy than a raw `tools/list` dump alone. The evaluation-time inspector
-provides the authoritative metadata artifact and allow-list validation, while
-the discovery agent measures what that surface communicates in practice.
+philosophy than a raw `tools/list` dump alone. The discovery agent measures
+what that surface communicates in practice through the same host used by an
+evaluation run.
 
 ### The port, stage by stage
 
@@ -453,23 +448,21 @@ unchanged; each stage's prompt and contract adapts:
   analogue of help-text recommendations for CLI authors.
 - **Author.** The discovery contract ports verbatim: `gates: []`, judge
   primary, goal-oriented prompts. The authoring agent writes the `tools`
-  allow-list from what it observed in session; `validate` checks it as
-  usual.
+  allow-list from what it observed in session; evaluation matches structured
+  calls against that declared surface as usual.
 - **Run and summarize.** Unchanged machinery. The summary prompt's failure
   attribution gains one category: alongside fixture-authoring, agent-usage,
   and harness problems, **description/schema problems** — the category the
   server author can actually act on.
 
-### What remains to build on the protocol client
+### Future discovery analysis
 
-The evaluation-time MCP client now captures `tools/list` and validates scenario
-declarations. Discovery can build on it to add:
+Future agent-mediated discovery could add:
 
 - the **declared-vs-understood delta report**: diff the authoritative
   `tools/list` against the understanding document and the run evidence —
   "12 tools declared; the understanding covers 7 correctly; 3 were never
   exercised; `search`'s `date` parameter was misused in every scenario";
-- the `mcp_ping` health gate.
 
 Sequencing: agent-mediated MCP discovery requires only Stages 1–2 (schema +
 provisioning) plus prompt and stamping work, and slots in as a stage after
@@ -481,7 +474,6 @@ the core six. The delta report remains deferred.
 
 ```text
 fixture copy (verbatim)
-  → inspect tools/list                    [this doc]
   → provision_target (--tool)             [this doc]
   → adapter.run()                         [ADR-0001]
   → persist transcript + command events   [existing]

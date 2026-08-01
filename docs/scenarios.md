@@ -668,8 +668,7 @@ ax-eval-results/<timestamp>-<agent>-<model>-<scenario>/
 │   ├── tool-output.raw.txt # Raw adapter output when available
 │   ├── interaction-events.json # Canonical structured CLI/MCP interaction events when available
 │   ├── command-events.json # Normalized command events for CLI runs when available
-│   ├── mcp-events.json     # Structured MCP tool-call events for MCP runs when available
-│   └── mcp-tools-list.json # Advertised MCP surface before the run (except host_session auth)
+│   └── mcp-events.json     # Structured MCP tool-call events for MCP runs when available
 └── fixture/                # The working directory, preserved after the run
     ├── AGENTS.md            # (from template)
     ├── README.md            # (from template)

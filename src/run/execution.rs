@@ -2,7 +2,6 @@ use crate::adapter::{TokenUsage, ToolAdapter, ToolRunOutput};
 use crate::evaluation::{EvaluationInput, EvaluationMetrics};
 use crate::interaction_profile::AdapterEvidenceCapability;
 use crate::mcp_auth::preflight_auth;
-use crate::mcp_inspection::{inspect_tools, validate_declared_tools};
 use crate::run::artifacts::RunArtifacts;
 use crate::run::setup::{PreparedRunContext, PreparedScenarioRun};
 use crate::run::status;
@@ -152,15 +151,6 @@ fn redact_retained_mcp_configs(
     Ok(())
 }
 
-fn persist_and_validate_mcp_tools(
-    artifacts: &RunArtifacts,
-    target: &crate::scenario::McpTarget,
-    response: &serde_json::Value,
-) -> anyhow::Result<()> {
-    artifacts.write_mcp_tools_list(response)?;
-    validate_declared_tools(target, response)
-}
-
 pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResult> {
     let start = std::time::Instant::now();
     println!(
@@ -168,23 +158,6 @@ pub fn run_attempt(input: RunAttemptInput<'_>) -> anyhow::Result<RunAttemptResul
         input.tool, input.model
     );
     preflight_auth(&input.scenario.target)?;
-    if let Some(target) = input.scenario.target.mcp() {
-        if matches!(target.auth, Some(crate::scenario::McpAuth::HostSession)) {
-            eprintln!(
-                "warning: skipping MCP tools/list preflight for host_session auth; \
-                 the harness cannot access credentials held by the agent host"
-            );
-        } else if input.adapter.requires_mcp_inspection() {
-            let response = inspect_tools(
-                target,
-                &input.context.workspace.env.root,
-                input.prepared.artifacts.results_dir(),
-                &input.context.target_env,
-                std::time::Duration::from_secs(input.effective_timeout),
-            )?;
-            persist_and_validate_mcp_tools(&input.prepared.artifacts, target, &response)?;
-        }
-    }
     let agent_env = AgentEnvironment::projected(
         input.adapter.required_agent_env(),
         &input.scenario.agent_env,
@@ -312,8 +285,6 @@ mod tests {
         Evaluation, McpAuth, McpTarget, McpTransport, Scenario, ScriptEntry, ScriptsConfig,
         TargetConfig, Task,
     };
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::net::TcpListener;
     use std::sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -377,72 +348,6 @@ mod tests {
             interaction: Default::default(),
             agent_env: vec![],
         }
-    }
-
-    fn spawn_mcp_tools_server() -> (String, std::thread::JoinHandle<()>) {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("MCP listener");
-        let address = listener.local_addr().expect("MCP address");
-        let server = std::thread::spawn(move || {
-            for index in 0..3 {
-                let (mut stream, _) = listener.accept().expect("MCP request");
-                let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
-                let mut content_length = 0;
-                loop {
-                    let mut line = String::new();
-                    reader.read_line(&mut line).expect("request header");
-                    if line == "\r\n" {
-                        break;
-                    }
-                    if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
-                        content_length = value.trim().parse().expect("content length");
-                    }
-                }
-                let mut body = vec![0; content_length];
-                reader.read_exact(&mut body).expect("request body");
-                let response_body = match index {
-                    0 => {
-                        r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"test","version":"1"}}}"#
-                    }
-                    1 => "",
-                    _ => {
-                        r#"{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"query","description":"Search inventory","inputSchema":{"type":"object"}}]}}"#
-                    }
-                };
-                let status = if index == 1 { "202 Accepted" } else { "200 OK" };
-                write!(
-                    stream,
-                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nMcp-Session-Id: execution-test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    response_body.len(),
-                    response_body
-                )
-                .expect("MCP response");
-            }
-        });
-        (format!("http://{address}/mcp"), server)
-    }
-
-    #[test]
-    fn unknown_declared_tools_fail_after_surface_artifact_is_written() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
-        let artifacts = RunArtifacts::new(&dir.path().join("results"), &env);
-        let scenario = mcp_scenario_with_auth(McpAuth::None);
-        let target = scenario.target.mcp().expect("MCP target");
-        let response = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 2,
-            "result": {"tools": [{"name": "different", "inputSchema": {"type": "object"}}]}
-        });
-
-        let error = persist_and_validate_mcp_tools(&artifacts, target, &response)
-            .expect_err("unknown declaration should fail");
-
-        assert!(error.to_string().contains("unknown target.tools: query"));
-        let persisted: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(artifacts.mcp_tools_list_path()).expect("surface artifact"),
-        )
-        .expect("artifact JSON");
-        assert_eq!(persisted, response);
     }
 
     struct FailingProvisionedAdapter {
@@ -533,8 +438,50 @@ mod tests {
         assert!(cleaned.load(Ordering::SeqCst));
     }
 
+    struct McpConnectionFailureAdapter;
+
+    impl ToolAdapter for McpConnectionFailureAdapter {
+        fn supports_structured_tool_calls(&self) -> bool {
+            true
+        }
+
+        fn is_available(&self) -> Result<ToolStatus, AdapterError> {
+            Ok(ToolStatus {
+                available: true,
+                authenticated: true,
+            })
+        }
+
+        fn provision_target(
+            &self,
+            _target: &TargetConfig,
+            _workspace: &Path,
+            _target_env: &TargetEnvironment,
+        ) -> anyhow::Result<TargetProvision> {
+            Ok(TargetProvision::none())
+        }
+
+        fn run(
+            &self,
+            _scenario: &Scenario,
+            _cwd: &Path,
+            _model: Option<&str>,
+            _timeout_secs: u64,
+            _agent_env: &AgentEnvironment,
+        ) -> anyhow::Result<ToolRunOutput> {
+            Ok(ToolRunOutput {
+                transcript: "MCP connection failed: unsupported protocol version".to_string(),
+                raw_output: None,
+                exit_code: 1,
+                cost_usd: None,
+                token_usage: None,
+                interaction_input: InteractionInput::StructuredMcpToolCalls(vec![]),
+            })
+        }
+    }
+
     #[test]
-    fn host_session_skips_direct_mcp_inspection() {
+    fn mcp_connection_failure_flows_through_normal_evaluation() {
         let dir = tempfile::tempdir().expect("tempdir");
         let env = TestEnv::new(dir.path().join("fixture")).expect("test env");
         std::fs::create_dir_all(&env.root).expect("fixture dir");
@@ -555,33 +502,29 @@ mod tests {
             setup_success: true,
             setup_commands: vec![],
         };
-        let scenario = mcp_scenario_with_auth(McpAuth::HostSession);
-        let cleaned = Arc::new(AtomicBool::new(false));
-        let adapter = FailingProvisionedAdapter {
-            cleaned: Arc::clone(&cleaned),
-        };
+        let scenario = mcp_scenario_with_auth(McpAuth::None);
 
         let result = run_attempt(RunAttemptInput {
-            adapter: &adapter,
+            adapter: &McpConnectionFailureAdapter,
             scenario: &scenario,
             scenario_path: Path::new("scenario.yaml"),
             context: &context,
             prepared: &prepared,
-            tool: "host-session-test",
+            tool: "connection-failure-test",
             model: "model",
             effective_timeout: 1,
             no_judge: true,
             judge_model: None,
             judge_tool: None,
-        });
-        let error = match result {
-            Ok(_) => panic!("adapter run should fail after host-session inspection is skipped"),
-            Err(error) => error,
-        };
+        })
+        .expect("connection failure should be evaluated");
 
-        assert!(error.to_string().contains("agent run failed"));
-        assert!(cleaned.load(Ordering::SeqCst));
-        assert!(!prepared.artifacts.mcp_tools_list_path().exists());
+        assert!(!result.metrics.efficiency.completed);
+        assert_eq!(
+            std::fs::read_to_string(prepared.artifacts.transcript_path())
+                .expect("retained transcript"),
+            "MCP connection failed: unsupported protocol version"
+        );
     }
 
     struct SecretWritingAdapter {
@@ -645,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn run_attempt_redacts_retained_mcp_config_after_live_run() {
+    fn run_attempt_delegates_mcp_connection_and_redacts_retained_config() {
         let dir = tempfile::tempdir().expect("tempdir");
         let env = TestEnv::new(dir.path().join("results").join("fixture")).expect("test env");
         std::fs::create_dir_all(&env.root).expect("fixture dir");
@@ -670,17 +613,9 @@ mod tests {
         let env_name = "AX_EVAL_RUN_SECRET_RETAINED_ARTIFACT_UNIQUE";
         let token = "retained-artifact-secret-token";
         std::env::set_var(env_name, token);
-        let (mcp_url, server) = spawn_mcp_tools_server();
-        let mut scenario = mcp_scenario_with_auth(McpAuth::BearerEnv {
+        let scenario = mcp_scenario_with_auth(McpAuth::BearerEnv {
             env: env_name.to_string(),
         });
-        let TargetConfig::Mcp(target) = &mut scenario.target else {
-            unreachable!("MCP scenario")
-        };
-        let McpTransport::Http { url, .. } = &mut target.transport else {
-            unreachable!("HTTP scenario")
-        };
-        *url = mcp_url;
         let ran = Arc::new(AtomicBool::new(false));
         let adapter = SecretWritingAdapter {
             env_name: env_name.to_string(),
@@ -701,14 +636,8 @@ mod tests {
             judge_tool: None,
         })
         .expect("run attempt");
-        server.join().expect("MCP server");
 
         assert!(ran.load(Ordering::SeqCst));
-        let advertised_surface = std::fs::read_to_string(prepared.artifacts.mcp_tools_list_path())
-            .expect("advertised surface artifact");
-        assert!(advertised_surface.contains("Search inventory"));
-        assert!(advertised_surface.contains("inputSchema"));
-        assert!(!advertised_surface.contains(token));
         let retained =
             std::fs::read_to_string(context.workspace.env.root.join(".mcp.json")).expect("config");
         assert!(!retained.contains(token));

@@ -252,10 +252,9 @@ before that:
   and non-empty. `validate` checks structure and literal-secret mistakes; the
   run path checks environment presence before `provision_target`, so an unset or
   empty variable fails before the agent launches.
-- `host_session`: not preflighted in this cut. ax-eval renders no credential and
-  cannot run its direct `tools/list` inspection because the credential exists
-  only inside the host. It emits a warning; if the host is not already logged
-  in, the run may fail on the first MCP tool call. Host status probes (`codex
+- `host_session`: not preflighted in this cut. ax-eval renders no credential
+  because the credential exists only inside the host. If the host is not already
+  logged in, the run may fail on the first MCP tool call. Host status probes (`codex
   mcp get <name>`, `opencode mcp debug`) remain future work.
 - A `401`/`403` observed *during* a run (token expired mid-run, insufficient
   scope) is captured as an MCP tool-call error (`is_error`) through the normal

@@ -50,8 +50,9 @@ The practical contract is:
 - `interaction_evidence_source` gains a `structured_mcp_tool_calls` value
   alongside the existing `structured_tool_calls` and
   `transcript_regex_fallback`.
-- Health checks remain shell commands for v1; a first-class `mcp_ping`
-  health/gate is deferred until a harness-side MCP client justifies it.
+- Health checks remain shell commands for v1. ax-eval does not act as an MCP
+  client; protocol negotiation and connection failures belong to the evaluated
+  host and its transcript.
 
 See `docs/mcp-targets.md` for the scenario schema, transport rendering, and
 pipeline integration.

@@ -95,11 +95,6 @@ impl TargetProvision {
 
 /// Trait for tool adapters that execute LLM CLI tools.
 pub trait ToolAdapter: Send + Sync {
-    /// Whether real runs through this adapter should preflight MCP `tools/list`.
-    fn requires_mcp_inspection(&self) -> bool {
-        true
-    }
-
     /// Whether this host reads MCP bearer credentials from the agent process.
     fn requires_mcp_bearer_env(&self) -> bool {
         false

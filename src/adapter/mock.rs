@@ -55,10 +55,6 @@ impl MockAdapter {
 }
 
 impl ToolAdapter for MockAdapter {
-    fn requires_mcp_inspection(&self) -> bool {
-        false
-    }
-
     fn supports_structured_tool_calls(&self) -> bool {
         true
     }
